@@ -184,7 +184,7 @@ export default function CreateBravo({ users, bravoValues, onSuccess, isModal }: 
           {/* Destinataire */}
           <div className="space-y-4">
             <label className="text-xs font-black uppercase tracking-widest text-on-surface-variant">
-              Destinataire <span className="text-red-500">*</span>
+              Qui voulez-vous remercier ? <span className="text-red-500">*</span>
             </label>
             {selectedRecipient ? (
               <div className="flex items-center gap-3 p-3 rounded-xl bg-surface-container-low border border-primary/30 shadow-sm relative">
@@ -270,7 +270,7 @@ export default function CreateBravo({ users, bravoValues, onSuccess, isModal }: 
                   </Badge>
                 ))}
                 <span className="text-xs text-on-surface-variant">
-                  → suggestion&nbsp;
+                  → Points totaux &nbsp;
                   <strong className="text-primary">{suggestedPoints} pts</strong>
                 </span>
               </div>
@@ -299,6 +299,7 @@ export default function CreateBravo({ users, bravoValues, onSuccess, isModal }: 
                 <Award size={20} className="text-secondary shrink-0" />
                 <input
                   type="number"
+                  disabled
                   min={1}
                   max={1000}
                   value={data.custom_points}
@@ -307,14 +308,6 @@ export default function CreateBravo({ users, bravoValues, onSuccess, isModal }: 
                 />
                 <span className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">pts</span>
               </div>
-              <input
-                type="range"
-                min={1}
-                max={1000}
-                value={data.custom_points}
-                onChange={(e) => handlePointsChange(Number(e.target.value))}
-                className="w-full accent-primary cursor-pointer"
-              />
             </div>
             {errors.custom_points && <p className="text-xs text-red-500 font-medium">{errors.custom_points}</p>}
           </div>
@@ -375,7 +368,7 @@ export default function CreateBravo({ users, bravoValues, onSuccess, isModal }: 
               <PlusCircle size={18} />
               {processing ? 'Envoi en cours…' : 'Envoyer le Bravo'}
             </Button>
-            <p className="text-center text-[10px] text-on-surface-variant font-black uppercase tracking-widest">Le destinataire recevra une notification immédiate.</p>
+            <p className="text-center text-[10px] text-on-surface-variant font-black uppercase tracking-widest">La personne remerciée recevra une notification immédiate.</p>
           </div>
         </Card>
       </form>

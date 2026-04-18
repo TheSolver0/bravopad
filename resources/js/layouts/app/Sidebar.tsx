@@ -1,7 +1,6 @@
-import { Link, usePage, router } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 import { motion } from 'motion/react';
 import {
-  LayoutDashboard,
   Trophy,
   History,
   Users,
@@ -13,7 +12,6 @@ import {
   Home,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-
 
 export const navItems = [
   { href: '/dashboard',  label: 'Accueil',    icon: Home },
@@ -28,10 +26,12 @@ interface SidebarProps {
   collapsed?: boolean;
   onCollapseToggle?: () => void;
   onClose?: () => void;
+  onCreateBravo?: () => void;
 }
 
-export default function Sidebar({ collapsed = false, onCollapseToggle, onClose }: SidebarProps) {
-  const currentUrl = usePage().url;
+export default function Sidebar({ collapsed = false, onCollapseToggle, onClose, onCreateBravo }: SidebarProps) {
+  const page = usePage();
+  const currentUrl = page.url;
 
   return (
     <div className="flex flex-col h-full relative">
@@ -55,6 +55,20 @@ export default function Sidebar({ collapsed = false, onCollapseToggle, onClose }
             <X size={16} />
           </Button>
         )}
+      </div>
+
+      {/* CTA Envoyer un Bravo */}
+      <div className="p-4 border-t border-surface-container-high">
+        <Button
+          onClick={onCreateBravo}
+          className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all ${
+            collapsed ? 'p-3' : 'px-4'
+          }`}
+          style={{ cursor: 'pointer' }}
+        >
+          <PlusCircle size={18} />
+          {!collapsed && <span>Envoyer un Bravo</span>}
+        </Button>
       </div>
 
       {/* Navigation */}
@@ -89,19 +103,6 @@ export default function Sidebar({ collapsed = false, onCollapseToggle, onClose }
           );
         })}
       </nav>
-
-      {/* CTA Envoyer un Bravo */}
-      <div className="p-4 border-t border-surface-container-high">
-        <Button
-          onClick={() => { router.visit('/create'); onClose?.(); }}
-          className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all ${
-            collapsed ? 'p-3' : 'px-4'
-          }`}
-        >
-          <PlusCircle size={18} />
-          {!collapsed && <span>Envoyer un Bravo</span>}
-        </Button>
-      </div>
 
       {/* Collapse toggle — affiché uniquement en mode desktop */}
       {onCollapseToggle && (

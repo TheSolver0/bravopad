@@ -179,10 +179,10 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
   const slide = slides[current];
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="animate-in fade-in duration-500">
 
-      {/* ── Carrousel d'annonces ────────────────────────────────────────── */}
-      <div className="relative overflow-hidden rounded-2xl shadow-xl min-h-[260px]">
+      {/* ── Carrousel d'annonces ── flush top, no rounding at top ───────── */}
+      <div className="relative overflow-hidden  shadow-xl h-[100px]">
         <AnimatePresence mode="wait">
           <motion.div
             key={slide.id}
@@ -190,45 +190,52 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -40 }}
             transition={{ duration: 0.4, ease: 'easeInOut' }}
-            className={`bg-gradient-to-r ${slide.bg} p-6 md:p-10 text-white flex flex-col justify-between min-h-[260px] relative`}
+            className={`bg-gradient-to-r ${slide.bg} px-5 text-white flex items-center gap-4 relative h-full`}
           >
             {slide.visual}
-            <div className="relative z-10 space-y-3 max-w-xl">
+
+            {/* Contenu principal */}
+            <div className="relative z-10 flex-1 min-w-0 space-y-0.5">
               {slide.tag}
-              <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight leading-tight">{slide.title}</h1>
-              <p className="text-white/70 text-sm md:text-base font-medium leading-relaxed">{slide.subtitle}</p>
-              <div className="flex flex-wrap items-center gap-4 pt-3">
-                {slide.cta && (
-                  <Button variant="secondary" className="px-5 py-2 text-sm shadow-md shadow-secondary/40" onClick={slide.cta.action}>
-                    {slide.cta.label}
-                  </Button>
-                )}
-                {slide.badge}
-              </div>
+              <h1 className="text-sm md:text-base font-extrabold tracking-tight leading-tight truncate">{slide.title}</h1>
+              <p className="text-white/70 text-[11px] font-medium leading-snug hidden md:block line-clamp-1">{slide.subtitle}</p>
             </div>
 
+            {/* Badge */}
+            {slide.badge && (
+              <div className="relative z-10 shrink-0 hidden sm:block">{slide.badge}</div>
+            )}
+
+            {/* CTA */}
+            {slide.cta && (
+              <Button variant="secondary" className="relative z-10 px-3 py-1.5 text-xs shadow-md shadow-secondary/40 shrink-0 hidden lg:flex" onClick={slide.cta.action}>
+                {slide.cta.label}
+              </Button>
+            )}
+
             {/* Contrôles nav */}
-            <div className="absolute bottom-4 right-4 z-20 flex items-center gap-3">
-              <button onClick={prev} className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center transition-all cursor-pointer">
-                <ChevronLeft size={14} className="text-white" />
+            <div className="relative z-20 flex items-center gap-2 shrink-0">
+              <button onClick={prev} className="w-6 h-6 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center transition-all cursor-pointer">
+                <ChevronLeft size={12} className="text-white" />
               </button>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1">
                 {slides.map((_, i) => (
                   <button
                     key={i}
                     onClick={() => setCurrent(i)}
-                    className={`rounded-full transition-all cursor-pointer ${i === current ? 'w-5 h-1.5 bg-white' : 'w-1.5 h-1.5 bg-white/40 hover:bg-white/60'}`}
+                    className={`rounded-full transition-all cursor-pointer ${i === current ? 'w-4 h-1 bg-white' : 'w-1 h-1 bg-white/40 hover:bg-white/60'}`}
                   />
                 ))}
               </div>
-              <button onClick={next} className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center transition-all cursor-pointer">
-                <ChevronRight size={14} className="text-white" />
+              <button onClick={next} className="w-6 h-6 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center transition-all cursor-pointer">
+                <ChevronRight size={12} className="text-white" />
               </button>
             </div>
           </motion.div>
         </AnimatePresence>
       </div>
 
+      <div className="p-6 md:p-8 space-y-8">
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Flux des Bravos */}
         <div className="lg:col-span-8 space-y-6">
@@ -242,8 +249,8 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
                 <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
                 <span className="text-[9px] font-bold text-on-surface-variant uppercase tracking-widest">{bravos.length} récents</span>
               </div>
-              <Button variant="primary" className="shadow-md shadow-primary/20 px-4 py-2 text-xs" onClick={() => setShowCreateModal(true)}>
-                <PlusCircle size={16} /> <span className="hidden sm:inline">Envoyer un Bravo</span>
+              <Button variant="primary" className="shadow-md shadow-primary/20 px-4 py-2 text-xs" style={{cursor: 'pointer'}} onClick={() => setShowCreateModal(true)}>
+                <PlusCircle size={20} /> <span className="hidden sm:inline">Envoyer un Bravo</span>
               </Button>
             </div>
           </div>
@@ -442,6 +449,7 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
 
 
         </div>
+      </div>
       </div>
 
       {/* ── Modal Créer un Bravo ─────────────────────────────────────────── */}

@@ -1,0 +1,85 @@
+@baseUrl = http://localhost:8000/api
+@token = YOUR_AUTH_TOKEN
+
+GET {{baseUrl}}/bravos
+Accept: application/json
+Authorization: Bearer {{token}}
+
+###
+
+POST {{baseUrl}}/bravos
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+    "receiver_id": 2,
+    "value_id": 1,
+    "message": "Excellent travail"
+}
+###
+
+GET {{baseUrl}}/bravos/users/2/received
+Accept: application/json
+Authorization: Bearer {{token}}
+
+###
+
+GET {{baseUrl}}/bravos/users/1/sent
+Accept: application/json
+Authorization: Bearer {{token}}
+
+###
+
+GET {{baseUrl}}/bravos/challenges/1
+Accept: application/json
+Authorization: Bearer {{token}}
+
+###
+
+GET {{baseUrl}}/challenges
+Accept: application/json
+Authorization: Bearer {{token}}
+
+###
+
+POST {{baseUrl}}/challenges
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+    "name": "Smile Week",
+    "description": "Récompenser les équipes les plus accueillantes",
+    "start_date": "2026-04-16",
+    "end_date": "2026-04-23",
+    "points_bonus": 2000
+}
+
+###
+
+GET {{baseUrl}}/challenges/active
+Accept: application/json
+Authorization: Bearer {{token}}
+
+###
+
+GET {{baseUrl}}/challenges/active
+Accept: application/json
+Authorization: Bearer {{token}}
+
+###
+
+GET {{baseUrl}}/challenges/1
+Accept: application/json
+Authorization: Bearer {{token}}
+
+###
+
+POST {{baseUrl}}/challenges/1/activate
+Accept: application/json
+Authorization: Bearer {{token}}
+
+###
+
+POST {{baseUrl}}/challenges/1/finish
+Accept: application/json
+Authorization: Bearer {{token}}

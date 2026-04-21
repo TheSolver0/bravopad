@@ -2,6 +2,8 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\BravoValue;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -40,12 +42,19 @@ class HandleInertiaRequests extends Middleware
             'name' => config('app.name'),
             'auth' => [
                 'user' => $request->user(),
+                'permissions' => $request->user() ? [
+                    'canManageChallenges' => $request->user()->isManager(),
+                    'canManageUsers'      => $request->user()->isAdmin(),
+                ] : ['canManageChallenges' => false, 'canManageUsers' => false],
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'flash' => [
                 'success' => $request->session()->get('success'),
                 'error'   => $request->session()->get('error'),
             ],
+            // Partagé globalement pour le modal "Envoyer un Bravo" accessible depuis toutes les pages
+            'bravoValues' => fn () => BravoValue::where('is_active', true)->get(),
+            'users'       => fn () => $request->user() ? User::orderBy('name')->get() : [],
         ];
     }
 }

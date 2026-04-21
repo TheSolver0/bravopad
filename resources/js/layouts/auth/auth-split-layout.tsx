@@ -26,25 +26,25 @@ export default function AuthSplitLayout({
                     <Link href={home()} className="flex flex-col items-center gap-6">
                         <div className="flex h-40 w-40 items-center justify-center rounded-2xl bg-white p-4 shadow-2xl">
                             <img
-                                src="/assets/images/logo.png"
-                                alt="Port Autonome de Douala"
+                                src="/assets/images/orbit-logo.png"
+                                alt="Orbit Sarl"
                                 className="h-full w-full object-contain"
                             />
                         </div>
                         <div className="text-center">
                             <p className="text-lg font-semibold uppercase tracking-widest text-blue-200">
-                                Port Autonome de Douala
+                                Orbit Sarl
                             </p>
-                            <p className="mt-1 text-sm text-blue-300 tracking-wider">
+                            {/* <p className="mt-1 text-sm text-blue-300 tracking-wider">
                                 Port Authority of Douala
-                            </p>
+                            </p> */}
                         </div>
                     </Link>
 
                     <div className="max-w-xs text-center">
-                        <h2 className="text-2xl font-bold text-white">{name}</h2>
+                        <h2 className="text-2xl font-bold text-white">Bravo</h2>
                         <p className="mt-3 text-sm leading-relaxed text-blue-200/80">
-                            Plateforme de Reconnaissance entre employés du Port Autonome de Douala
+                            Plateforme de Reconnaissance entre employés de Orbit Sarl
                         </p>
                     </div>
 
@@ -58,7 +58,7 @@ export default function AuthSplitLayout({
 
                 {/* Pied de page côté gauche */}
                 <div className="relative z-10 p-6 text-center text-xs text-blue-300/60">
-                    © {new Date().getFullYear()} Port Autonome de Douala — Tous droits réservés
+                    © {new Date().getFullYear()} Orbit Sarl — Tous droits réservés
                 </div>
             </div>
 
@@ -71,13 +71,13 @@ export default function AuthSplitLayout({
                 >
                     <div className="flex h-20 w-20 items-center justify-center rounded-xl bg-white p-2 shadow-lg ring-1 ring-gray-200">
                         <img
-                            src="/assets/images/logo.png"
-                            alt="Port Autonome de Douala"
+                            src="/assets/images/orbit-logo.png"
+                            alt="Orbit Sarl"
                             className="h-full w-full object-contain"
                         />
                     </div>
                     <span className="text-sm font-semibold text-muted-foreground uppercase tracking-widest">
-                        Port Autonome de Douala
+                        Orbit Sarl
                     </span>
                 </Link>
 

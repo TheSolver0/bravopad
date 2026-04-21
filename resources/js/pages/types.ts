@@ -13,12 +13,15 @@ export interface Reward {
   category: 'vouchers' | 'tickets' | 'experiences' | 'equipment';
 }
 
+export type Permission = 'admin' | 'manager' | 'employee';
+
 export interface User {
   id: number;
   name: string;
   email?: string;
   role: string;
-  department: string;
+  permission: Permission;
+  department: string | null;
   avatar: string;
   points_total: number;
 }
@@ -34,6 +37,7 @@ export interface Bravo {
   id: number;
   sender_id: number;
   receiver_id: number;
+  badge?: 'good_job' | 'excellent' | 'impressive';
   value_id?: number | null;
   challenge_id?: number;
   message: string;
@@ -53,8 +57,11 @@ export interface Challenge {
   end_date: string;
   points_bonus: number;
   status: 'active' | 'finished';
+  for_all: boolean;
   days_left: number;
   bravos_count: number;
+  participants_count: number;
+  is_participating: boolean;
 }
 
 export interface WeeklyData {
@@ -67,4 +74,12 @@ export interface ValueStat {
   value: number;
   color: string;
   icon: string;
+}
+
+export interface BadgeStat {
+  key: string;
+  label: string;
+  emoji: string;
+  color: string;
+  count: number;
 }

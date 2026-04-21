@@ -10,17 +10,30 @@ import {
   X,
   ChevronRight,
   Home,
+  Shield,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { usePermissions } from '@/hooks/usePermissions';
+import type { Permission } from '@/pages/types';
 
-export const navItems = [
+interface NavItem {
+  href: string;
+  label: string;
+  icon: React.ElementType;
+  minPermission?: Permission;
+}
+
+export const navItems: NavItem[] = [
   { href: '/dashboard',  label: 'Accueil',    icon: Home },
-  { href: '/history',    label: 'Mes Bravos',  icon: History },
-  { href: '/challenges', label: 'Défis',       icon: Trophy },
-  { href: '/team',       label: 'Équipe',      icon: Users },
-  { href: '/stats',      label: 'Stats',       icon: BarChart3 },
-  { href: '/shop',       label: 'Boutique',    icon: ShoppingBag },
+  { href: '/history',    label: 'Mes Bravos', icon: History },
+  { href: '/challenges', label: 'Défis',      icon: Trophy },
+  { href: '/team',       label: 'Équipe',     icon: Users },
+  { href: '/stats',      label: 'Stats',      icon: BarChart3 },
+  { href: '/shop',       label: 'Boutique',   icon: ShoppingBag },
+  { href: '/admin',      label: 'Admin',      icon: Shield, minPermission: 'admin' },
 ];
+
+const PERM_RANK: Record<Permission, number> = { employee: 0, manager: 1, admin: 2 };
 
 interface SidebarProps {
   collapsed?: boolean;
@@ -32,17 +45,23 @@ interface SidebarProps {
 export default function Sidebar({ collapsed = false, onCollapseToggle, onClose, onCreateBravo }: SidebarProps) {
   const page = usePage();
   const currentUrl = page.url;
+  const { permission } = usePermissions();
+  const userRank = PERM_RANK[permission] ?? 0;
+
+  const visibleItems = navItems.filter(item =>
+    !item.minPermission || userRank >= PERM_RANK[item.minPermission]
+  );
 
   return (
     <div className="flex flex-col h-full relative">
       {/* Logo */}
       <div className="p-3 flex items-center gap-3 border-b border-surface-container-high">
         <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0">
-          <img src="/assets/images/logo.png" alt="Logo" className="w-10 h-10 object-contain" />
+          <img src="/assets/images/orbit-logo.png" alt="Logo" className="w-10 h-10 object-contain" />
         </div>
         {!collapsed && (
           <div className="animate-in fade-in slide-in-from-left-4 duration-300">
-            <h2 className="font-extrabold text-lg leading-none tracking-tight text-primary">BravoPAD</h2>
+            <h2 className="font-extrabold text-lg leading-none tracking-tight text-primary">Bravo</h2>
           </div>
         )}
         {onClose && (
@@ -73,7 +92,7 @@ export default function Sidebar({ collapsed = false, onCollapseToggle, onClose, 
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-5 space-y-1 overflow-y-auto">
-        {navItems.map(item => {
+        {visibleItems.map(item => {
           const isActive = currentUrl.startsWith(item.href);
           return (
             <Link

@@ -15,6 +15,8 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             BravoValueSeeder::class,
+            DepartmentSeeder::class,
+            RoleSeeder::class,
             UserSeeder::class,
             ChallengeSeeder::class,
         ]);

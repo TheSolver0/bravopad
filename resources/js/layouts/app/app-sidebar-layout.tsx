@@ -105,7 +105,7 @@ export default function AppSidebarLayout({ breadcrumbs = [], children }: AppSide
             <div className="relative bg-gradient-to-r from-[#003d7a] via-[#00529e] to-[#0066c2] px-5 py-4 flex items-center justify-between shrink-0">
               <div className="space-y-0.5">
                 <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-white/70">
-                  <Anchor size={11} /> Port Autonome de Douala
+                  <Anchor size={11} /> Orbit Sarl
                 </span>
                 <h2 className="text-xl font-extrabold text-white leading-tight tracking-tight">Envoyer un Bravo</h2>
               </div>

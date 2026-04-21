@@ -1,12 +1,12 @@
 import { useState, useMemo } from 'react';
 import { Link } from '@inertiajs/react';
 import {
-  Search, Filter, ArrowRight, MessageSquare, Award, Star,
+  Search, Filter, MessageSquare, Award, Star,
   Gift, TrendingUp, TrendingDown, Pencil, Trophy, Zap, Heart, Users
 } from 'lucide-react';
 import { Card } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
-import { Bravo, User } from './types';
+import { Bravo, User, BadgeStat } from './types';
 import { MOCK_REWARDS } from './constants';
 
 interface HistoryProps {
@@ -14,6 +14,7 @@ interface HistoryProps {
   currentUserId: number;
   currentUser: User;
   pointsGiven: number;
+  badgesSent: BadgeStat[];
 }
 
 // ── Définition des awards (badges de progression) ─────────────────────────
@@ -77,7 +78,7 @@ const AWARD_DEFS: AwardDef[] = [
   },
 ];
 
-export default function History({ bravos, currentUserId, currentUser, pointsGiven }: HistoryProps) {
+export default function History({ bravos, currentUserId, currentUser, pointsGiven, badgesSent }: HistoryProps) {
   const [filter, setFilter] = useState<'all' | 'sent' | 'received'>('all');
   const [search, setSearch] = useState('');
 
@@ -214,9 +215,24 @@ export default function History({ bravos, currentUserId, currentUser, pointsGive
                           </p>
                           <p className="text-[10px] text-on-surface-variant">{bravo.created_at}</p>
                         </div>
-                        <div className="flex items-center gap-1 text-secondary font-bold shrink-0">
-                          <Award size={14} />
-                          +{bravo.points}
+                        <div className="flex flex-col items-end gap-1 shrink-0">
+                          {bravo.badge && (() => {
+                            const meta: Record<string, { emoji: string; color: string; label: string }> = {
+                              good_job:   { emoji: '👍', color: '#4CAF50', label: 'Good Job' },
+                              excellent:  { emoji: '⭐', color: '#2196F3', label: 'Excellent' },
+                              impressive: { emoji: '🚀', color: '#9C27B0', label: 'Impressive' },
+                            };
+                            const b = meta[bravo.badge];
+                            return b ? (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-white text-[9px] font-black" style={{ backgroundColor: b.color }}>
+                                {b.emoji} {b.label}
+                              </span>
+                            ) : null;
+                          })()}
+                          <div className="flex items-center gap-1 text-secondary font-bold">
+                            <Award size={14} />
+                            +{bravo.points}
+                          </div>
                         </div>
                       </div>
                       {bravo.message && (
@@ -298,7 +314,31 @@ export default function History({ bravos, currentUserId, currentUser, pointsGive
             </div>
           </Card>
 
-          {/* ── 3. Valeurs les plus reconnues ── */}
+          {/* ── 3. Badges les plus envoyés ── */}
+          {badgesSent.length > 0 && (
+            <Card className="border-none bg-white/90 backdrop-blur-sm space-y-3">
+              <p className="text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">Badges les plus envoyés</p>
+              <div className="space-y-2">
+                {badgesSent.map(b => (
+                  <div key={b.key} className="flex items-center gap-2">
+                    <span className="text-base leading-none">{b.emoji}</span>
+                    <div className="flex-1 flex items-center justify-between">
+                      <span className="text-sm font-semibold">{b.label}</span>
+                      <span className="text-[10px] font-black" style={{ color: b.color }}>×{b.count}</span>
+                    </div>
+                    <div className="w-12 h-1.5 rounded-full bg-surface-container-high overflow-hidden">
+                      <div
+                        className="h-full rounded-full"
+                        style={{ width: `${(b.count / badgesSent[0].count) * 100}%`, backgroundColor: b.color }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+
+          {/* ── 4. Valeurs les plus reconnues ── */}
           {topValues.length > 0 && (
             <Card className="border-none bg-white/90 backdrop-blur-sm space-y-3">
               <p className="text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">Valeurs mises en avant</p>

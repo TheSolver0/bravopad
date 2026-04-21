@@ -53,12 +53,36 @@ class BravoController extends Controller
                 'created_at'  => $b->created_at->format('d/m/Y à H:i'),
                 'sender'   => $b->sender   ? ['id' => $b->sender->id,   'name' => $b->sender->name,   'avatar' => $b->sender->avatar]   : null,
                 'receiver' => $b->receiver ? ['id' => $b->receiver->id, 'name' => $b->receiver->name, 'avatar' => $b->receiver->avatar] : null,
+                'badge'    => $b->badge,
                 'values'   => $b->values->map(fn ($v) => ['id' => $v->id, 'name' => $v->name, 'color' => $v->color])->values(),
             ]);
 
         $user = $request->user();
 
         $pointsGiven = Bravo::where('sender_id', $userId)->sum('points');
+
+        $badgeMeta = [
+            'good_job'   => ['label' => 'Good Job',   'emoji' => '👍', 'color' => '#4CAF50'],
+            'excellent'  => ['label' => 'Excellent',  'emoji' => '⭐', 'color' => '#2196F3'],
+            'impressive' => ['label' => 'Impressive', 'emoji' => '🚀', 'color' => '#9C27B0'],
+        ];
+
+        $badgesSent = Bravo::selectRaw('badge, COUNT(*) as count')
+            ->where('sender_id', $userId)
+            ->whereNotNull('badge')
+            ->groupBy('badge')
+            ->get()
+            ->map(fn($row) => [
+                'key'   => $row->badge,
+                'label' => $badgeMeta[$row->badge]['label'] ?? $row->badge,
+                'emoji' => $badgeMeta[$row->badge]['emoji'] ?? '🏅',
+                'color' => $badgeMeta[$row->badge]['color'] ?? '#6366f1',
+                'count' => (int) $row->count,
+            ])
+            ->sortByDesc('count')
+            ->values();
+
+        $user->loadMissing('department');
 
         return Inertia::render('History', [
             'bravos'        => $bravos,
@@ -67,11 +91,13 @@ class BravoController extends Controller
                 'id'           => $user->id,
                 'name'         => $user->name,
                 'avatar'       => $user->avatar,
-                'department'   => $user->department,
+                'department'   => $user->department?->name ?? null,
                 'role'         => $user->role,
+                'permission'   => $user->permission ?? 'employee',
                 'points_total' => $user->points_total,
             ],
             'pointsGiven'   => (int) $pointsGiven,
+            'badgesSent'    => $badgesSent,
         ]);
     }
 
@@ -89,21 +115,28 @@ class BravoController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'receiver_id'  => 'required|exists:users,id',
-            'value_ids'    => 'required|array|min:1',
-            'value_ids.*'  => 'exists:bravo_values,id',
-            'custom_points'=> 'required|integer|min:1|max:1000',
-            'message'      => 'nullable|string',
+            'receiver_id' => 'required|exists:users,id',
+            'badge'       => 'required|in:good_job,excellent,impressive',
+            'value_ids'   => 'nullable|array',
+            'value_ids.*' => 'exists:bravo_values,id',
+            'message'     => 'nullable|string',
         ]);
 
         return DB::transaction(function () use ($validated, $request) {
 
             $sender = $request->user();
 
-            // Primary value (first selected) stored in the FK column
-            $primaryValue = BravoValue::findOrFail($validated['value_ids'][0]);
+            $badgePoints = ['good_job' => 10, 'excellent' => 25, 'impressive' => 50];
+            $basePoints  = $badgePoints[$validated['badge']];
 
-            $points = $validated['custom_points'];
+            $valueBonus = 0;
+            $primaryValueId = null;
+            if (!empty($validated['value_ids'])) {
+                $values = BravoValue::whereIn('id', $validated['value_ids'])->get();
+                $valueBonus = (int) $values->sum(fn ($v) => round(5 * $v->multiplier));
+            }
+
+            $points = $basePoints + $valueBonus;
 
             // challenge actif (global)
             $challenge = Challenge::where('status', 'active')
@@ -111,17 +144,20 @@ class BravoController extends Controller
                 ->where('end_date', '>=', now())
                 ->first();
 
+            $valueIds = $validated['value_ids'] ?? [];
+
             $bravo = Bravo::create([
                 'sender_id'   => $sender->id,
                 'receiver_id' => $validated['receiver_id'],
-                'value_id'    => $primaryValue->id,
+                'badge'       => $validated['badge'],
+                'value_id'    => $valueIds[0] ?? null,
                 'challenge_id'=> $challenge?->id,
                 'message'     => $validated['message'] ?? null,
                 'points'      => $points,
             ]);
 
             // Attacher toutes les valeurs dans la table pivot
-            $bravo->values()->sync($validated['value_ids']);
+            $bravo->values()->sync($valueIds);
 
             // update points utilisateur
             $receiver = User::findOrFail($validated['receiver_id']);

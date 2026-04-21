@@ -14,6 +14,7 @@ class Bravo extends Model
     protected $fillable = [
         'sender_id',
         'receiver_id',
+        'badge',
         'value_id',
         'challenge_id',
         'message',

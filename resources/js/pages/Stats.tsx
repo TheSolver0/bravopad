@@ -20,7 +20,7 @@ import {
 } from 'recharts';
 import { Card } from '../components/ui/card';
 import { Button } from '@/components/ui/button';
-import { User, WeeklyData, ValueStat } from './types';
+import { User, WeeklyData, ValueStat, BadgeStat } from './types';
 
 const ICON_MAP: Record<string, React.ComponentType<{ size?: number; style?: React.CSSProperties }>> = {
   Zap, Users2, Clock, Award, Trophy, TrendingUp, Activity,
@@ -33,9 +33,10 @@ interface StatsProps {
   totalPoints: number;
   weeklyData: WeeklyData[];
   valueStats: ValueStat[];
+  badgeStats: BadgeStat[];
 }
 
-export default function Stats({ users, sentCount, receivedCount, totalPoints, weeklyData, valueStats }: StatsProps) {
+export default function Stats({ users, sentCount, receivedCount, totalPoints, weeklyData, valueStats, badgeStats }: StatsProps) {
   const topUsers = [...users].sort((a, b) => b.points_total - a.points_total).slice(0, 3);
   const maxFlow  = Math.max(sentCount, receivedCount, 1);
 
@@ -162,6 +163,38 @@ export default function Stats({ users, sentCount, receivedCount, totalPoints, we
           </div>
         </Card>
       </div>
+
+      {/* Répartition par badges */}
+      {badgeStats.length > 0 && (
+        <Card className="space-y-6 border-none bg-white/80 backdrop-blur-md">
+          <h3 className="text-xl font-black tracking-tight">Répartition par Badge</h3>
+          <div className="grid grid-cols-3 gap-4">
+            {badgeStats.map(badge => {
+              const total = badgeStats.reduce((s, b) => s + b.count, 0);
+              const pct   = total > 0 ? Math.round((badge.count / total) * 100) : 0;
+              return (
+                <div key={badge.key} className="flex flex-col items-center gap-3 p-5 rounded-2xl bg-surface-container-low">
+                  <span className="text-3xl">{badge.emoji}</span>
+                  <div className="text-center">
+                    <p className="font-black text-sm">{badge.label}</p>
+                    <p className="text-2xl font-black" style={{ color: badge.color }}>{badge.count}</p>
+                    <p className="text-[10px] text-on-surface-variant font-medium">{pct}% des bravos</p>
+                  </div>
+                  <div className="w-full h-1.5 bg-white rounded-full overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${pct}%` }}
+                      transition={{ duration: 1.2, ease: 'circOut' }}
+                      className="h-full rounded-full"
+                      style={{ backgroundColor: badge.color }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Répartition par valeurs */}

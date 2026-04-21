@@ -2,9 +2,11 @@
 
 namespace App\Providers;
 
+use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str as SupportStr;
@@ -28,6 +30,13 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->configureDefaults();
         Schema::defaultStringLength(191);
+        $this->configureGates();
+    }
+
+    protected function configureGates(): void
+    {
+        Gate::define('manage-challenges', fn (User $user) => $user->isManager());
+        Gate::define('manage-users',      fn (User $user) => $user->isAdmin());
     }
 
     /**

@@ -2,9 +2,9 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useForm, router } from '@inertiajs/react';
 import { MessageSquare, Award, PlusCircle, Search, XCircle, CheckCircle, Mic, MicOff, Sparkles, Loader2 } from 'lucide-react';
 import { Card } from '../components/ui/card';
-import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { User, BravoValue } from './types';
+import { BADGES } from './constants';
 
 interface CreateBravoProps {
   users: User[];
@@ -20,24 +20,23 @@ export default function CreateBravo({ users, bravoValues, onSuccess, isModal }: 
   const [submitted, setSubmitted] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [isRephrasing, setIsRephrasing] = useState(false);
-  const [pointsManuallySet, setPointsManuallySet] = useState(false);
   const recognitionRef = useRef<any>(null);
   const messageRef = useRef('');
 
   const { data, setData, post, processing, errors } = useForm({
     receiver_id: '' as string | number,
+    badge: '' as string,
     value_ids: [] as number[],
     message: '',
-    custom_points: 10,
   });
 
   // Keep ref in sync for voice handler (avoids stale closure)
   messageRef.current = data.message;
 
+  const selectedBadge = BADGES.find(b => b.key === data.badge) ?? null;
   const selectedValues = bravoValues.filter(v => data.value_ids.includes(v.id));
-  const suggestedPoints = selectedValues.length > 0
-    ? Math.round(selectedValues.reduce((sum, v) => sum + 10 * v.multiplier, 0))
-    : 10;
+  const valueBonus = Math.round(selectedValues.reduce((sum, v) => sum + 5 * v.multiplier, 0));
+  const totalPoints = (selectedBadge?.points ?? 0) + valueBonus;
 
   // Filter users by search
   useEffect(() => {
@@ -47,14 +46,6 @@ export default function CreateBravo({ users, bravoValues, onSuccess, isModal }: 
       setFilteredUsers([]);
     }
   }, [searchTerm, users]);
-
-  // Auto-suggest points when values change, unless user manually set them
-  useEffect(() => {
-    if (!pointsManuallySet) {
-      setData('custom_points', suggestedPoints);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data.value_ids.join(',')]);
 
   const handleSelectRecipient = (user: User) => {
     setSelectedRecipient(user);
@@ -73,17 +64,6 @@ export default function CreateBravo({ users, bravoValues, onSuccess, isModal }: 
         ? data.value_ids.filter(id => id !== valueId)
         : [...data.value_ids, valueId]
     );
-  };
-
-  const handlePointsChange = (val: number) => {
-    setPointsManuallySet(true);
-    setData('custom_points', Math.max(1, Math.min(1000, val)));
-  };
-
-
-  const handleUseSuggestion = () => {
-    setPointsManuallySet(false);
-    setData('custom_points', suggestedPoints);
   };
 
   // Voice dictation via Web Speech API
@@ -235,11 +215,41 @@ export default function CreateBravo({ users, bravoValues, onSuccess, isModal }: 
             {errors.receiver_id && <p className="text-xs text-red-500 font-medium">{errors.receiver_id}</p>}
           </div>
 
-          {/* Valeurs illustrées — multi-sélection */}
+          {/* Badge */}
           <div className="space-y-4">
             <label className="text-xs font-black uppercase tracking-widest text-on-surface-variant">
-              Valeurs illustrées <span className="text-red-500">*</span>
-              <span className="ml-2 normal-case font-medium text-[10px] text-on-surface-variant/60">plusieurs choix possibles</span>
+              Badge <span className="text-red-500">*</span>
+            </label>
+            <div className="grid grid-cols-3 gap-3">
+              {BADGES.map(badge => {
+                const isSelected = data.badge === badge.key;
+                return (
+                  <button
+                    type="button"
+                    key={badge.key}
+                    onClick={() => setData('badge', badge.key)}
+                    className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border-2 font-bold text-sm transition-all ${
+                      isSelected
+                        ? 'text-white shadow-md border-transparent'
+                        : 'bg-surface-container-low text-on-surface-variant border-transparent hover:border-primary/30'
+                    }`}
+                    style={isSelected ? { backgroundColor: badge.color } : {}}
+                  >
+                    <span className="text-2xl">{badge.emoji}</span>
+                    <span>{badge.label}</span>
+                    <span className={`text-xs font-black ${isSelected ? 'text-white/80' : 'text-primary'}`}>{badge.points} pts</span>
+                  </button>
+                );
+              })}
+            </div>
+            {errors.badge && <p className="text-xs text-red-500 font-medium">{errors.badge}</p>}
+          </div>
+
+          {/* Valeurs illustrées — bonus */}
+          <div className="space-y-4">
+            <label className="text-xs font-black uppercase tracking-widest text-on-surface-variant">
+              Valeurs illustrées
+              <span className="ml-2 normal-case font-medium text-[10px] text-on-surface-variant/60">bonus optionnels</span>
             </label>
             <div className="flex flex-wrap gap-2">
               {bravoValues.map(val => {
@@ -262,55 +272,21 @@ export default function CreateBravo({ users, bravoValues, onSuccess, isModal }: 
                 );
               })}
             </div>
-            {selectedValues.length > 0 && (
-              <div className="flex flex-wrap items-center gap-2">
-                {selectedValues.map(v => (
-                  <Badge key={v.id} variant="primary" className="text-white border-none text-xs" style={{ backgroundColor: v.color }}>
-                    {v.name}
-                  </Badge>
-                ))}
-                <span className="text-xs text-on-surface-variant">
-                  → Points totaux &nbsp;
-                  <strong className="text-primary">{suggestedPoints} pts</strong>
-                </span>
-              </div>
-            )}
             {errors.value_ids && <p className="text-xs text-red-500 font-medium">{errors.value_ids}</p>}
           </div>
 
-          {/* Points personnalisés */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-black uppercase tracking-widest text-on-surface-variant">
-                Points attribués <span className="text-red-500">*</span>
-              </label>
-              {pointsManuallySet && selectedValues.length > 0 && (
-                <button
-                  type="button"
-                  onClick={handleUseSuggestion}
-                  className="text-[10px] text-primary font-bold hover:underline"
-                >
-                  Utiliser la suggestion ({suggestedPoints} pts)
-                </button>
-              )}
-            </div>
-            <div className="flex flex-col gap-3 p-4 bg-primary/5 rounded-xl border border-primary/10">
-              <div className="flex items-center gap-3">
-                <Award size={20} className="text-secondary shrink-0" />
-                <input
-                  type="number"
-                  disabled
-                  min={1}
-                  max={1000}
-                  value={data.custom_points}
-                  onChange={(e) => handlePointsChange(Number(e.target.value))}
-                  className="w-24 text-center text-2xl font-black text-primary bg-white rounded-lg border border-primary/20 focus:ring-2 focus:ring-primary/20 focus:outline-none py-1"
-                />
-                <span className="text-[10px] font-black text-on-surface-variant uppercase tracking-widest">pts</span>
+          {/* Points total */}
+          {selectedBadge && (
+            <div className="flex items-center gap-3 p-4 bg-primary/5 rounded-xl border border-primary/10">
+              <Award size={20} className="text-secondary shrink-0" />
+              <div className="flex-1 text-sm text-on-surface-variant">
+                <span className="font-medium">{selectedBadge.label}</span>
+                <span className="text-on-surface-variant/60"> ({selectedBadge.points} pts)</span>
+                {valueBonus > 0 && <span className="text-green-600 font-semibold"> + {valueBonus} pts bonus</span>}
               </div>
+              <span className="text-2xl font-black text-primary">{totalPoints} pts</span>
             </div>
-            {errors.custom_points && <p className="text-xs text-red-500 font-medium">{errors.custom_points}</p>}
-          </div>
+          )}
 
           {/* Message */}
           <div className="space-y-3">
@@ -363,7 +339,7 @@ export default function CreateBravo({ users, bravoValues, onSuccess, isModal }: 
             <Button
               type="submit"
               className="w-full py-2.5 text-sm shadow-md shadow-primary/20"
-              disabled={processing || !data.receiver_id || data.value_ids.length === 0}
+              disabled={processing || !data.receiver_id || !data.badge}
             >
               <PlusCircle size={18} />
               {processing ? 'Envoi en cours…' : 'Envoyer le Bravo'}

@@ -43,6 +43,26 @@ class StatsController extends Controller
             ])
             ->values();
 
+        // Répartition par badge (global)
+        $badgeMeta = [
+            'good_job'   => ['label' => 'Good Job',   'emoji' => '👍', 'color' => '#4CAF50'],
+            'excellent'  => ['label' => 'Excellent',  'emoji' => '⭐', 'color' => '#2196F3'],
+            'impressive' => ['label' => 'Impressive', 'emoji' => '🚀', 'color' => '#9C27B0'],
+        ];
+
+        $badgeStats = Bravo::selectRaw('badge, COUNT(*) as count')
+            ->whereNotNull('badge')
+            ->groupBy('badge')
+            ->get()
+            ->map(fn($row) => [
+                'key'   => $row->badge,
+                'label' => $badgeMeta[$row->badge]['label'] ?? $row->badge,
+                'emoji' => $badgeMeta[$row->badge]['emoji'] ?? '🏅',
+                'color' => $badgeMeta[$row->badge]['color'] ?? '#6366f1',
+                'count' => (int) $row->count,
+            ])
+            ->values();
+
         return Inertia::render('Stats', [
             'users'         => $users,
             'sentCount'     => $sentCount,
@@ -50,6 +70,7 @@ class StatsController extends Controller
             'totalPoints'   => (int) $totalPoints,
             'weeklyData'    => $weeklyData,
             'valueStats'    => $valueStats,
+            'badgeStats'    => $badgeStats,
         ]);
     }
 }

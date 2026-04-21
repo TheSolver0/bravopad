@@ -21,6 +21,7 @@ import { Badge } from '../components/ui/badge';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { User, Bravo, Challenge, BravoValue } from './types';
+import { BADGES } from './constants';
 import CreateBravo from './CreateBravo';
 
 interface DashboardProps {
@@ -69,11 +70,11 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
       bg: 'from-[#003d7a] via-[#00529e] to-[#0066c2]',
       tag: (
         <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-white/70">
-          <Anchor size={11} /> Port Autonome de Douala
+          <Anchor size={11} /> Orbit Sarl
         </span>
       ),
-      title: 'Bienvenue sur Bravo PAD',
-      subtitle: 'Reconnaissez l\'excellence de vos collègues et valorisez les talents qui font la force du premier port d\'Afrique centrale.',
+      title: 'Bienvenue sur Bravo ',
+      subtitle: 'Reconnaissez l\'excellence de vos collègues et valorisez les talents qui font la force de Orbit Sarl.',
       cta: { label: 'Envoyer un Bravo', action: () => setShowCreateModal(true) },
       badge: (
         <div className="flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md rounded-xl border border-white/10">
@@ -306,8 +307,20 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
                         </div>
                       </div>
                       <div className="flex items-center gap-4">
-                        <div className="text-right">
-                          <div className="flex items-center gap-1.5 text-secondary font-black text-2xl tracking-tighter">
+                        <div className="text-right space-y-1">
+                          {bravo.badge && (() => {
+                            const b = BADGES.find(x => x.key === bravo.badge);
+                            return b ? (
+                              <div
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-white text-[10px] font-black"
+                                style={{ backgroundColor: b.color }}
+                              >
+                                <span>{b.emoji}</span>
+                                <span>{b.label}</span>
+                              </div>
+                            ) : null;
+                          })()}
+                          <div className="flex items-center justify-end gap-1.5 text-secondary font-black text-2xl tracking-tighter">
                             <Award size={20} />
                             <span className="font-extrabold text-xl">+{bravo.points}</span>
                           </div>

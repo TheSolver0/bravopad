@@ -11,25 +11,30 @@ class UserSeeder extends Seeder
     public function run(): void
     {
         $users = [
-            ['name' => 'Sarah Kamau',    'email' => 'sarah@bravo.test',   'role' => 'Directrice Artistique', 'department' => 'Design',       'points_total' => 1250],
-            ['name' => 'Marcus Diallo',  'email' => 'marcus@bravo.test',  'role' => 'Développeur Senior',    'department' => 'Ingénierie',   'points_total' => 840],
-            ['name' => 'Léa Traoré',     'email' => 'lea@bravo.test',     'role' => 'Product Owner',         'department' => 'Produit',      'points_total' => 690],
-            ['name' => 'David Okoro',    'email' => 'david@bravo.test',   'role' => 'Growth Manager',        'department' => 'Marketing',    'points_total' => 2100],
-            ['name' => 'Jordan Mbeki',   'email' => 'jordan@bravo.test',  'role' => 'Fullstack Dev',         'department' => 'Ingénierie',   'points_total' => 540],
-            ['name' => 'Amandine Diop',  'email' => 'amandine@bravo.test','role' => 'UX Designer',           'department' => 'Design',       'points_total' => 1100],
+            ['name' => 'TAPTUE Dilane',    'email' => 'dilane@bravo.test',   'role' => 'Développeur',  'permission' => 'manager',  'department_id' => 1, 'points_total' => 0],
+            ['name' => 'FOTSO Luc',        'email' => 'luc@bravo.test',      'role' => 'Développeur',  'permission' => 'admin',     'department_id' => 1, 'points_total' => 0],
+            ['name' => 'SIBAFO Salomon',   'email' => 'salomon@bravo.test',  'role' => 'Développeur',  'permission' => 'employee',  'department_id' => 1, 'points_total' => 0],
+            ['name' => 'NGO TONYE Marie',  'email' => 'marie@bravo.test',    'role' => 'Designer',     'permission' => 'employee',  'department_id' => 2, 'points_total' => 0],
+            ['name' => 'DISSACKE Allegra', 'email' => 'allegra@bravo.test',  'role' => 'Data Analyst', 'permission' => 'employee',  'department_id' => 3, 'points_total' => 0],
+            ['name' => 'YOUBOU Anderson',  'email' => 'anderson@bravo.test', 'role' => 'Data Analyst', 'permission' => 'employee',  'department_id' => 3, 'points_total' => 0],
+            ['name' => 'NGONDA Evodie',    'email' => 'evodie@bravo.test',   'role' => 'Assistante',   'permission' => 'employee',  'department_id' => 4, 'points_total' => 0],
         ];
 
         foreach ($users as $data) {
+            $spatieRole = $data['permission'];
+            unset($data['permission']);
+
             $user = User::firstOrCreate(
                 ['email' => $data['email']],
                 array_merge($data, ['password' => Hash::make('password')])
             );
-            // Generate dicebear avatar URL based on name
+
             if (!$user->avatar) {
-                $seed = urlencode($data['name']);
-                $user->avatar = "https://api.dicebear.com/7.x/avataaars/svg?seed={$seed}";
+                $user->avatar = "https://i.pinimg.com/1200x/f7/39/c1/f739c1b1812d3d13aad9236b9cb8109b.jpg";
                 $user->save();
             }
+
+            $user->syncRoles([$spatieRole]);
         }
     }
 }

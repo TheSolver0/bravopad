@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AiController;
 use App\Http\Controllers\BravoController;
 use App\Http\Controllers\StatsController;
@@ -24,13 +25,19 @@ Route::get('/shop', fn () => Inertia::render('Shop', [
 ]))->middleware(['auth']);
 Route::get('/create', [BravoController::class, 'create'])->middleware(['auth']);
 Route::get('/stats', [StatsController::class, 'index'])->middleware(['auth']);
-Route::get('/challenges', [ChallengeController::class, 'page']);
+Route::get('/challenges', [ChallengeController::class, 'page'])->middleware(['auth']);
+Route::post('/challenges', [ChallengeController::class, 'store'])->middleware(['auth']);
+Route::post('/challenges/{id}/participate', [ChallengeController::class, 'participate'])->middleware(['auth']);
 
 Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth'])
     ->name('dashboard');
 Route::resource('bravos', BravoController::class)->middleware(['auth']);
 Route::post('/ai/rephrase', [AiController::class, 'rephrase'])->middleware(['auth']);
+Route::middleware(['auth'])->group(function () {
+    Route::get('/admin', [AdminController::class, 'index'])->name('admin');
+    Route::patch('/admin/users/{user}/permission', [AdminController::class, 'updatePermission'])->name('admin.users.permission');
+});
 Route::get('/test', function () {
     return Inertia::render('');
 });

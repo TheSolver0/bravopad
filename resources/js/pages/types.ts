@@ -24,6 +24,8 @@ export interface User {
   department: string | null;
   avatar: string;
   points_total: number;
+  monthly_points_allowance?: number;
+  monthly_points_remaining?: number;
 }
 
 export interface BravoValue {

@@ -2,7 +2,11 @@
 
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Schedule;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
+
+// Réinitialise le quota mensuel de points à distribuer le 1er de chaque mois
+Schedule::command('points:reset-monthly')->monthlyOn(1, '00:00');

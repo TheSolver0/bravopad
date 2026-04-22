@@ -6,6 +6,7 @@ import { Anchor, X } from 'lucide-react';
 import type { BreadcrumbItem } from '@/types';
 import Sidebar from './Sidebar';
 import Header from './Header';
+import MobileNav from './MobileNav';
 import CreateBravo from '@/pages/CreateBravo';
 import { User, BravoValue } from '@/pages/types';
 
@@ -26,7 +27,7 @@ export default function AppSidebarLayout({ breadcrumbs = [], children }: AppSide
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   return (
-    <div className="flex min-h-screen bg-surface-container-lowest">
+    <div className="flex min-h-screen bg-surface-container-lowest overflow-x-hidden">
 
       {/* Sidebar desktop floating */}
       <aside
@@ -65,6 +66,9 @@ export default function AppSidebarLayout({ breadcrumbs = [], children }: AppSide
       >
         {!isDashboard && <Header breadcrumbs={breadcrumbs} onMenuOpen={() => setMobileOpen(true)} />}
 
+        {/* Bottom nav mobile — visible sur toutes les pages */}
+        <MobileNav onCreateBravo={() => setShowCreateModal(true)} />
+
         {/* Flash messages */}
         <AnimatePresence>
           {flash?.success && (
@@ -89,7 +93,7 @@ export default function AppSidebarLayout({ breadcrumbs = [], children }: AppSide
           )}
         </AnimatePresence>
 
-        <main className={`flex-1 overflow-y-auto ${isDashboard ? '' : 'p-6 md:p-8'}`}>{children}</main>
+        <main className={`flex-1 overflow-y-auto pb-20 md:pb-0 ${isDashboard ? '' : 'p-6 md:p-8'}`}>{children}</main>
       </div>
 
       {/* ── Modal Créer un Bravo — rendu au niveau racine pour éviter le stacking context de la sidebar ── */}
@@ -117,7 +121,7 @@ export default function AppSidebarLayout({ breadcrumbs = [], children }: AppSide
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto bg-surface-container-low/95 backdrop-blur-md">
+            <div className="flex-1 overflow-y-auto bg-gray-50">
               <div className="max-w-2xl mx-auto px-4 py-6">
                 <CreateBravo
                   users={users}

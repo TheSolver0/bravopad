@@ -88,13 +88,15 @@ class BravoController extends Controller
             'bravos'        => $bravos,
             'currentUserId' => $userId,
             'currentUser'   => [
-                'id'           => $user->id,
-                'name'         => $user->name,
-                'avatar'       => $user->avatar,
-                'department'   => $user->department?->name ?? null,
-                'role'         => $user->role,
-                'permission'   => $user->permission ?? 'employee',
-                'points_total' => $user->points_total,
+                'id'                       => $user->id,
+                'name'                     => $user->name,
+                'avatar'                   => $user->avatar,
+                'department'               => $user->department?->name ?? null,
+                'role'                     => $user->role,
+                'permission'               => $user->permission ?? 'employee',
+                'points_total'             => $user->points_total,
+                'monthly_points_remaining' => $user->monthly_points_remaining,
+                'monthly_points_allowance' => $user->monthly_points_allowance ?? 100,
             ],
             'pointsGiven'   => (int) $pointsGiven,
             'badgesSent'    => $badgesSent,
@@ -103,9 +105,14 @@ class BravoController extends Controller
 
     public function create()
     {
+        $user = request()->user();
         return Inertia::render('CreateBravo', [
-            'users' => User::all(),
+            'users'       => User::all(),
             'bravoValues' => BravoValue::where('is_active', true)->get(),
+            'currentUser' => [
+                'monthly_points_remaining' => $user->monthly_points_remaining,
+                'monthly_points_allowance' => $user->monthly_points_allowance ?? 100,
+            ],
         ]);
     }
 
@@ -130,13 +137,22 @@ class BravoController extends Controller
             $basePoints  = $badgePoints[$validated['badge']];
 
             $valueBonus = 0;
-            $primaryValueId = null;
             if (!empty($validated['value_ids'])) {
                 $values = BravoValue::whereIn('id', $validated['value_ids'])->get();
                 $valueBonus = (int) $values->sum(fn ($v) => round(5 * $v->multiplier));
             }
 
             $points = $basePoints + $valueBonus;
+
+            // Vérification du quota mensuel
+            $remaining = $sender->monthly_points_remaining;
+            if ($points > $remaining) {
+                $msg = "Quota mensuel insuffisant. Il vous reste {$remaining} pts à distribuer ce mois-ci.";
+                if ($request->hasHeader('X-Inertia')) {
+                    return back()->withErrors(['points' => $msg]);
+                }
+                return response()->json(['message' => $msg], 422);
+            }
 
             // challenge actif (global)
             $challenge = Challenge::where('status', 'active')
@@ -158,6 +174,10 @@ class BravoController extends Controller
 
             // Attacher toutes les valeurs dans la table pivot
             $bravo->values()->sync($valueIds);
+
+            // Déduire du quota mensuel de l'expéditeur
+            $sender->monthly_points_given += $points;
+            $sender->save();
 
             // update points utilisateur
             $receiver = User::findOrFail($validated['receiver_id']);

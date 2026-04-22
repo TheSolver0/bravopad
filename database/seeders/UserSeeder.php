@@ -18,6 +18,7 @@ class UserSeeder extends Seeder
             ['name' => 'DISSACKE Allegra', 'email' => 'allegra@bravo.test',  'role' => 'Data Analyst', 'permission' => 'employee',  'department_id' => 3, 'points_total' => 0],
             ['name' => 'YOUBOU Anderson',  'email' => 'anderson@bravo.test', 'role' => 'Data Analyst', 'permission' => 'employee',  'department_id' => 3, 'points_total' => 0],
             ['name' => 'NGONDA Evodie',    'email' => 'evodie@bravo.test',   'role' => 'Assistante',   'permission' => 'employee',  'department_id' => 4, 'points_total' => 0],
+            ['name' => 'Hermann TCHAMBIA',    'email' => 'hermann@bravo.test',   'role' => 'Reseau',   'permission' => 'employee',  'department_id' => 4, 'points_total' => 0],
         ];
 
         foreach ($users as $data) {

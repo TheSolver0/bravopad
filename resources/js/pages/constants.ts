@@ -1,9 +1,9 @@
 import { Reward } from './types';
 
 export const BADGES = [
-  { key: 'good_job',   label: 'Good Job',   points: 10, color: '#4CAF50', emoji: '👍' },
-  { key: 'excellent',  label: 'Excellent',  points: 25, color: '#2196F3', emoji: '⭐' },
-  { key: 'impressive', label: 'Impressive', points: 50, color: '#9C27B0', emoji: '🚀' },
+  { key: 'good_job',   label: 'Good Job',   points: 10, color: '#F97316', emoji: '⭐' },
+  { key: 'excellent',  label: 'Impressive', points: 25, color: '#3B82F6', emoji: '✨' },
+  { key: 'impressive', label: 'Exceptional', points: 50, color: '#9333EA', emoji: '🏆' },
 ] as const;
 
 export type BadgeKey = typeof BADGES[number]['key'];

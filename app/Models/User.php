@@ -12,7 +12,7 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 use Spatie\Permission\Traits\HasRoles;
 
-#[Fillable(['name', 'email', 'password', 'role', 'department_id', 'avatar', 'points_total'])]
+#[Fillable(['name', 'email', 'password', 'role', 'department_id', 'avatar', 'points_total', 'monthly_points_allowance', 'monthly_points_given'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -43,5 +43,10 @@ class User extends Authenticatable
     public function isManager(): bool
     {
         return $this->hasAnyRole(['admin', 'manager']);
+    }
+
+    public function getMonthlyPointsRemainingAttribute(): int
+    {
+        return max(0, ($this->monthly_points_allowance ?? 100) - ($this->monthly_points_given ?? 0));
     }
 }

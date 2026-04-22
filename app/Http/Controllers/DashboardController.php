@@ -27,7 +27,10 @@ class DashboardController extends Controller
             'users' => $users,
             'bravos' => $bravos,
             'activeChallenge' => $activeChallenge,
-            'currentUser' => $currentUser,
+            'currentUser' => array_merge($currentUser->toArray(), [
+                'monthly_points_remaining' => $currentUser->monthly_points_remaining,
+                'monthly_points_allowance' => $currentUser->monthly_points_allowance ?? 100,
+            ]),
             'bravoValues' => BravoValue::where('is_active', true)->get(),
         ]);
     }

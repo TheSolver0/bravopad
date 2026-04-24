@@ -91,25 +91,26 @@ export default function Challenges({ challenges }: ChallengesProps) {
             </div>
             <span className="text-[10px] font-black uppercase tracking-widest text-primary">Centre de Défis</span>
           </div>
-          <h1 className="text-4xl font-black tracking-tight">Défis & Missions</h1>
+          <h1 className="text-2xl md:text-4xl font-black tracking-tight">Défis & Missions</h1>
           <p className="text-on-surface-variant font-medium max-w-xl text-sm">
             Relevez des défis collectifs, gagnez des points et débloquez des badges exclusifs.
           </p>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-3">
           {/* Stats pill */}
-          <div className="flex items-center gap-0 bg-white rounded-2xl shadow-sm border border-surface-container-high overflow-hidden">
-            <div className="px-5 py-3 text-center border-r border-surface-container-high">
+          <div className="flex items-center gap-0 bg-white rounded-2xl shadow-sm border border-surface-container-high overflow-hidden min-w-0">
+            <div className="px-3 md:px-5 py-3 text-center border-r border-surface-container-high">
               <p className="text-[9px] font-black text-on-surface-variant uppercase tracking-widest">Actifs</p>
               <p className="text-xl font-black text-primary">{activeChallenges.length}</p>
             </div>
-            <div className="px-5 py-3 text-center border-r border-surface-container-high">
+            <div className="px-3 md:px-5 py-3 text-center border-r border-surface-container-high">
               <p className="text-[9px] font-black text-on-surface-variant uppercase tracking-widest">Terminés</p>
               <p className="text-xl font-black text-green-600">{finishedChallenges.length}</p>
             </div>
-            <div className="px-5 py-3 text-center">
-              <p className="text-[9px] font-black text-on-surface-variant uppercase tracking-widest">Participations</p>
+            <div className="px-3 md:px-5 py-3 text-center">
+              <p className="text-[9px] font-black text-on-surface-variant uppercase tracking-widest hidden sm:block">Participations</p>
+              <p className="text-[9px] font-black text-on-surface-variant uppercase tracking-widest sm:hidden">Part.</p>
               <p className="text-xl font-black text-secondary">
                 {Object.values(participating).filter(Boolean).length}
               </p>
@@ -173,7 +174,7 @@ export default function Challenges({ challenges }: ChallengesProps) {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.08 }}
                 >
-                  <Card className="group relative overflow-hidden border-none hover:shadow-2xl transition-all duration-500 flex flex-col h-full bg-white">
+                  <Card className="group relative overflow-hidden border-none hover:shadow-2xl transition-all duration-500 flex flex-col h-full bg-white p-0">
                     {/* Top accent bar */}
                     <div className="h-1.5 w-full bg-primary rounded-t-full" />
 
@@ -182,7 +183,7 @@ export default function Challenges({ challenges }: ChallengesProps) {
                       <Lightbulb size={110} />
                     </div>
 
-                    <div className="p-6 flex flex-col flex-1 gap-5">
+                    <div className="p-4 md:p-6 flex flex-col flex-1 gap-4 md:gap-5">
                       {/* Header row */}
                       <div className="flex items-start justify-between">
                         <div className="p-3 rounded-2xl bg-orange-50 text-orange-500 shadow-sm">
@@ -284,7 +285,7 @@ export default function Challenges({ challenges }: ChallengesProps) {
                 transition={{ delay: activeChallenges.length * 0.08 }}
               >
                 <Card
-                  className="border-2 border-dashed border-surface-container-high bg-transparent flex flex-col items-center justify-center p-10 text-center space-y-4 hover:border-primary/40 hover:bg-primary/2 transition-all group cursor-pointer min-h-[280px]"
+                  className="border-2 border-dashed border-surface-container-high bg-transparent flex flex-col items-center justify-center p-6 md:p-10 text-center space-y-4 hover:border-primary/40 hover:bg-primary/2 transition-all group cursor-pointer min-h-[220px] md:min-h-[280px]"
                   onClick={() => setShowModal(true)}
                 >
                   <div className="w-14 h-14 rounded-2xl bg-surface-container-low flex items-center justify-center text-on-surface-variant group-hover:bg-primary/10 group-hover:text-primary transition-all">

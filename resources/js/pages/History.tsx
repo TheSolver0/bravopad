@@ -4,11 +4,11 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   Search, Filter, MessageSquare, Award, Star,
   Gift, TrendingUp, TrendingDown, Pencil, Trophy, Zap, Heart, Users,
-  ArrowRight, MoreHorizontal, Smile, Camera,
+  ArrowRight, MoreHorizontal, Camera, Send, X, Globe,
 } from 'lucide-react';
 import { Card } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
-import { Bravo, User, BadgeStat } from './types';
+import { Bravo, BravoComment, User, BadgeStat, UserBadge } from './types';
 import { MOCK_REWARDS, BADGES } from './constants';
 
 interface HistoryProps {
@@ -17,6 +17,7 @@ interface HistoryProps {
   currentUser: User;
   pointsGiven: number;
   badgesSent: BadgeStat[];
+  earnedBadges?: UserBadge[];
 }
 
 // ── Avatar helper ─────────────────────────────────────────────────────────────
@@ -33,25 +34,40 @@ interface AwardDef {
   description: string;
   icon: React.ReactNode;
   color: string;
-  unlocked: (data: { received: Bravo[]; sent: Bravo[]; pts: number; uniqueSenders: number }) => boolean;
+  /** Pour les badges auto (persistés en DB) on vérifie earnedBadges, sinon on calcule */
+  dbBadge?: string;
+  unlocked: (data: { received: Bravo[]; sent: Bravo[]; pts: number; uniqueSenders: number; earnedBadgeTypes: string[] }) => boolean;
 }
 
 const AWARD_DEFS: AwardDef[] = [
   {
-    id: 'first_bravo',
+    id: 'premier_bravo_recu',
     label: 'Premier Bravo',
     description: 'Recevoir son premier Bravo',
     icon: <Star size={14} />,
     color: '#f59e0b',
-    unlocked: ({ received }) => received.length >= 1,
+    dbBadge: 'premier_bravo_recu',
+    unlocked: ({ received, earnedBadgeTypes }) =>
+      earnedBadgeTypes.includes('premier_bravo_recu') || received.length >= 1,
   },
   {
-    id: 'generous',
+    id: 'premier_bravo_envoye',
     label: 'Généreux',
-    description: 'Envoyer 5 Bravos',
+    description: 'Envoyer son premier Bravo',
     icon: <Heart size={14} />,
     color: '#ec4899',
-    unlocked: ({ sent }) => sent.length >= 5,
+    dbBadge: 'premier_bravo_envoye',
+    unlocked: ({ sent, earnedBadgeTypes }) =>
+      earnedBadgeTypes.includes('premier_bravo_envoye') || sent.length >= 1,
+  },
+  {
+    id: 'pont_directions',
+    label: 'Pont entre directions',
+    description: 'Envoyer un Bravo à une autre direction',
+    icon: <Globe size={14} />,
+    color: '#6366f1',
+    dbBadge: 'pont_directions',
+    unlocked: ({ earnedBadgeTypes }) => earnedBadgeTypes.includes('pont_directions'),
   },
   {
     id: 'team_player',
@@ -62,35 +78,77 @@ const AWARD_DEFS: AwardDef[] = [
     unlocked: ({ uniqueSenders }) => uniqueSenders >= 3,
   },
   {
-    id: 'pts_500',
-    label: 'Cap 500',
-    description: 'Atteindre 500 points reçus',
-    icon: <Zap size={14} />,
-    color: '#8b5cf6',
-    unlocked: ({ pts }) => pts >= 500,
+    id: 'genereux_5',
+    label: 'Esprit généreux',
+    description: 'Envoyer 5 Bravos',
+    icon: <Heart size={14} />,
+    color: '#ec4899',
+    dbBadge: 'genereux_5',
+    unlocked: ({ sent, earnedBadgeTypes }) =>
+      earnedBadgeTypes.includes('genereux_5') || sent.length >= 5,
   },
   {
-    id: 'recognized',
+    id: 'ambassadeur',
+    label: 'Ambassadeur',
+    description: 'Envoyer des Bravos à 5 personnes différentes',
+    icon: <Users size={14} />,
+    color: '#0ea5e9',
+    dbBadge: 'ambassadeur',
+    unlocked: ({ earnedBadgeTypes }) => earnedBadgeTypes.includes('ambassadeur'),
+  },
+  {
+    id: 'reconnu_10',
     label: 'Bien reconnu',
     description: 'Recevoir 10 Bravos',
     icon: <Trophy size={14} />,
     color: '#10b981',
-    unlocked: ({ received }) => received.length >= 10,
+    dbBadge: 'reconnu_10',
+    unlocked: ({ received, earnedBadgeTypes }) =>
+      earnedBadgeTypes.includes('reconnu_10') || received.length >= 10,
   },
   {
-    id: 'pts_2000',
+    id: 'cap_500',
+    label: 'Cap 500',
+    description: 'Atteindre 500 points',
+    icon: <Zap size={14} />,
+    color: '#8b5cf6',
+    dbBadge: 'cap_500',
+    unlocked: ({ pts, earnedBadgeTypes }) =>
+      earnedBadgeTypes.includes('cap_500') || pts >= 500,
+  },
+  {
+    id: 'genereux_10',
+    label: 'Super généreux',
+    description: 'Envoyer 10 Bravos',
+    icon: <Award size={14} />,
+    color: '#e11d48',
+    dbBadge: 'genereux_10',
+    unlocked: ({ sent, earnedBadgeTypes }) =>
+      earnedBadgeTypes.includes('genereux_10') || sent.length >= 10,
+  },
+  {
+    id: 'cap_2000',
     label: 'Cap 2000',
-    description: 'Atteindre 2000 points reçus',
+    description: 'Atteindre 2000 points',
     icon: <Award size={14} />,
     color: '#f97316',
-    unlocked: ({ pts }) => pts >= 2000,
+    dbBadge: 'cap_2000',
+    unlocked: ({ pts, earnedBadgeTypes }) =>
+      earnedBadgeTypes.includes('cap_2000') || pts >= 2000,
   },
 ];
 
-export default function History({ bravos, currentUserId, currentUser, pointsGiven, badgesSent }: HistoryProps) {
+export default function History({ bravos, currentUserId, currentUser, pointsGiven, badgesSent, earnedBadges = [] }: HistoryProps) {
   const [filter, setFilter] = useState<'all' | 'sent' | 'received'>('all');
   const [search, setSearch] = useState('');
-  const [comments, setComments] = useState<Record<number, string>>({});
+  const [commentTexts, setCommentTexts] = useState<Record<number, string>>({});
+  const [commentLists, setCommentLists] = useState<Record<number, BravoComment[]>>(() => {
+    const init: Record<number, BravoComment[]> = {};
+    bravos.forEach(b => { init[b.id] = b.comments ?? []; });
+    return init;
+  });
+  const [showComments, setShowComments] = useState<Record<number, boolean>>({});
+  const [submitting, setSubmitting] = useState<Record<number, boolean>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
@@ -111,11 +169,16 @@ export default function History({ bravos, currentUserId, currentUser, pointsGive
 
   const uniqueSenders = useMemo(() => new Set(received.map(b => b.sender_id)).size, [received]);
 
+  const earnedBadgeTypes = useMemo(
+    () => earnedBadges.map(b => b.badge_type),
+    [earnedBadges]
+  );
+
   const awards = useMemo(() =>
     AWARD_DEFS.map(a => ({
       ...a,
-      isUnlocked: a.unlocked({ received, sent, pts: currentUser.points_total, uniqueSenders }),
-    })), [received, sent, currentUser.points_total, uniqueSenders]);
+      isUnlocked: a.unlocked({ received, sent, pts: currentUser.points_total, uniqueSenders, earnedBadgeTypes }),
+    })), [received, sent, currentUser.points_total, uniqueSenders, earnedBadgeTypes]);
 
   const rewardSuggestion = useMemo(() => {
     const pts = currentUser.points_total;
@@ -304,33 +367,138 @@ export default function History({ bravos, currentUserId, currentUser, pointsGive
                         </div>
                       </div>
 
-                      {/* Zone commentaire */}
-                      <div className="border-t border-gray-100 px-4 py-3 space-y-2 bg-gray-50/40">
-                        <div className="flex items-center justify-between">
-                          <button className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors cursor-pointer">
+                      {/* Zone commentaires */}
+                      <div className="border-t border-gray-100 bg-gray-50/40">
+                        {/* Actions bar */}
+                        <div className="flex items-center justify-between px-4 py-2">
+                          <button className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-rose-500 transition-colors cursor-pointer">
                             <Heart size={14} />
                             <span>{bravo.likes_count}</span>
                           </button>
-                          <button className="text-gray-300 hover:text-gray-500 transition-colors cursor-pointer">
-                            <Smile size={16} />
+                          <button
+                            className="flex items-center gap-1 text-xs text-gray-400 hover:text-primary transition-colors cursor-pointer"
+                            onClick={() => setShowComments(prev => ({ ...prev, [bravo.id]: !showComments[bravo.id] }))}
+                          >
+                            <MessageSquare size={13} />
+                            <span>{(commentLists[bravo.id] ?? []).length > 0
+                              ? `${(commentLists[bravo.id] ?? []).length} commentaire${(commentLists[bravo.id] ?? []).length > 1 ? 's' : ''}`
+                              : 'Commenter'}
+                            </span>
                           </button>
                         </div>
-                        <div className="flex items-center gap-2">
+
+                        {/* Liste des commentaires */}
+                        <AnimatePresence initial={false}>
+                          {showComments[bravo.id] && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: 0.2 }}
+                              className="overflow-hidden"
+                            >
+                              {(commentLists[bravo.id] ?? []).length > 0 && (
+                                <div className="px-4 pb-2 space-y-2">
+                                  {(commentLists[bravo.id] ?? []).map(c => (
+                                    <div key={c.id} className="flex items-start gap-2 group">
+                                      <img
+                                        src={c.user ? getAvatar(c.user) : `https://ui-avatars.com/api/?name=?&background=e5e7eb&color=6b7280&size=32`}
+                                        alt=""
+                                        className="w-6 h-6 rounded-full shrink-0 mt-0.5"
+                                        referrerPolicy="no-referrer"
+                                      />
+                                      <div className="flex-1 bg-white rounded-xl px-3 py-2 text-xs shadow-sm">
+                                        <span className="font-semibold text-gray-700">{c.user.name}</span>
+                                        <span className="text-gray-500 ml-2">{c.content}</span>
+                                        <span className="block text-[10px] text-gray-400 mt-0.5">{c.created_at}</span>
+                                      </div>
+                                      {c.user.id === currentUserId && (
+                                        <button
+                                          onClick={async () => {
+                                            await fetch(`/bravos/${bravo.id}/comments/${c.id}`, {
+                                              method: 'DELETE',
+                                              headers: { 'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? '' },
+                                            });
+                                            setCommentLists(prev => ({ ...prev, [bravo.id]: (prev[bravo.id] ?? []).filter(x => x.id !== c.id) }));
+                                          }}
+                                          className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 transition-all cursor-pointer mt-1"
+                                        >
+                                          <X size={12} />
+                                        </button>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+
+                        {/* Input commentaire */}
+                        <div className="px-4 pb-3 flex items-center gap-2">
                           <img
                             src={getAvatar(currentUser)}
                             alt=""
                             className="w-7 h-7 rounded-full shrink-0"
                             referrerPolicy="no-referrer"
                           />
-                          <div className="flex-1 flex items-center bg-white rounded-full px-3 py-1.5 border border-gray-200 gap-2 focus-within:border-gray-300 transition-colors">
+                          <div className="flex-1 flex items-center bg-white rounded-full px-3 py-1.5 border border-gray-200 gap-2 focus-within:border-primary/40 transition-colors">
                             <input
-                              placeholder="Écrire un commentaire..."
-                              value={comments[bravo.id] ?? ''}
-                              onChange={e => setComments(prev => ({ ...prev, [bravo.id]: e.target.value }))}
+                              placeholder="Écrire un commentaire…"
+                              value={commentTexts[bravo.id] ?? ''}
+                              onChange={e => setCommentTexts(prev => ({ ...prev, [bravo.id]: e.target.value }))}
+                              onKeyDown={async e => {
+                                if (e.key !== 'Enter' || e.shiftKey) return;
+                                e.preventDefault();
+                                const text = (commentTexts[bravo.id] ?? '').trim();
+                                if (!text || submitting[bravo.id]) return;
+                                setSubmitting(prev => ({ ...prev, [bravo.id]: true }));
+                                try {
+                                  const res = await fetch(`/bravos/${bravo.id}/comments`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? '' },
+                                    body: JSON.stringify({ content: text }),
+                                  });
+                                  if (res.ok) {
+                                    const comment: BravoComment = await res.json();
+                                    setCommentLists(prev => ({ ...prev, [bravo.id]: [comment, ...(prev[bravo.id] ?? [])] }));
+                                    setCommentTexts(prev => ({ ...prev, [bravo.id]: '' }));
+                                    setShowComments(prev => ({ ...prev, [bravo.id]: true }));
+                                  }
+                                } finally {
+                                  setSubmitting(prev => ({ ...prev, [bravo.id]: false }));
+                                }
+                              }}
                               className="flex-1 bg-transparent text-xs outline-none text-gray-600 placeholder-gray-400"
                             />
-                            <button className="text-gray-300 hover:text-gray-500 transition-colors shrink-0 cursor-pointer">
-                              <Smile size={13} />
+                            <button
+                              onClick={async () => {
+                                const text = (commentTexts[bravo.id] ?? '').trim();
+                                if (!text || submitting[bravo.id]) return;
+                                setSubmitting(prev => ({ ...prev, [bravo.id]: true }));
+                                try {
+                                  const res = await fetch(`/bravos/${bravo.id}/comments`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? '' },
+                                    body: JSON.stringify({ content: text }),
+                                  });
+                                  if (res.ok) {
+                                    const comment: BravoComment = await res.json();
+                                    setCommentLists(prev => ({ ...prev, [bravo.id]: [comment, ...(prev[bravo.id] ?? [])] }));
+                                    setCommentTexts(prev => ({ ...prev, [bravo.id]: '' }));
+                                    setShowComments(prev => ({ ...prev, [bravo.id]: true }));
+                                  }
+                                } finally {
+                                  setSubmitting(prev => ({ ...prev, [bravo.id]: false }));
+                                }
+                              }}
+                              disabled={!(commentTexts[bravo.id] ?? '').trim() || submitting[bravo.id]}
+                              className="text-primary disabled:text-gray-300 transition-colors shrink-0 cursor-pointer disabled:cursor-default"
+                            >
+                              {submitting[bravo.id]
+                                ? <span className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin block" />
+                                : <Send size={13} />
+                              }
                             </button>
                           </div>
                         </div>

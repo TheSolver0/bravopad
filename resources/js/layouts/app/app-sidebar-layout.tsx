@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { usePage, router } from '@inertiajs/react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { X } from 'lucide-react';
 import type { BreadcrumbItem } from '@/types';
 import Sidebar from './Sidebar';
@@ -23,7 +22,6 @@ export default function AppSidebarLayout({ breadcrumbs = [], children }: AppSide
   const bravoValues: BravoValue[] = (page.props.bravoValues as BravoValue[]) ?? [];
 
   const [collapsed, setCollapsed] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   return (
@@ -48,23 +46,13 @@ export default function AppSidebarLayout({ breadcrumbs = [], children }: AppSide
         />
       </aside>
 
-      {/* Sidebar mobile via Sheet */}
-      <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-        <SheetContent side="left" className="w-72 p-0 md:hidden">
-          <Sidebar
-            onClose={() => setMobileOpen(false)}
-            onCreateBravo={() => { setShowCreateModal(true); setMobileOpen(false); }}
-          />
-        </SheetContent>
-      </Sheet>
-
       {/* Zone principale */}
       <div
         className={`flex-1 flex flex-col transition-all duration-500 ${
           collapsed ? 'md:ml-[calc(72px+2rem)]' : 'md:ml-[calc(256px+2rem)]'
         }`}
       >
-        {!isDashboard && <Header breadcrumbs={breadcrumbs} onMenuOpen={() => setMobileOpen(true)} />}
+        {!isDashboard && <Header breadcrumbs={breadcrumbs} />}
 
         {/* Bottom nav mobile — visible sur toutes les pages */}
         <MobileNav onCreateBravo={() => setShowCreateModal(true)} />

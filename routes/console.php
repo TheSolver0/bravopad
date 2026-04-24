@@ -10,3 +10,6 @@ Artisan::command('inspire', function () {
 
 // Réinitialise le quota mensuel de points à distribuer le 1er de chaque mois
 Schedule::command('points:reset-monthly')->monthlyOn(1, '00:00');
+
+// Anniversaires de naissance et professionnels — chaque matin à 8h
+Schedule::command('celebrations:check')->dailyAt('08:00');

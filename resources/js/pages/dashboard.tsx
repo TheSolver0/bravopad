@@ -20,11 +20,15 @@ import {
   ChevronUp,
   ChevronDown,
   Heart,
+  Send,
+  PartyPopper,
+  Cake,
+  Briefcase,
 } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
-import { User, Bravo, Challenge, BravoValue } from './types';
+import { User, Bravo, BravoComment, Challenge, BravoValue, Celebration } from './types';
 import { BADGES } from './constants';
 import CreateBravo from './CreateBravo';
 
@@ -34,6 +38,7 @@ interface DashboardProps {
   activeChallenge: Challenge | null;
   currentUser: User;
   bravoValues: BravoValue[];
+  celebrations?: Celebration[];
 }
 
 function getAvatar(user: { name: string; avatar?: string | null }): string {
@@ -46,7 +51,11 @@ function getAvatar(user: { name: string; avatar?: string | null }): string {
   return `https://ui-avatars.com/api/?name=${encodeURIComponent(initials)}&background=6366f1&color=ffffff&size=128&bold=true&format=svg`;
 }
 
-export default function Dashboard({ bravos, users, activeChallenge, currentUser, bravoValues }: DashboardProps) {
+function getCsrf(): string {
+  return (document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content ?? '';
+}
+
+export default function Dashboard({ bravos, users, activeChallenge, currentUser, bravoValues, celebrations = [] }: DashboardProps) {
   const safeUsers = Array.isArray(users) ? users : [];
   const sortedUsers = [...safeUsers].sort((a, b) => b.points_total - a.points_total);
   const topUsers = [...safeUsers].sort((a, b) => b.points_total - a.points_total);
@@ -54,7 +63,6 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
   const nextMilestone = Math.ceil((currentUser.points_total + 1) / 500) * 500;
   const progress = nextMilestone > 0 ? Math.min(100, (currentUser.points_total / nextMilestone) * 100) : 0;
 
-  // Recognition counts for current user
   const myReceivedBravos = bravos.filter(b => b.receiver_id === currentUser.id);
   const recognitionCounts = {
     good_job: myReceivedBravos.filter(b => b.badge === 'good_job').length,
@@ -62,8 +70,58 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
     impressive: myReceivedBravos.filter(b => b.badge === 'impressive').length,
   };
 
-  // Comment states per bravo
-  const [comments, setComments] = useState<Record<number, string>>({});
+  // Per-bravo comment state (local text input + loaded comments)
+  const [commentTexts, setCommentTexts] = useState<Record<number, string>>({});
+  const [commentLists, setCommentLists] = useState<Record<number, BravoComment[]>>(() => {
+    const init: Record<number, BravoComment[]> = {};
+    bravos.forEach(b => { init[b.id] = b.comments ?? []; });
+    return init;
+  });
+  const [showComments, setShowComments] = useState<Record<number, boolean>>({});
+  const [submitting, setSubmitting] = useState<Record<number, boolean>>({});
+
+  // Celebrations dismissal
+  const [celebrationsDismissed, setCelebrationsDismissed] = useState(false);
+
+  async function submitComment(bravoId: number) {
+    const text = (commentTexts[bravoId] ?? '').trim();
+    if (!text || submitting[bravoId]) return;
+
+    setSubmitting(prev => ({ ...prev, [bravoId]: true }));
+    try {
+      const res = await fetch(`/bravos/${bravoId}/comments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-CSRF-TOKEN': getCsrf(),
+        },
+        body: JSON.stringify({ content: text }),
+      });
+      if (res.ok) {
+        const comment: BravoComment = await res.json();
+        setCommentLists(prev => ({
+          ...prev,
+          [bravoId]: [comment, ...(prev[bravoId] ?? [])],
+        }));
+        setCommentTexts(prev => ({ ...prev, [bravoId]: '' }));
+        setShowComments(prev => ({ ...prev, [bravoId]: true }));
+      }
+    } finally {
+      setSubmitting(prev => ({ ...prev, [bravoId]: false }));
+    }
+  }
+
+  async function deleteComment(bravoId: number, commentId: number) {
+    await fetch(`/bravos/${bravoId}/comments/${commentId}`, {
+      method: 'DELETE',
+      headers: { 'X-CSRF-TOKEN': getCsrf() },
+    });
+    setCommentLists(prev => ({
+      ...prev,
+      [bravoId]: (prev[bravoId] ?? []).filter(c => c.id !== commentId),
+    }));
+  }
 
   // ── Slides du carrousel ────────────────────────────────────────────────────
   interface Slide {
@@ -176,10 +234,41 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
   const prev = () => setCurrent(c => (c - 1 + slides.length) % slides.length);
   const next = () => setCurrent(c => (c + 1) % slides.length);
   const slide = slides[current];
-  
 
   return (
     <div className="animate-in fade-in duration-500">
+
+      {/* ── Bannière Célébrations du jour ─────────────────────────────────── */}
+      <AnimatePresence>
+        {celebrations.length > 0 && !celebrationsDismissed && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="mx-6 mt-4 mb-0 rounded-2xl overflow-hidden"
+          >
+            <div className="bg-gradient-to-r from-pink-500 via-rose-500 to-orange-400 px-5 py-3 text-white flex items-center gap-3">
+              <PartyPopper size={18} className="shrink-0" />
+              <div className="flex-1 flex flex-wrap gap-x-4 gap-y-1">
+                {celebrations.map((c, i) => (
+                  <span key={i} className="text-sm font-semibold flex items-center gap-1.5">
+                    {c.type === 'birthday'
+                      ? <><Cake size={14} /> Bon anniversaire <strong>{c.name}</strong> ! 🎂</>
+                      : <><Briefcase size={14} /> <strong>{c.name}</strong> fête ses <strong>{c.years} an{(c.years ?? 0) > 1 ? 's' : ''}</strong> dans l'équipe ! 🎉</>
+                    }
+                  </span>
+                ))}
+              </div>
+              <button
+                onClick={() => setCelebrationsDismissed(true)}
+                className="shrink-0 text-white/70 hover:text-white cursor-pointer transition-colors"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Carrousel ──────────────────────────────────────────────────────── */}
       <div className="relative overflow-hidden shadow-xl h-[100px]">
@@ -256,6 +345,10 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
                 {bravos.map((bravo, index) => {
                   const badgeInfo = BADGES.find(x => x.key === bravo.badge);
                   const badgeColor = badgeInfo?.color ?? '#6366f1';
+                  const bravoComments = commentLists[bravo.id] ?? [];
+                  const commentCount = bravoComments.length;
+                  const commentsVisible = showComments[bravo.id] ?? false;
+
                   return (
                     <motion.div
                       key={bravo.id}
@@ -263,10 +356,9 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.08 }}
                     >
-                      {/* Carte bravo — style épuré avec avatars superposés */}
                       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
 
-                        {/* Header discret : badge pill + points */}
+                        {/* Header : badge pill + points */}
                         <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-50">
                           {badgeInfo ? (
                             <span
@@ -290,7 +382,6 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
                         {/* Corps */}
                         <div className="px-4 pt-4 pb-3 space-y-3">
                           <div className="flex items-start gap-4">
-                            {/* Avatars superposés */}
                             <div className="flex items-center shrink-0">
                               <div className="relative">
                                 <img
@@ -335,9 +426,8 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
                           </div>
 
                           {/* Footer: date + sender */}
-                          
                           <div className="flex items-center justify-between pt-2 border-t border-gray-50">
-                            <span className="text-xs text-gray-400"> {new Date(bravo.created_at).toLocaleDateString('fr-FR')}</span>
+                            <span className="text-xs text-gray-400">{new Date(bravo.created_at).toLocaleDateString('fr-FR')}</span>
                             <div className="flex items-center gap-2">
                               <span className="text-xs text-gray-500">
                                 From <span className="font-medium text-gray-700">{bravo.sender?.name ?? '—'}</span>
@@ -352,33 +442,89 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
                           </div>
                         </div>
 
-                        {/* Zone commentaire */}
-                        <div className="border-t border-gray-100 px-4 py-3 space-y-2 bg-gray-50/40">
-                          <div className="flex items-center justify-between">
-                            <button className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors cursor-pointer">
+                        {/* Zone commentaires */}
+                        <div className="border-t border-gray-100 bg-gray-50/40">
+                          {/* Actions bar */}
+                          <div className="flex items-center justify-between px-4 py-2">
+                            <button className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-rose-500 transition-colors cursor-pointer">
                               <Heart size={14} />
                               <span>{bravo.likes_count}</span>
                             </button>
-                            <button className="text-gray-300 hover:text-gray-500 transition-colors cursor-pointer">
-                              <Smile size={16} />
+                            <button
+                              className="flex items-center gap-1 text-xs text-gray-400 hover:text-primary transition-colors cursor-pointer"
+                              onClick={() => setShowComments(prev => ({ ...prev, [bravo.id]: !commentsVisible }))}
+                            >
+                              <MessageSquare size={13} />
+                              <span>{commentCount > 0 ? `${commentCount} commentaire${commentCount > 1 ? 's' : ''}` : 'Commenter'}</span>
                             </button>
                           </div>
-                          <div className="flex items-center gap-2">
+
+                          {/* Liste des commentaires */}
+                          <AnimatePresence initial={false}>
+                            {commentsVisible && (
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{ duration: 0.2 }}
+                                className="overflow-hidden"
+                              >
+                                {bravoComments.length > 0 && (
+                                  <div className="px-4 pb-2 space-y-2">
+                                    {bravoComments.map(c => (
+                                      <div key={c.id} className="flex items-start gap-2 group">
+                                        <img
+                                          src={c.user ? getAvatar(c.user) : `https://ui-avatars.com/api/?name=?&background=e5e7eb&color=6b7280&size=32`}
+                                          alt=""
+                                          className="w-6 h-6 rounded-full shrink-0 mt-0.5"
+                                          referrerPolicy="no-referrer"
+                                        />
+                                        <div className="flex-1 bg-white rounded-xl px-3 py-2 text-xs shadow-sm">
+                                          <span className="font-semibold text-gray-700">{c.user.name}</span>
+                                          <span className="text-gray-500 ml-2">{c.content}</span>
+                                          <span className="block text-[10px] text-gray-400 mt-0.5">{c.created_at}</span>
+                                        </div>
+                                        {c.user.id === currentUser.id && (
+                                          <button
+                                            onClick={() => deleteComment(bravo.id, c.id)}
+                                            className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 transition-all cursor-pointer mt-1"
+                                          >
+                                            <X size={12} />
+                                          </button>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+
+                          {/* Input commentaire */}
+                          <div className="px-4 pb-3 flex items-center gap-2">
                             <img
                               src={getAvatar(currentUser)}
                               alt=""
                               className="w-7 h-7 rounded-full shrink-0"
                               referrerPolicy="no-referrer"
                             />
-                            <div className="flex-1 flex items-center bg-white rounded-full px-3 py-1.5 border border-gray-200 gap-2 focus-within:border-gray-300 transition-colors">
+                            <div className="flex-1 flex items-center bg-white rounded-full px-3 py-1.5 border border-gray-200 gap-2 focus-within:border-primary/40 transition-colors">
                               <input
-                                placeholder="Écrire un commentaire..."
-                                value={comments[bravo.id] ?? ''}
-                                onChange={e => setComments(prev => ({ ...prev, [bravo.id]: e.target.value }))}
+                                placeholder="Écrire un commentaire…"
+                                value={commentTexts[bravo.id] ?? ''}
+                                onChange={e => setCommentTexts(prev => ({ ...prev, [bravo.id]: e.target.value }))}
+                                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitComment(bravo.id); } }}
                                 className="flex-1 bg-transparent text-xs outline-none text-gray-600 placeholder-gray-400"
                               />
-                              <button className="text-gray-300 hover:text-gray-500 transition-colors shrink-0 cursor-pointer">
-                                <Smile size={13} />
+                              <button
+                                onClick={() => submitComment(bravo.id)}
+                                disabled={!(commentTexts[bravo.id] ?? '').trim() || submitting[bravo.id]}
+                                className="text-primary disabled:text-gray-300 transition-colors shrink-0 cursor-pointer disabled:cursor-default"
+                              >
+                                {submitting[bravo.id]
+                                  ? <span className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin block" />
+                                  : <Send size={13} />
+                                }
                               </button>
                             </div>
                           </div>
@@ -390,16 +536,6 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
                 })}
               </div>
             )}
-
-            {/* <div className="flex justify-center pt-4">
-              <button
-                onClick={() => router.visit('/history')}
-                className="p-3 rounded-full border border-primary/10 text-primary hover:bg-primary/5 transition-all shadow-sm flex items-center justify-center group cursor-pointer"
-                title="Voir tout l'historique"
-              >
-                <PlusCircle size={24} className="group-hover:rotate-90 transition-transform duration-300" />
-              </button>
-            </div> */}
           </div>
 
           {/* ── Sidebar droite ─────────────────────────────────────────────── */}
@@ -436,7 +572,6 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
                 </div>
               </div>
 
-              {/* Barre quota mensuel */}
               <div className="mt-3">
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="text-[10px] font-semibold text-gray-400 uppercase">Quota mensuel utilisé</span>
@@ -621,14 +756,12 @@ function RecognitionCard({ counts }: RecognitionCardProps) {
               {items.map(item => (
                 <div key={item.key} className="flex flex-col items-center gap-1.5">
                   <div className="relative">
-                    {/* Cercle coloré */}
                     <div
                       className="w-14 h-14 rounded-full flex items-center justify-center shadow-md"
                       style={{ backgroundColor: item.color }}
                     >
                       <Star size={22} className="text-white fill-white" />
                     </div>
-                    {/* Badge count */}
                     <div
                       className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 min-w-[22px] h-[18px] px-1 rounded-full flex items-center justify-center text-white text-[10px] font-black shadow border-2 border-white"
                       style={{ backgroundColor: item.color }}

@@ -1,4 +1,4 @@
-import { Link, usePage } from '@inertiajs/react';
+import { Link, usePage, router } from '@inertiajs/react';
 import { motion } from 'motion/react';
 import {
   Trophy,
@@ -11,6 +11,7 @@ import {
   ChevronRight,
   Home,
   Shield,
+  LogOut,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -43,8 +44,9 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ collapsed = false, onCollapseToggle, onClose, onCreateBravo }: SidebarProps) {
-  const page = usePage();
+  const page = usePage<{ auth: { user?: { id: number; name: string; email: string; avatar?: string } } }>();
   const currentUrl = page.url;
+  const user = page.props.auth?.user;
   const { permission } = usePermissions();
   const userRank = PERM_RANK[permission] ?? 0;
 
@@ -122,6 +124,32 @@ export default function Sidebar({ collapsed = false, onCollapseToggle, onClose, 
           );
         })}
       </nav>
+
+      {/* User + Logout */}
+      <div className="p-3 border-t border-surface-container-high">
+        <div className={`flex items-center gap-3 ${collapsed ? 'justify-center' : ''}`}>
+          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden">
+            {user?.avatar ? (
+              <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-xs font-bold text-primary">{user?.name?.charAt(0)?.toUpperCase()}</span>
+            )}
+          </div>
+          {!collapsed && (
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold text-on-surface truncate">{user?.name}</p>
+              <p className="text-[10px] text-on-surface-variant truncate">{user?.email}</p>
+            </div>
+          )}
+          <button
+            onClick={() => router.post('/logout')}
+            className="p-1.5 rounded-lg hover:bg-red-50 text-on-surface-variant hover:text-red-500 transition-colors shrink-0"
+            title="Déconnexion"
+          >
+            <LogOut size={16} />
+          </button>
+        </div>
+      </div>
 
       {/* Collapse toggle — affiché uniquement en mode desktop */}
       {onCollapseToggle && (

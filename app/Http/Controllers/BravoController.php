@@ -6,6 +6,9 @@ use App\Models\Bravo;
 use App\Models\BravoValue;
 use App\Models\Challenge;
 use App\Models\User;
+use App\Models\UserBadge;
+use App\Notifications\BravoReceivedNotification;
+use App\Services\BadgeService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -84,9 +87,15 @@ class BravoController extends Controller
 
         $user->loadMissing('department');
 
+        $earnedBadges = UserBadge::where('user_id', $userId)
+            ->orderBy('earned_at')
+            ->get()
+            ->map(fn ($b) => ['badge_type' => $b->badge_type, 'earned_at' => $b->earned_at->toDateTimeString()]);
+
         return Inertia::render('History', [
             'bravos'        => $bravos,
             'currentUserId' => $userId,
+            'earnedBadges'  => $earnedBadges,
             'currentUser'   => [
                 'id'                       => $user->id,
                 'name'                     => $user->name,
@@ -183,6 +192,15 @@ class BravoController extends Controller
             $receiver = User::findOrFail($validated['receiver_id']);
             $receiver->points_total += $points;
             $receiver->save();
+
+            // Recharger les relations pour badges & notifications
+            $bravo->load(['sender', 'receiver']);
+
+            // Notifier le destinataire
+            $receiver->notify(new BravoReceivedNotification($bravo));
+
+            // Vérifier et attribuer les badges
+            (new BadgeService())->checkAfterBravo($bravo);
 
             // Requête Inertia (formulaire web) → redirection
             if ($request->hasHeader('X-Inertia')) {

@@ -35,6 +35,13 @@ export interface BravoValue {
   multiplier: number;
 }
 
+export interface BravoComment {
+  id: number;
+  content: string;
+  created_at: string;
+  user: { id: number; name: string; avatar?: string | null };
+}
+
 export interface Bravo {
   id: number;
   sender_id: number;
@@ -49,6 +56,27 @@ export interface Bravo {
   sender?: User;
   receiver?: User;
   values?: { id: number; name: string; color?: string }[];
+  comments?: BravoComment[];
+}
+
+export interface UserBadge {
+  id: number;
+  badge_type: string;
+  earned_at: string;
+}
+
+export interface AppNotification {
+  id: string;
+  type: string;
+  data: Record<string, unknown>;
+  read_at: string | null;
+  created_at: string;
+}
+
+export interface Celebration {
+  type: 'birthday' | 'anniversary';
+  name: string;
+  years: number | null;
 }
 
 export interface Challenge {

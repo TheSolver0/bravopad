@@ -1,5 +1,5 @@
 import { usePage } from '@inertiajs/react';
-import { Bell, Menu, Trophy } from 'lucide-react';
+import { Menu, Trophy } from 'lucide-react';
 import type { BreadcrumbItem } from '@/types';
 import { Breadcrumbs } from '@/components/breadcrumbs';
 import { UserMenuContent } from '@/components/user-menu-content';
@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import NotificationPanel from '@/components/NotificationPanel';
 
 interface HeaderProps {
   breadcrumbs?: BreadcrumbItem[];
@@ -18,8 +19,9 @@ interface HeaderProps {
 }
 
 export default function Header({ breadcrumbs = [], onMenuOpen }: HeaderProps) {
-  const { auth } = usePage<{
+  const { auth, unreadCount } = usePage<{
     auth: { user?: { id: number; name: string; email: string; avatar?: string; role?: string; points_total?: number } };
+    unreadCount: number;
   }>().props;
 
   const user = auth?.user;
@@ -48,10 +50,7 @@ export default function Header({ breadcrumbs = [], onMenuOpen }: HeaderProps) {
       <div className="flex items-center gap-2">
 
         {/* Notifications */}
-        <Button variant="ghost" size="icon" className="relative text-on-surface-variant">
-          <Bell size={18} />
-          <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border border-white animate-pulse" />
-        </Button>
+        <NotificationPanel initialUnreadCount={unreadCount ?? 0} />
 
         {/* Points badge */}
         {user && (

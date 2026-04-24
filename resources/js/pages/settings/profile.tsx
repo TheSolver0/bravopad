@@ -130,6 +130,31 @@ export default function Profile({
                                 <InputError className="mt-2" message={errors.email} />
                             </div>
 
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div className="grid gap-2">
+                                    <Label htmlFor="birth_date">Date de naissance</Label>
+                                    <Input
+                                        id="birth_date"
+                                        type="date"
+                                        className="mt-1 block w-full"
+                                        defaultValue={auth.user.birth_date ?? ''}
+                                        name="birth_date"
+                                    />
+                                    <InputError className="mt-2" message={errors.birth_date} />
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="hire_date">Date d'entrée dans l'entreprise</Label>
+                                    <Input
+                                        id="hire_date"
+                                        type="date"
+                                        className="mt-1 block w-full"
+                                        defaultValue={auth.user.hire_date ?? ''}
+                                        name="hire_date"
+                                    />
+                                    <InputError className="mt-2" message={errors.hire_date} />
+                                </div>
+                            </div>
+
                             {mustVerifyEmail && auth.user.email_verified_at === null && (
                                 <div>
                                     <p className="-mt-4 text-sm text-muted-foreground">

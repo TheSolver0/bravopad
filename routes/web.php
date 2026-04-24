@@ -3,6 +3,8 @@
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AiController;
 use App\Http\Controllers\BravoController;
+use App\Http\Controllers\CommentController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\StatsController;
 use Illuminate\Support\Facades\Route;
 use Laravel\Fortify\Features;
@@ -33,6 +35,13 @@ Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth'])
     ->name('dashboard');
 Route::resource('bravos', BravoController::class)->middleware(['auth']);
+Route::middleware(['auth'])->group(function () {
+    Route::post('/bravos/{bravo}/comments', [CommentController::class, 'store']);
+    Route::delete('/bravos/{bravo}/comments/{comment}', [CommentController::class, 'destroy']);
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::post('/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
+    Route::post('/notifications/read-all', [NotificationController::class, 'markAllAsRead']);
+});
 Route::post('/ai/rephrase', [AiController::class, 'rephrase'])->middleware(['auth']);
 Route::middleware(['auth'])->group(function () {
     Route::get('/admin', [AdminController::class, 'index'])->name('admin');

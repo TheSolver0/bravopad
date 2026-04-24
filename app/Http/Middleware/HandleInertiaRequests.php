@@ -53,8 +53,9 @@ class HandleInertiaRequests extends Middleware
                 'error'   => $request->session()->get('error'),
             ],
             // Partagé globalement pour le modal "Envoyer un Bravo" accessible depuis toutes les pages
-            'bravoValues' => fn () => BravoValue::where('is_active', true)->get(),
-            'users'       => fn () => $request->user() ? User::orderBy('name')->get() : [],
+            'bravoValues'   => fn () => BravoValue::where('is_active', true)->get(),
+            'users'         => fn () => $request->user() ? User::orderBy('name')->get() : [],
+            'unreadCount'   => fn () => $request->user()?->unreadNotifications()->count() ?? 0,
         ];
     }
 }

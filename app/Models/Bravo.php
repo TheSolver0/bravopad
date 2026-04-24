@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use App\Models\BravoComment;
 
 class Bravo extends Model
 {
@@ -49,6 +50,12 @@ class Bravo extends Model
     public function challenge()
     {
         return $this->belongsTo(Challenge::class, 'challenge_id');
+    }
+
+    // Commentaires
+    public function comments()
+    {
+        return $this->hasMany(BravoComment::class)->with('user')->latest();
     }
 
     /*

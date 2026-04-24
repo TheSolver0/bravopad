@@ -12,7 +12,7 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 use Spatie\Permission\Traits\HasRoles;
 
-#[Fillable(['name', 'email', 'password', 'role', 'department_id', 'avatar', 'points_total', 'monthly_points_allowance', 'monthly_points_given'])]
+#[Fillable(['name', 'email', 'password', 'role', 'department_id', 'avatar', 'birth_date', 'hire_date', 'points_total', 'monthly_points_allowance', 'monthly_points_given'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -27,12 +27,19 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
+            'birth_date' => 'date',
+            'hire_date' => 'date',
         ];
     }
 
     public function department()
     {
         return $this->belongsTo(Department::class, 'department_id');
+    }
+
+    public function badges()
+    {
+        return $this->hasMany(UserBadge::class);
     }
 
     public function isAdmin(): bool

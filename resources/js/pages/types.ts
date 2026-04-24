@@ -85,3 +85,16 @@ export interface BadgeStat {
   color: string;
   count: number;
 }
+
+export interface TopUser {
+  id: number;
+  name: string;
+  avatar: string;
+  department: string | null;
+  count: number;
+}
+
+export interface Department {
+  id: number;
+  name: string;
+}

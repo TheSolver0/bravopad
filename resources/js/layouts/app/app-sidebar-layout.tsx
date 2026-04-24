@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { usePage, router } from '@inertiajs/react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
-import { Anchor, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import type { BreadcrumbItem } from '@/types';
 import Sidebar from './Sidebar';
 import Header from './Header';
@@ -104,25 +104,25 @@ export default function AppSidebarLayout({ breadcrumbs = [], children }: AppSide
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-50 flex flex-col"
+            className="fixed inset-0 z-50 flex items-center justify-center"
+            onClick={() => setShowCreateModal(false)}
           >
-            <div className="relative bg-gradient-to-r from-[#003d7a] via-[#00529e] to-[#0066c2] px-5 py-4 flex items-center justify-between shrink-0">
-              <div className="space-y-0.5">
-                <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-white/70">
-                  <Anchor size={11} /> Orbit Sarl
-                </span>
-                <h2 className="text-xl font-extrabold text-white leading-tight tracking-tight">Envoyer un Bravo</h2>
-              </div>
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 16 }}
+              transition={{ duration: 0.2 }}
+              className="relative z-10 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto bg-gray-50 rounded-2xl shadow-2xl modal-scroll"
+              onClick={e => e.stopPropagation()}
+            >
               <button
                 onClick={() => setShowCreateModal(false)}
-                className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/25 border border-white/20 flex items-center justify-center text-white transition-all cursor-pointer"
+                className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-white/80 hover:bg-white text-gray-400 hover:text-gray-700 shadow-sm border border-gray-100 transition-all cursor-pointer z-10"
               >
-                <X size={18} />
+                <X size={16} />
               </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto bg-gray-50">
-              <div className="max-w-2xl mx-auto px-4 py-6">
+              <div className="px-4 py-6">
                 <CreateBravo
                   users={users}
                   bravoValues={bravoValues}
@@ -130,7 +130,7 @@ export default function AppSidebarLayout({ breadcrumbs = [], children }: AppSide
                   onSuccess={() => { setShowCreateModal(false); router.reload(); }}
                 />
               </div>
-            </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

@@ -176,6 +176,7 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
   const prev = () => setCurrent(c => (c - 1 + slides.length) % slides.length);
   const next = () => setCurrent(c => (c + 1) % slides.length);
   const slide = slides[current];
+  
 
   return (
     <div className="animate-in fade-in duration-500">
@@ -334,8 +335,9 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
                           </div>
 
                           {/* Footer: date + sender */}
+                          
                           <div className="flex items-center justify-between pt-2 border-t border-gray-50">
-                            <span className="text-xs text-gray-400">{bravo.created_at}</span>
+                            <span className="text-xs text-gray-400"> {new Date(bravo.created_at).toLocaleDateString('fr-FR')}</span>
                             <div className="flex items-center gap-2">
                               <span className="text-xs text-gray-500">
                                 From <span className="font-medium text-gray-700">{bravo.sender?.name ?? '—'}</span>
@@ -389,7 +391,7 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
               </div>
             )}
 
-            <div className="flex justify-center pt-4">
+            {/* <div className="flex justify-center pt-4">
               <button
                 onClick={() => router.visit('/history')}
                 className="p-3 rounded-full border border-primary/10 text-primary hover:bg-primary/5 transition-all shadow-sm flex items-center justify-center group cursor-pointer"
@@ -397,7 +399,7 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
               >
                 <PlusCircle size={24} className="group-hover:rotate-90 transition-transform duration-300" />
               </button>
-            </div>
+            </div> */}
           </div>
 
           {/* ── Sidebar droite ─────────────────────────────────────────────── */}
@@ -413,7 +415,7 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
                   <span className="w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: '#3B82F6' }}>
                     <Star size={12} className="text-white fill-white" />
                   </span>
-                  My Points
+                  Mes Points
                 </h3>
                 <ChevronUp size={16} className="text-gray-400" />
               </div>
@@ -543,22 +545,25 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-50 flex flex-col"
+            className="fixed inset-0 z-50 flex items-center justify-center"
+            onClick={() => setShowCreateModal(false)}
           >
-            <div className={`relative bg-gradient-to-r ${slide.bg} px-5 py-4 flex items-center justify-between shrink-0`}>
-              <div className="space-y-0.5">
-                {slide.tag}
-                <h2 className="text-xl font-extrabold text-white leading-tight tracking-tight">Envoyer un Bravo</h2>
-              </div>
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 16 }}
+              transition={{ duration: 0.2 }}
+              className="relative z-10 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto bg-gray-50 rounded-2xl shadow-2xl modal-scroll"
+              onClick={e => e.stopPropagation()}
+            >
               <button
                 onClick={() => setShowCreateModal(false)}
-                className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/25 border border-white/20 flex items-center justify-center text-white transition-all cursor-pointer"
+                className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-white/80 hover:bg-white text-gray-400 hover:text-gray-700 shadow-sm border border-gray-100 transition-all cursor-pointer z-10"
               >
-                <X size={18} />
+                <X size={16} />
               </button>
-            </div>
-            <div className="flex-1 overflow-y-auto bg-gray-50">
-              <div className="max-w-2xl mx-auto px-4 py-6">
+              <div className="px-4 py-6">
                 <CreateBravo
                   users={users}
                   bravoValues={bravoValues}
@@ -566,7 +571,7 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
                   onSuccess={() => { setShowCreateModal(false); router.reload(); }}
                 />
               </div>
-            </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -598,7 +603,7 @@ function RecognitionCard({ counts }: RecognitionCardProps) {
           <div className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
             <Star size={14} className="text-white fill-white" />
           </div>
-          <span className="font-bold text-sm text-gray-700">My Recognition</span>
+          <span className="font-bold text-sm text-gray-700">Mes Reconnaissances</span>
         </div>
         {open ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
       </button>

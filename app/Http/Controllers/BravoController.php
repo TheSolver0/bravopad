@@ -179,4 +179,4 @@ class BravoController extends Controller
 
         return response()->json($bravos);
     }
-}
+}   

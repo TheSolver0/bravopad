@@ -1,16 +1,55 @@
 // Types correspondant au schéma réel de la base de données Laravel
 
-// Conservé pour compatibilité avec les layouts
-export type View = 'dashboard' | 'team' | 'history' | 'shop' | 'create' | 'stats' | 'challenges';
+export type View =
+  | 'dashboard'
+  | 'team'
+  | 'history'
+  | 'shop'
+  | 'create'
+  | 'stats'
+  | 'challenges'
+  | 'engagement'
+  | 'hr-dashboard'
+  | 'admin-config'
+  | 'admin-users'
+  | 'admin-roles'
+  | 'notifications'
+  | 'audit';
 
-// Récompenses (boutique — données statiques)
+// Récompenses (boutique — persistées en DB)
 export interface Reward {
-  id: string;
-  title: string;
-  description: string;
-  cost: number;
-  image: string;
+  id: number;
+  name: string;
+  description: string | null;
   category: 'vouchers' | 'tickets' | 'experiences' | 'equipment';
+  cost_points: number;
+  image_url: string | null;
+  stock: number | null;
+  has_stock: boolean;
+  affordable: boolean;
+}
+
+export interface Redemption {
+  id: number;
+  reward_name: string;
+  points_spent: number;
+  status: 'pending' | 'approved' | 'rejected' | 'delivered';
+  created_at: string;
+}
+
+export interface BravoComment {
+  id: number;
+  content: string;
+  created_at: string;
+  user: { id: number; name: string; avatar: string } | null;
+}
+
+export interface AppSetting {
+  id: number;
+  key: string;
+  value: string;
+  cast: string;
+  description: string | null;
 }
 
 export interface User {
@@ -39,6 +78,8 @@ export interface Bravo {
   message: string;
   points: number;
   likes_count: number;
+  user_has_liked?: boolean;
+  comments_count?: number;
   created_at: string;
   sender?: User;
   receiver?: User;

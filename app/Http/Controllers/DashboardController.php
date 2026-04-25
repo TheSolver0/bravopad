@@ -6,29 +6,35 @@ use App\Models\User;
 use App\Models\Bravo;
 use App\Models\BravoValue;
 use App\Models\Challenge;
+use App\Services\Insights\BravoInsightsService;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 
 class DashboardController extends Controller
 {
-    public function index()
+    public function index(BravoInsightsService $insightsService)
     {
-        $users = User::orderByDesc('points_total')->get();
+        $users = User::query()->where('is_automation', false)->orderByDesc('points_total')->get();
 
         $bravos = Bravo::with(['sender', 'receiver', 'values'])
             ->latest()
+            ->take(20)
             ->get();
 
-        $activeChallenge = Challenge::first();
+        $activeChallenge = Challenge::where('status', 'active')
+            ->where('start_date', '<=', now())
+            ->where('end_date', '>=', now())
+            ->first();
 
         $currentUser = Auth::user();
 
         return Inertia::render('dashboard', [
-            'users' => $users,
-            'bravos' => $bravos,
+            'users'           => $users,
+            'bravos'          => $bravos,
             'activeChallenge' => $activeChallenge,
-            'currentUser' => $currentUser,
-            'bravoValues' => BravoValue::where('is_active', true)->get(),
+            'currentUser'     => $currentUser,
+            'bravoValues'     => BravoValue::where('is_active', true)->get(),
+            'bravoInsights'   => $insightsService->forSender($currentUser),
         ]);
     }
 }

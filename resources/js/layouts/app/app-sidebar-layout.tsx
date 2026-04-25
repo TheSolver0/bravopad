@@ -14,12 +14,26 @@ interface AppSidebarLayoutProps {
   children: React.ReactNode;
 }
 
+const defaultBravoInsights = {
+  concentration_alerts: [] as string[],
+  balancing_suggestions: [] as { id: number; name: string; department?: string; reason: string; received_recent: number }[],
+  quality: { score: 70, tips: [] as string[] },
+};
+
 export default function AppSidebarLayout({ breadcrumbs = [], children }: AppSidebarLayoutProps) {
-  const page = usePage<{ flash?: { success?: string; error?: string }; users?: User[]; bravoValues?: BravoValue[] }>();
+  const page = usePage<{
+    flash?: { success?: string; error?: string };
+    users?: User[];
+    team?: { data?: User[] };
+    bravoValues?: BravoValue[];
+    bravoInsights?: typeof defaultBravoInsights;
+  }>();
   const { flash } = page.props;
   const isDashboard = page.component === 'dashboard';
-  const users: User[] = (page.props.users as User[]) ?? [];
+  const users: User[] =
+    (page.props.users as User[] | undefined) ?? (page.props.team?.data as User[] | undefined) ?? [];
   const bravoValues: BravoValue[] = (page.props.bravoValues as BravoValue[]) ?? [];
+  const bravoInsights = page.props.bravoInsights ?? defaultBravoInsights;
 
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -122,6 +136,7 @@ export default function AppSidebarLayout({ breadcrumbs = [], children }: AppSide
                 <CreateBravo
                   users={users}
                   bravoValues={bravoValues}
+                  bravoInsights={bravoInsights}
                   isModal
                   onSuccess={() => { setShowCreateModal(false); router.reload(); }}
                 />

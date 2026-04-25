@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Settings;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Settings\ProfileDeleteRequest;
 use App\Http\Requests\Settings\ProfileUpdateRequest;
+use App\Services\Audit\AuditLogger;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -38,6 +39,16 @@ class ProfileController extends Controller
 
         $request->user()->save();
 
+        AuditLogger::log(
+            'profile_updated',
+            ['changes' => array_keys($request->validated())],
+            $request->user(),
+            null,
+            null,
+            'info',
+            'Mise a jour du profil utilisateur.',
+        );
+
         Inertia::flash('toast', ['type' => 'success', 'message' => __('Profile updated.')]);
 
         return to_route('profile.edit');
@@ -53,6 +64,16 @@ class ProfileController extends Controller
         Auth::logout();
 
         $user->delete();
+
+        AuditLogger::log(
+            'profile_deleted',
+            ['user_email' => $user->email],
+            $user,
+            null,
+            null,
+            'warning',
+            'Suppression du compte utilisateur.',
+        );
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();

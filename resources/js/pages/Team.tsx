@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { Link } from '@inertiajs/react';
 import { Search, Award, Users2 } from 'lucide-react';
 import { Card } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
@@ -6,19 +7,40 @@ import { User } from './types';
 
 interface TeamProps {
   users: User[];
+  pagination: {
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+  };
 }
 
-export default function Team({ users }: TeamProps) {
+export default function Team({ users, pagination }: TeamProps) {
   const [search, setSearch] = useState('');
   const [selectedDept, setSelectedDept] = useState('Tous');
 
   const departments = ['Tous', ...Array.from(new Set(users.map(u => u.department).filter(Boolean)))];
+  const deptClasses: Record<string, string> = {
+    Tous: 'bg-slate-100 text-slate-700',
+    DSI: 'bg-blue-100 text-blue-800',
+    DRH: 'bg-pink-100 text-pink-800',
+    DCRP: 'bg-purple-100 text-purple-800',
+    DEX: 'bg-amber-100 text-amber-800',
+    DCG: 'bg-emerald-100 text-emerald-800',
+  };
 
   const filtered = users.filter(u => {
     const matchSearch = !search || u.name.toLowerCase().includes(search.toLowerCase()) || u.role.toLowerCase().includes(search.toLowerCase());
     const matchDept   = selectedDept === 'Tous' || u.department === selectedDept;
     return matchSearch && matchDept;
   });
+  const startAt = useMemo(() => ((pagination.current_page - 1) * pagination.per_page) + 1, [pagination.current_page, pagination.per_page]);
+  const endAt = useMemo(() => Math.min(pagination.current_page * pagination.per_page, pagination.total), [pagination.current_page, pagination.per_page, pagination.total]);
+  const pages = useMemo(() => {
+    const from = Math.max(1, pagination.current_page - 2);
+    const to = Math.min(pagination.last_page, pagination.current_page + 2);
+    return Array.from({ length: to - from + 1 }, (_, idx) => from + idx);
+  }, [pagination.current_page, pagination.last_page]);
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -26,20 +48,26 @@ export default function Team({ users }: TeamProps) {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-extrabold tracking-tight">Équipe</h1>
-          <p className="text-sm text-on-surface-variant font-medium">{users.length} membre{users.length !== 1 ? 's' : ''} dans l'organisation.</p>
+          <p className="text-sm text-on-surface-variant font-medium">
+            {pagination.total.toLocaleString()} membres dans l'organisation.
+          </p>
         </div>
-        <div className="flex items-center gap-2 bg-surface-container-low p-1 rounded-xl shadow-inner">
+        <div className="w-full md:w-auto max-w-full overflow-x-auto bg-surface-container-low p-1 rounded-xl shadow-inner">
+          <div className="flex items-center gap-2 min-w-max">
           {departments.map(dept => (
             <button
               key={dept}
               onClick={() => setSelectedDept(dept)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
-                selectedDept === dept ? 'bg-white shadow-md text-primary' : 'text-on-surface-variant hover:text-on-surface'
+              className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all border ${
+                selectedDept === dept
+                  ? 'shadow-md scale-[1.02] border-white text-white bg-gradient-to-r from-primary to-secondary'
+                  : `${deptClasses[dept] ?? 'bg-slate-100 text-slate-700'} border-transparent hover:brightness-95`
               }`}
             >
               {dept}
             </button>
           ))}
+          </div>
         </div>
       </div>
 
@@ -94,7 +122,7 @@ export default function Team({ users }: TeamProps) {
                 <p className="text-xs font-semibold text-on-surface-variant truncate">{user.role}</p>
                 {user.department && (
                   <Badge variant="secondary" className="bg-surface-container-high/50 text-on-surface-variant border-none text-[10px] mt-1">
-                    {user.department}
+                    DIR: {user.department}
                   </Badge>
                 )}
               </div>
@@ -109,6 +137,56 @@ export default function Team({ users }: TeamProps) {
           ))}
         </div>
       )}
+
+      <div className="flex flex-col md:flex-row items-center justify-between gap-3 pt-2">
+        <p className="text-xs text-on-surface-variant">
+          Affichage {startAt}-{endAt} sur {pagination.total.toLocaleString()}
+        </p>
+        <div className="flex items-center gap-2">
+          {pagination.current_page <= 1 ? (
+            <span className="px-3 py-1.5 text-xs rounded-full border-2 border-primary/20 text-primary/40 cursor-not-allowed">
+              Précédent
+            </span>
+          ) : (
+            <Link
+              href={`/team?page=${pagination.current_page - 1}`}
+              preserveScroll
+              className="px-3 py-1.5 text-xs rounded-full border-2 border-primary/20 text-primary hover:bg-primary/5 font-semibold"
+            >
+              Précédent
+            </Link>
+          )}
+
+          {pages.map((page) => (
+            <Link
+              key={page}
+              href={`/team?page=${page}`}
+              preserveScroll
+              className={`min-w-9 px-3 py-1.5 text-xs rounded-full font-semibold text-center ${
+                page === pagination.current_page
+                  ? 'bg-primary text-white'
+                  : 'border-2 border-primary/20 text-primary hover:bg-primary/5'
+              }`}
+            >
+              {page}
+            </Link>
+          ))}
+
+          {pagination.current_page >= pagination.last_page ? (
+            <span className="px-3 py-1.5 text-xs rounded-full border-2 border-primary/20 text-primary/40 cursor-not-allowed">
+              Suivant
+            </span>
+          ) : (
+            <Link
+              href={`/team?page=${pagination.current_page + 1}`}
+              preserveScroll
+              className="px-3 py-1.5 text-xs rounded-full border-2 border-primary/20 text-primary hover:bg-primary/5 font-semibold"
+            >
+              Suivant
+            </Link>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

@@ -2,18 +2,27 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\BravoSent;
+use App\Exceptions\BravoRuleException;
 use App\Models\Bravo;
 use App\Models\BravoValue;
 use App\Models\Challenge;
 use App\Models\User;
+use App\Services\BravoPolicyService;
+use App\Services\BravoPointsService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 class BravoController extends Controller
 {
+    public function __construct(
+        private readonly BravoPointsService $pointsService,
+        private readonly BravoPolicyService $policyService,
+    ) {}
+
     /**
-     * Feed type réseau social
+     * Feed global (API JSON, paginé)
      */
     public function index()
     {
@@ -30,6 +39,74 @@ class BravoController extends Controller
             ->findOrFail($id);
 
         return response()->json($bravo);
+    }
+
+    /**
+     * Page Inertia /create
+     */
+    public function create()
+    {
+        return Inertia::render('CreateBravo', [
+            'users'       => User::orderBy('name')->get(),
+            'bravoValues' => BravoValue::where('is_active', true)->get(),
+        ]);
+    }
+
+    /**
+     * Crée un Bravo — calcul points serveur + règles anti-abus
+     */
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'receiver_id' => 'required|exists:users,id',
+            'value_ids'   => 'required|array|min:1',
+            'value_ids.*' => 'exists:bravo_values,id',
+            'message'     => 'nullable|string|max:1000',
+        ]);
+
+        $sender     = $request->user();
+        $receiverId = (int) $validated['receiver_id'];
+        $points     = $this->pointsService->calculate($validated['value_ids']);
+
+        // Valide toutes les règles anti-abus (lance BravoRuleException si violation)
+        $this->policyService->validate($sender, $receiverId, $points);
+
+        return DB::transaction(function () use ($validated, $sender, $receiverId, $points, $request) {
+
+            $primaryValue = BravoValue::findOrFail($validated['value_ids'][0]);
+
+            $activeChallenge = Challenge::where('status', 'active')
+                ->where('start_date', '<=', now())
+                ->where('end_date', '>=', now())
+                ->first();
+
+            $bravo = Bravo::create([
+                'sender_id'    => $sender->id,
+                'receiver_id'  => $receiverId,
+                'value_id'     => $primaryValue->id,
+                'challenge_id' => $activeChallenge?->id,
+                'message'      => $validated['message'] ?? null,
+                'points'       => $points,
+            ]);
+
+            $bravo->values()->sync($validated['value_ids']);
+
+            // Mise à jour points du destinataire
+            User::where('id', $receiverId)->increment('points_total', $points);
+
+            // Émet l'événement (notifications)
+            event(new BravoSent($bravo->load(['sender', 'receiver', 'values'])));
+
+            if ($request->hasHeader('X-Inertia')) {
+                return redirect()->route('dashboard')
+                    ->with('success', 'Bravo envoyé avec succès !');
+            }
+
+            return response()->json([
+                'message' => 'Bravo envoyé avec succès',
+                'data'    => $bravo,
+            ], 201);
+        });
     }
 
     /**
@@ -51,13 +128,12 @@ class BravoController extends Controller
                 'points'      => $b->points,
                 'likes_count' => $b->likes_count,
                 'created_at'  => $b->created_at->format('d/m/Y à H:i'),
-                'sender'   => $b->sender   ? ['id' => $b->sender->id,   'name' => $b->sender->name,   'avatar' => $b->sender->avatar]   : null,
-                'receiver' => $b->receiver ? ['id' => $b->receiver->id, 'name' => $b->receiver->name, 'avatar' => $b->receiver->avatar] : null,
-                'values'   => $b->values->map(fn ($v) => ['id' => $v->id, 'name' => $v->name, 'color' => $v->color])->values(),
+                'sender'      => $b->sender   ? ['id' => $b->sender->id,   'name' => $b->sender->name,   'avatar' => $b->sender->avatar]   : null,
+                'receiver'    => $b->receiver ? ['id' => $b->receiver->id, 'name' => $b->receiver->name, 'avatar' => $b->receiver->avatar] : null,
+                'values'      => $b->values->map(fn ($v) => ['id' => $v->id, 'name' => $v->name, 'color' => $v->color])->values(),
             ]);
 
-        $user = $request->user();
-
+        $user        = $request->user();
         $pointsGiven = Bravo::where('sender_id', $userId)->sum('points');
 
         return Inertia::render('History', [
@@ -75,74 +151,8 @@ class BravoController extends Controller
         ]);
     }
 
-    public function create()
-    {
-        return Inertia::render('CreateBravo', [
-            'users' => User::all(),
-            'bravoValues' => BravoValue::where('is_active', true)->get(),
-        ]);
-    }
-
     /**
-     * Créer un bravo (Kudos)
-     */
-    public function store(Request $request)
-    {
-        $validated = $request->validate([
-            'receiver_id'  => 'required|exists:users,id',
-            'value_ids'    => 'required|array|min:1',
-            'value_ids.*'  => 'exists:bravo_values,id',
-            'custom_points'=> 'required|integer|min:1|max:1000',
-            'message'      => 'nullable|string',
-        ]);
-
-        return DB::transaction(function () use ($validated, $request) {
-
-            $sender = $request->user();
-
-            // Primary value (first selected) stored in the FK column
-            $primaryValue = BravoValue::findOrFail($validated['value_ids'][0]);
-
-            $points = $validated['custom_points'];
-
-            // challenge actif (global)
-            $challenge = Challenge::where('status', 'active')
-                ->where('start_date', '<=', now())
-                ->where('end_date', '>=', now())
-                ->first();
-
-            $bravo = Bravo::create([
-                'sender_id'   => $sender->id,
-                'receiver_id' => $validated['receiver_id'],
-                'value_id'    => $primaryValue->id,
-                'challenge_id'=> $challenge?->id,
-                'message'     => $validated['message'] ?? null,
-                'points'      => $points,
-            ]);
-
-            // Attacher toutes les valeurs dans la table pivot
-            $bravo->values()->sync($validated['value_ids']);
-
-            // update points utilisateur
-            $receiver = User::findOrFail($validated['receiver_id']);
-            $receiver->points_total += $points;
-            $receiver->save();
-
-            // Requête Inertia (formulaire web) → redirection
-            if ($request->hasHeader('X-Inertia')) {
-                return redirect()->route('dashboard')
-                    ->with('success', 'Bravo envoyé avec succès ! 🎉');
-            }
-
-            return response()->json([
-                'message' => 'Bravo envoyé avec succès',
-                'data' => $bravo->load(['sender', 'receiver', 'values', 'challenge'])
-            ]);
-        });
-    }
-
-    /**
-     * Profil utilisateur (bravos reçus)
+     * Bravos reçus par un utilisateur (API)
      */
     public function received($userId)
     {
@@ -155,7 +165,7 @@ class BravoController extends Controller
     }
 
     /**
-     * Bravos envoyés
+     * Bravos envoyés par un utilisateur (API)
      */
     public function sent($userId)
     {
@@ -168,7 +178,7 @@ class BravoController extends Controller
     }
 
     /**
-     * Feed filtré par challenge
+     * Feed filtré par challenge (API)
      */
     public function byChallenge($challengeId)
     {

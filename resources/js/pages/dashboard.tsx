@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { router } from '@inertiajs/react';
 import {
@@ -16,11 +16,12 @@ import {
   Ship,
   Star,
   X,
+  Send,
 } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
-import { User, Bravo, Challenge, BravoValue } from './types';
+import { User, Bravo, BravoComment, Challenge, BravoValue } from './types';
 import CreateBravo from './CreateBravo';
 
 interface DashboardProps {
@@ -49,6 +50,81 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
 
   const nextMilestone = Math.ceil((currentUser.points_total + 1) / 500) * 500;
   const progress = nextMilestone > 0 ? Math.min(100, (currentUser.points_total / nextMilestone) * 100) : 0;
+
+  // ── Likes & commentaires ──────────────────────────────────────────────────
+  type LikeState = { liked: boolean; count: number };
+  const [likeStates, setLikeStates] = useState<Record<number, LikeState>>(() =>
+    Object.fromEntries(bravos.map(b => [b.id, { liked: b.user_has_liked ?? false, count: b.likes_count }]))
+  );
+  const [likingId, setLikingId] = useState<number | null>(null);
+
+  const [openComments, setOpenComments] = useState<number | null>(null);
+  const [commentsByBravo, setCommentsByBravo] = useState<Record<number, BravoComment[]>>({});
+  const [commentInput, setCommentInput] = useState('');
+  const [sendingComment, setSendingComment] = useState(false);
+  const [loadingComments, setLoadingComments] = useState(false);
+
+  const csrfToken = (): string =>
+    document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content ?? '';
+
+  const apiFetch = useCallback(async (url: string, options: RequestInit = {}) => {
+    const res = await fetch(url, {
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrfToken(), 'Accept': 'application/json', ...((options.headers ?? {}) as Record<string, string>) },
+      ...options,
+    });
+    if (!res.ok) throw new Error(res.statusText);
+    return res.json();
+  }, []);
+
+  const handleLike = useCallback(async (bravoId: number) => {
+    if (likingId !== null) return;
+    setLikingId(bravoId);
+    try {
+      const data = await apiFetch(`/api/bravos/${bravoId}/like`, { method: 'POST' });
+      setLikeStates(prev => ({ ...prev, [bravoId]: { liked: data.liked, count: data.likes_count } }));
+    } finally {
+      setLikingId(null);
+    }
+  }, [likingId, apiFetch]);
+
+  const loadComments = useCallback(async (bravoId: number) => {
+    if (commentsByBravo[bravoId]) return;
+    setLoadingComments(true);
+    try {
+      const data = await apiFetch(`/api/bravos/${bravoId}/comments`);
+      setCommentsByBravo(prev => ({ ...prev, [bravoId]: data }));
+    } finally {
+      setLoadingComments(false);
+    }
+  }, [commentsByBravo, apiFetch]);
+
+  const toggleComments = useCallback((bravoId: number) => {
+    if (openComments === bravoId) {
+      setOpenComments(null);
+    } else {
+      setOpenComments(bravoId);
+      loadComments(bravoId);
+    }
+    setCommentInput('');
+  }, [openComments, loadComments]);
+
+  const handleAddComment = useCallback(async (bravoId: number) => {
+    if (!commentInput.trim() || sendingComment) return;
+    setSendingComment(true);
+    try {
+      const data = await apiFetch(`/api/bravos/${bravoId}/comments`, {
+        method: 'POST',
+        body: JSON.stringify({ content: commentInput.trim() }),
+      });
+      setCommentsByBravo(prev => ({
+        ...prev,
+        [bravoId]: [data, ...(prev[bravoId] ?? [])],
+      }));
+      setCommentInput('');
+    } finally {
+      setSendingComment(false);
+    }
+  }, [commentInput, sendingComment, apiFetch]);
 
   // ── Slides du carrousel ────────────────────────────────────────────────────
   interface Slide {
@@ -326,18 +402,88 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
                     <div className="flex items-center justify-between pt-2">
                       <div className="flex flex-wrap gap-2">
                         {bravo.values && bravo.values.map(v => (
-                          <Badge key={v.id}  className="border-1 bg-white text-[10px]" style={v.color ? { borderColor: v.color } : undefined}>{v.name}</Badge>
+                          <Badge key={v.id} className="border-1 bg-white text-[10px]" style={v.color ? { borderColor: v.color } : undefined}>{v.name}</Badge>
                         ))}
                       </div>
                       <div className="flex items-center gap-4">
-                        <button className="flex items-center gap-2 text-on-surface-variant hover:text-primary transition-colors text-xs font-bold uppercase tracking-wide">
-                          <Heart size={18} /> {bravo.likes_count}
+                        <button
+                          onClick={() => handleLike(bravo.id)}
+                          disabled={likingId === bravo.id}
+                          className={`flex items-center gap-1.5 transition-colors text-xs font-bold uppercase tracking-wide ${
+                            likeStates[bravo.id]?.liked ? 'text-primary' : 'text-on-surface-variant hover:text-primary'
+                          }`}
+                        >
+                          <Heart size={16} className={likeStates[bravo.id]?.liked ? 'fill-primary' : ''} />
+                          {likeStates[bravo.id]?.count ?? 0}
                         </button>
-                        <button className="flex items-center gap-2 text-on-surface-variant hover:text-primary transition-colors text-xs font-bold uppercase tracking-wide">
-                          <MessageSquare size={18} />
+                        <button
+                          onClick={() => toggleComments(bravo.id)}
+                          className={`flex items-center gap-1.5 transition-colors text-xs font-bold uppercase tracking-wide ${
+                            openComments === bravo.id ? 'text-primary' : 'text-on-surface-variant hover:text-primary'
+                          }`}
+                        >
+                          <MessageSquare size={16} />
+                          {(commentsByBravo[bravo.id]?.length ?? bravo.comments_count ?? 0) || ''}
                         </button>
                       </div>
                     </div>
+
+                    {/* Section commentaires */}
+                    <AnimatePresence>
+                      {openComments === bravo.id && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          transition={{ duration: 0.2 }}
+                          className="overflow-hidden"
+                        >
+                          <div className="pt-4 space-y-3 border-t border-surface-container-high mt-2">
+                            {loadingComments && <p className="text-xs text-on-surface-variant">Chargement...</p>}
+                            {(commentsByBravo[bravo.id] ?? []).map(c => (
+                              <div key={c.id} className="flex items-start gap-2">
+                                <img
+                                  src={c.user ? getAvatar(c.user) : ''}
+                                  alt=""
+                                  className="w-7 h-7 rounded-full shrink-0"
+                                  referrerPolicy="no-referrer"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-baseline gap-2">
+                                    <span className="text-xs font-bold">{c.user?.name}</span>
+                                    <span className="text-[10px] text-on-surface-variant">{c.created_at}</span>
+                                  </div>
+                                  <p className="text-sm text-on-surface leading-snug">{c.content}</p>
+                                </div>
+                              </div>
+                            ))}
+                            <div className="flex items-center gap-2">
+                              <img
+                                src={getAvatar(currentUser)}
+                                alt=""
+                                className="w-7 h-7 rounded-full shrink-0"
+                                referrerPolicy="no-referrer"
+                              />
+                              <input
+                                type="text"
+                                value={commentInput}
+                                onChange={e => setCommentInput(e.target.value)}
+                                onKeyDown={e => e.key === 'Enter' && handleAddComment(bravo.id)}
+                                placeholder="Ajouter un commentaire..."
+                                className="flex-1 text-sm border border-surface-container-high rounded-xl px-3 py-1.5 focus:ring-2 focus:ring-primary/20 transition-all"
+                              />
+                              <button
+                                onClick={() => handleAddComment(bravo.id)}
+                                disabled={sendingComment || !commentInput.trim()}
+                                className="p-1.5 rounded-xl bg-primary text-white disabled:opacity-40 transition-opacity"
+                              >
+                                <Send size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </Card>
                 </motion.div>
               ))}

@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Challenge;
-use App\Models\Bravo;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -19,19 +18,17 @@ class ChallengeController extends Controller
             ->orderByRaw("CASE WHEN status = 'active' THEN 0 ELSE 1 END")
             ->orderBy('end_date')
             ->get()
-            ->map(function ($challenge) {
-                return [
-                    'id'          => $challenge->id,
-                    'name'        => $challenge->name,
-                    'description' => $challenge->description,
-                    'start_date'  => $challenge->start_date,
-                    'end_date'    => $challenge->end_date,
-                    'points_bonus' => $challenge->points_bonus,
-                    'status'      => $challenge->status,
-                    'bravos_count' => $challenge->bravos_count,
-                    'days_left'   => max(0, (int) now()->diffInDays($challenge->end_date, false)),
-                ];
-            });
+            ->map(fn ($c) => [
+                'id'           => $c->id,
+                'name'         => $c->name,
+                'description'  => $c->description,
+                'start_date'   => $c->start_date,
+                'end_date'     => $c->end_date,
+                'points_bonus' => $c->points_bonus,
+                'status'       => $c->status,
+                'bravos_count' => $c->bravos_count,
+                'days_left'    => max(0, (int) now()->diffInDays($c->end_date, false)),
+            ]);
 
         return Inertia::render('Challenges', [
             'challenges' => $challenges,
@@ -39,114 +36,103 @@ class ChallengeController extends Controller
     }
 
     /**
-     * Liste des challenges
+     * Liste paginée (API)
      */
     public function index()
     {
-        $challenges = Challenge::withCount('bravos')
-            ->latest()
-            ->paginate(20);
-
-        return response()->json($challenges);
+        return response()->json(
+            Challenge::withCount('bravos')->latest()->paginate(20)
+        );
     }
 
     /**
-     * Créer un challenge (RH only)
+     * Créer un challenge — RH/Admin uniquement
      */
     public function store(Request $request)
     {
+        $this->authorize('create', Challenge::class);
+
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'start_date' => 'required|date',
-            'end_date' => 'required|date|after_or_equal:start_date',
-            'points_bonus' => 'nullable|integer',
+            'name'         => 'required|string|max:255',
+            'description'  => 'nullable|string',
+            'start_date'   => 'required|date',
+            'end_date'     => 'required|date|after_or_equal:start_date',
+            'points_bonus' => 'nullable|integer|min:0',
         ]);
 
         $challenge = Challenge::create([
             ...$validated,
-            'status' => 'active',
+            'status'     => 'active',
             'created_by' => $request->user()->id,
         ]);
 
         return response()->json([
             'message' => 'Challenge créé avec succès',
-            'data' => $challenge
-        ]);
+            'data'    => $challenge,
+        ], 201);
     }
 
     /**
-     * Afficher un challenge + stats
+     * Détail + stats d'un challenge (API)
      */
     public function show($id)
     {
-        $challenge = Challenge::with(['bravos.sender', 'bravos.receiver', 'bravos.value'])
-            ->findOrFail($id);
-
+        $challenge   = Challenge::with(['bravos.sender', 'bravos.receiver', 'bravos.values'])->findOrFail($id);
         $totalPoints = $challenge->bravos->sum('points');
 
         return response()->json([
             'challenge' => $challenge,
-            'stats' => [
+            'stats'     => [
                 'total_bravos' => $challenge->bravos->count(),
                 'total_points' => $totalPoints,
-            ]
+            ],
         ]);
     }
 
     /**
-     * Activer un challenge
+     * Activer un challenge — RH/Admin uniquement
      */
     public function activate($id)
     {
         $challenge = Challenge::findOrFail($id);
+        $this->authorize('activate', $challenge);
 
-        $challenge->update([
-            'status' => 'active'
-        ]);
+        $challenge->update(['status' => 'active']);
 
-        return response()->json([
-            'message' => 'Challenge activé',
-            'data' => $challenge
-        ]);
+        return response()->json(['message' => 'Challenge activé', 'data' => $challenge]);
     }
 
     /**
-     * Terminer un challenge + calcul leaderboard
+     * Terminer un challenge + calcul leaderboard — RH/Admin uniquement
      */
     public function finish($id)
     {
         return DB::transaction(function () use ($id) {
+            $challenge = Challenge::with('bravos.receiver')->findOrFail($id);
+            $this->authorize('finish', $challenge);
 
-            $challenge = Challenge::with('bravos.receiver')
-                ->findOrFail($id);
+            $challenge->update(['status' => 'finished']);
 
-            $challenge->update([
-                'status' => 'finished'
-            ]);
-
-            // leaderboard par utilisateur
             $leaderboard = $challenge->bravos
                 ->groupBy('receiver_id')
-                ->map(function ($bravos) {
-                    return [
-                        'user_id' => $bravos->first()->receiver_id,
-                        'total_points' => $bravos->sum('points'),
-                        'total_bravos' => $bravos->count(),
-                    ];
-                })
+                ->map(fn ($bravos) => [
+                    'user_id'      => $bravos->first()->receiver_id,
+                    'user_name'    => $bravos->first()->receiver?->name,
+                    'total_points' => $bravos->sum('points'),
+                    'total_bravos' => $bravos->count(),
+                ])
                 ->sortByDesc('total_points')
                 ->values();
 
             return response()->json([
-                'message' => 'Challenge terminé',
-                'leaderboard' => $leaderboard
+                'message'     => 'Challenge terminé',
+                'leaderboard' => $leaderboard,
             ]);
         });
     }
 
     /**
-     * Challenge actif (global RH)
+     * Challenge actif en cours (API)
      */
     public function active()
     {

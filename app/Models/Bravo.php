@@ -74,14 +74,31 @@ class Bravo extends Model
         return $query->where('sender_id', $userId);
     }
 
+    // Likes (many-to-many via bravo_likes)
+    public function likedBy()
+    {
+        return $this->belongsToMany(User::class, 'bravo_likes')->withTimestamps();
+    }
+
+    // Commentaires (avec soft delete)
+    public function comments()
+    {
+        return $this->hasMany(BravoComment::class)->latest();
+    }
+
     /*
     |--------------------------------------------------------------------------
     | Helpers métier
     |--------------------------------------------------------------------------
     */
 
-    public function getIsInChallengeAttribute()
+    public function getIsInChallengeAttribute(): bool
     {
-        return !is_null($this->challenge_id);
+        return ! is_null($this->challenge_id);
+    }
+
+    public function isLikedBy(User $user): bool
+    {
+        return $this->likedBy()->where('user_id', $user->id)->exists();
     }
 }

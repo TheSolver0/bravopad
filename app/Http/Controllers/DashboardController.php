@@ -17,9 +17,13 @@ class DashboardController extends Controller
 
         $bravos = Bravo::with(['sender', 'receiver', 'values'])
             ->latest()
+            ->take(20)
             ->get();
 
-        $activeChallenge = Challenge::first();
+        $activeChallenge = Challenge::where('status', 'active')
+            ->where('start_date', '<=', now())
+            ->where('end_date', '>=', now())
+            ->first();
 
         $currentUser = Auth::user();
 

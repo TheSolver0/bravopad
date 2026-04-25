@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Bravo;
 use App\Models\BravoValue;
 use App\Models\User;
-use Carbon\Carbon;
+use Carbon\CarbonInterface;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -74,8 +74,8 @@ class HrDashboardController extends Controller
 
     private function parseDateRange(Request $request): array
     {
-        $from = $request->from ? Carbon::parse($request->from)->startOfDay() : now()->subDays(30)->startOfDay();
-        $to   = $request->to   ? Carbon::parse($request->to)->endOfDay()     : now()->endOfDay();
+        $from = $request->from ? now()->parse($request->from)->startOfDay() : now()->subDays(30)->startOfDay();
+        $to   = $request->to   ? now()->parse($request->to)->endOfDay()     : now()->endOfDay();
 
         if ($from->gt($to)) {
             $from = $to->copy()->subDays(30);
@@ -84,7 +84,7 @@ class HrDashboardController extends Controller
         return [$from, $to];
     }
 
-    private function kpis(Carbon $from, Carbon $to): array
+    private function kpis(CarbonInterface $from, CarbonInterface $to): array
     {
         $base = Bravo::whereBetween('created_at', [$from, $to]);
 
@@ -97,7 +97,7 @@ class HrDashboardController extends Controller
         ];
     }
 
-    private function topGivers(Carbon $from, Carbon $to, int $limit = 10): array
+    private function topGivers(CarbonInterface $from, CarbonInterface $to, int $limit = 10): array
     {
         return Bravo::select('sender_id', DB::raw('COUNT(*) as bravo_count'), DB::raw('SUM(points) as points_given'))
             ->with('sender:id,name,avatar,department')
@@ -114,7 +114,7 @@ class HrDashboardController extends Controller
             ->toArray();
     }
 
-    private function topReceivers(Carbon $from, Carbon $to, int $limit = 10): array
+    private function topReceivers(CarbonInterface $from, CarbonInterface $to, int $limit = 10): array
     {
         return Bravo::select('receiver_id', DB::raw('COUNT(*) as bravo_count'), DB::raw('SUM(points) as points_received'))
             ->with('receiver:id,name,avatar,department')
@@ -131,7 +131,7 @@ class HrDashboardController extends Controller
             ->toArray();
     }
 
-    private function byDepartment(Carbon $from, Carbon $to): array
+    private function byDepartment(CarbonInterface $from, CarbonInterface $to): array
     {
         return Bravo::select('users.department', DB::raw('COUNT(*) as bravo_count'), DB::raw('SUM(bravos.points) as total_points'))
             ->join('users', 'bravos.receiver_id', '=', 'users.id')
@@ -148,7 +148,7 @@ class HrDashboardController extends Controller
             ->toArray();
     }
 
-    private function valueDistribution(Carbon $from, Carbon $to): array
+    private function valueDistribution(CarbonInterface $from, CarbonInterface $to): array
     {
         return BravoValue::select('bravo_values.id', 'bravo_values.name', 'bravo_values.color', DB::raw('COUNT(bravo_bravo_value.bravo_id) as usage_count'))
             ->leftJoin('bravo_bravo_value', 'bravo_values.id', '=', 'bravo_bravo_value.bravo_value_id')
@@ -167,7 +167,7 @@ class HrDashboardController extends Controller
             ->toArray();
     }
 
-    private function weeklyTrend(Carbon $from, Carbon $to): array
+    private function weeklyTrend(CarbonInterface $from, CarbonInterface $to): array
     {
         $weeks = [];
         $cursor = $from->copy()->startOfWeek();

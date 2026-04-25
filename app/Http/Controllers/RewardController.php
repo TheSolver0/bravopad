@@ -5,6 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\Redemption;
 use App\Models\Reward;
 use App\Models\User;
+use App\Notifications\RewardRedemptionOutcome;
+use App\Notifications\RewardRedemptionSubmitted;
+use App\Services\Audit\AuditLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -90,6 +93,19 @@ class RewardController extends Controller
             ]);
         });
 
+        $redemption->load('reward');
+        $user->notify(new RewardRedemptionSubmitted($redemption));
+
+        AuditLogger::log(
+            'redemption_requested',
+            ['reward_id' => $reward->id, 'points_spent' => $redemption->points_spent],
+            $user,
+            Redemption::class,
+            $redemption->id,
+            'info',
+            'Demande d’échange de récompense.',
+        );
+
         if ($request->hasHeader('X-Inertia')) {
             return redirect()->route('shop')->with('success', "Échange demandé ! Votre demande est en cours de traitement.");
         }
@@ -121,6 +137,16 @@ class RewardController extends Controller
 
         $reward = Reward::create($validated);
 
+        AuditLogger::log(
+            'reward_created',
+            ['name' => $reward->name, 'cost_points' => $reward->cost_points, 'category' => $reward->category],
+            $request->user(),
+            Reward::class,
+            $reward->id,
+            'info',
+            'Creation d une recompense.',
+        );
+
         return response()->json(['message' => 'Récompense créée.', 'data' => $reward], 201);
     }
 
@@ -139,6 +165,16 @@ class RewardController extends Controller
         ]);
 
         $reward->update($validated);
+
+        AuditLogger::log(
+            'reward_updated',
+            ['changes' => array_keys($validated)],
+            $request->user(),
+            Reward::class,
+            $reward->id,
+            'info',
+            'Mise a jour d une recompense.',
+        );
 
         return response()->json(['message' => 'Récompense mise à jour.', 'data' => $reward]);
     }
@@ -182,6 +218,22 @@ class RewardController extends Controller
             'approved_by' => $request->user()->id,
             'approved_at' => now(),
         ]);
+
+        $redemption->loadMissing(['user', 'reward']);
+        $redemption->user?->notify(new RewardRedemptionOutcome($redemption->fresh(), $validated['status']));
+
+        AuditLogger::log(
+            'redemption_processed',
+            [
+                'status' => $validated['status'],
+                'notes'  => $validated['notes'] ?? null,
+            ],
+            $request->user(),
+            Redemption::class,
+            $redemption->id,
+            $validated['status'] === 'rejected' ? 'warning' : 'info',
+            'Traitement RH d’une demande d’échange.',
+        );
 
         return response()->json(['message' => 'Demande mise à jour.', 'data' => $redemption]);
     }

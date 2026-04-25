@@ -15,6 +15,10 @@ class BravoPolicyService
      */
     public function validate(User $sender, int $receiverId, int $points): void
     {
+        if ($sender->is_automation) {
+            return;
+        }
+
         $this->noSelfAttribution($sender, $receiverId);
         $this->maxBravosPerDay($sender);
         $this->maxPointsPerDay($sender, $points);

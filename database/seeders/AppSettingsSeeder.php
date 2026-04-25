@@ -46,6 +46,18 @@ class AppSettingsSeeder extends Seeder
                 'cast'        => 'boolean',
                 'description' => 'Activer les notifications email lors de la réception d\'un Bravo',
             ],
+            [
+                'key'         => 'automation_birth_points',
+                'value'       => '50',
+                'cast'        => 'int',
+                'description' => 'Points attribués automatiquement pour un anniversaire de naissance',
+            ],
+            [
+                'key'         => 'automation_hire_points',
+                'value'       => '75',
+                'cast'        => 'int',
+                'description' => 'Points attribués automatiquement pour un anniversaire d\'ancienneté',
+            ],
         ];
 
         foreach ($defaults as $setting) {

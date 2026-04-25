@@ -1,6 +1,20 @@
 // Types correspondant au schéma réel de la base de données Laravel
 
-export type View = 'dashboard' | 'team' | 'history' | 'shop' | 'create' | 'stats' | 'challenges' | 'hr-dashboard' | 'admin-config';
+export type View =
+  | 'dashboard'
+  | 'team'
+  | 'history'
+  | 'shop'
+  | 'create'
+  | 'stats'
+  | 'challenges'
+  | 'engagement'
+  | 'hr-dashboard'
+  | 'admin-config'
+  | 'admin-users'
+  | 'admin-roles'
+  | 'notifications'
+  | 'audit';
 
 // Récompenses (boutique — persistées en DB)
 export interface Reward {

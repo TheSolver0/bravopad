@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Challenge;
+use App\Services\Audit\AuditLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -66,6 +67,21 @@ class ChallengeController extends Controller
             'created_by' => $request->user()->id,
         ]);
 
+        AuditLogger::log(
+            'challenge_created',
+            [
+                'name' => $challenge->name,
+                'start_date' => $challenge->start_date,
+                'end_date' => $challenge->end_date,
+                'points_bonus' => $challenge->points_bonus,
+            ],
+            $request->user(),
+            Challenge::class,
+            $challenge->id,
+            'info',
+            'Creation d un challenge.',
+        );
+
         return response()->json([
             'message' => 'Challenge créé avec succès',
             'data'    => $challenge,
@@ -99,6 +115,16 @@ class ChallengeController extends Controller
 
         $challenge->update(['status' => 'active']);
 
+        AuditLogger::log(
+            'challenge_activated',
+            ['name' => $challenge->name],
+            request()->user(),
+            Challenge::class,
+            $challenge->id,
+            'info',
+            'Activation d un challenge.',
+        );
+
         return response()->json(['message' => 'Challenge activé', 'data' => $challenge]);
     }
 
@@ -123,6 +149,19 @@ class ChallengeController extends Controller
                 ])
                 ->sortByDesc('total_points')
                 ->values();
+
+            AuditLogger::log(
+                'challenge_finished',
+                [
+                    'name' => $challenge->name,
+                    'total_entries' => $challenge->bravos->count(),
+                ],
+                request()->user(),
+                Challenge::class,
+                $challenge->id,
+                'info',
+                'Cloture d un challenge.',
+            );
 
             return response()->json([
                 'message'     => 'Challenge terminé',

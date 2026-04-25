@@ -26,6 +26,8 @@ class RolesAndPermissionsSeeder extends Seeder
             'configure-settings',
             'view-hr-dashboard',
             'manage-users',
+            'view-audit-log',
+            'manage-roles-permissions',
         ];
 
         foreach ($permissions as $perm) {
@@ -50,6 +52,8 @@ class RolesAndPermissionsSeeder extends Seeder
             'manage-challenges',
             'configure-settings',
             'view-hr-dashboard',
+            'view-audit-log',
+            'manage-users',
         ]);
 
         $admin = Role::firstOrCreate(['name' => 'admin']);

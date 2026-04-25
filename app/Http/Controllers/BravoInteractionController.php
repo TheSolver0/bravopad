@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Bravo;
 use App\Models\BravoComment;
 use App\Models\BravoLike;
+use App\Services\Audit\AuditLogger;
 use Illuminate\Http\Request;
 
 class BravoInteractionController extends Controller
@@ -24,11 +25,27 @@ class BravoInteractionController extends Controller
             $existing->delete();
             $bravo->decrement('likes_count');
             $liked = false;
+            $action = 'bravo_unliked';
         } else {
             BravoLike::create(['bravo_id' => $bravo->id, 'user_id' => $userId]);
             $bravo->increment('likes_count');
             $liked = true;
+            $action = 'bravo_liked';
         }
+
+        AuditLogger::log(
+            $action,
+            [
+                'bravo_id' => $bravo->id,
+                'receiver_id' => $bravo->receiver_id,
+                'likes_count' => (int) $bravo->fresh()->likes_count,
+            ],
+            $request->user(),
+            Bravo::class,
+            $bravo->id,
+            'info',
+            $liked ? 'Reaction positive sur un Bravo.' : 'Retrait de reaction sur un Bravo.',
+        );
 
         return response()->json([
             'liked'       => $liked,
@@ -75,6 +92,20 @@ class BravoInteractionController extends Controller
 
         $comment->load('user:id,name,avatar');
 
+        AuditLogger::log(
+            'bravo_comment_added',
+            [
+                'bravo_id' => $bravo->id,
+                'receiver_id' => $bravo->receiver_id,
+                'comment_id' => $comment->id,
+            ],
+            $request->user(),
+            BravoComment::class,
+            $comment->id,
+            'info',
+            'Commentaire ajoute sur un Bravo.',
+        );
+
         return response()->json([
             'id'         => $comment->id,
             'content'    => $comment->content,
@@ -101,6 +132,20 @@ class BravoInteractionController extends Controller
         }
 
         $comment->delete(); // soft delete
+
+        AuditLogger::log(
+            'bravo_comment_deleted',
+            [
+                'bravo_id' => $bravo->id,
+                'comment_id' => $comment->id,
+                'comment_author_id' => $comment->user_id,
+            ],
+            $user,
+            BravoComment::class,
+            $comment->id,
+            'warning',
+            'Commentaire supprime sur un Bravo.',
+        );
 
         return response()->json(['message' => 'Commentaire supprimé.']);
     }

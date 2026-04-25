@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
@@ -37,6 +38,22 @@ class HandleInertiaRequests extends Middleware
     {
         $user = $request->user();
 
+        $nav = $user
+            ? [
+                'hr_dashboard' => Gate::forUser($user)->allows('view-hr-dashboard'),
+                'admin_config' => Gate::forUser($user)->allows('configure-settings'),
+                'admin_users'  => Gate::forUser($user)->allows('manage-users'),
+                'admin_roles'  => Gate::forUser($user)->allows('manage-roles-permissions'),
+                'audit'        => Gate::forUser($user)->allows('view-audit-log'),
+            ]
+            : [
+                'hr_dashboard' => false,
+                'admin_config' => false,
+                'admin_users'  => false,
+                'admin_roles'  => false,
+                'audit'        => false,
+            ];
+
         return [
             ...parent::share($request),
             'name' => config('app.name'),
@@ -46,6 +63,19 @@ class HandleInertiaRequests extends Middleware
                 'is_hr'       => $user?->isHr() ?? false,
                 'is_manager'  => $user?->isManager() ?? false,
                 'is_admin'    => $user?->isAdmin() ?? false,
+                'is_super_admin' => $user?->isSuperAdmin() ?? false,
+                'nav'         => $nav,
+                'unread_notifications_count' => $user
+                    ? $user->unreadNotifications()->count()
+                    : 0,
+                'recent_notifications' => $user
+                    ? $user->notifications()->latest()->limit(8)->get()->map(static fn ($n) => [
+                        'id'         => $n->id,
+                        'read_at'    => $n->read_at?->toIso8601String(),
+                        'created_at' => $n->created_at->toIso8601String(),
+                        'data'       => $n->data,
+                    ])->values()->all()
+                    : [],
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'flash' => [

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AppSetting;
 use App\Models\BravoValue;
 use App\Models\User;
+use App\Services\Audit\AuditLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Inertia\Inertia;
@@ -57,6 +58,16 @@ class AdminConfigController extends Controller
             Cache::forget("app_setting:{$item['key']}");
         }
 
+        AuditLogger::log(
+            'admin_settings_updated',
+            ['keys' => collect($validated['settings'])->pluck('key')->all()],
+            $request->user(),
+            null,
+            null,
+            'info',
+            'Modification des paramètres plateforme.',
+        );
+
         return response()->json(['message' => 'Paramètres mis à jour.']);
     }
 
@@ -68,6 +79,15 @@ class AdminConfigController extends Controller
         $this->authorize('configure-settings', User::class);
 
         $bravoValue->update(['is_active' => ! $bravoValue->is_active]);
+
+        AuditLogger::log(
+            'bravo_value_toggled',
+            ['bravo_value_id' => $bravoValue->id, 'is_active' => $bravoValue->is_active],
+            $request->user(),
+            BravoValue::class,
+            $bravoValue->id,
+            'info',
+        );
 
         return response()->json([
             'message'   => $bravoValue->is_active ? 'Valeur activée.' : 'Valeur désactivée.',
@@ -92,6 +112,15 @@ class AdminConfigController extends Controller
 
         $bravoValue = BravoValue::create(array_merge($validated, ['is_active' => true]));
 
+        AuditLogger::log(
+            'bravo_value_created',
+            ['name' => $bravoValue->name],
+            $request->user(),
+            BravoValue::class,
+            $bravoValue->id,
+            'info',
+        );
+
         return response()->json(['message' => 'Valeur créée.', 'data' => $bravoValue], 201);
     }
 
@@ -111,6 +140,15 @@ class AdminConfigController extends Controller
         ]);
 
         $bravoValue->update($validated);
+
+        AuditLogger::log(
+            'bravo_value_updated',
+            ['bravo_value_id' => $bravoValue->id, 'changes' => array_keys($validated)],
+            $request->user(),
+            BravoValue::class,
+            $bravoValue->id,
+            'info',
+        );
 
         return response()->json(['message' => 'Valeur mise à jour.', 'data' => $bravoValue]);
     }

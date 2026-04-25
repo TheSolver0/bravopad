@@ -10,6 +10,7 @@ use App\Models\Challenge;
 use App\Models\User;
 use App\Services\BravoPolicyService;
 use App\Services\BravoPointsService;
+use App\Services\Insights\BravoInsightsService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -44,11 +45,12 @@ class BravoController extends Controller
     /**
      * Page Inertia /create
      */
-    public function create()
+    public function create(Request $request, BravoInsightsService $insightsService)
     {
         return Inertia::render('CreateBravo', [
-            'users'       => User::orderBy('name')->get(),
-            'bravoValues' => BravoValue::where('is_active', true)->get(),
+            'users'         => User::query()->where('is_automation', false)->orderBy('name')->get(),
+            'bravoValues'   => BravoValue::where('is_active', true)->get(),
+            'bravoInsights' => $insightsService->forSender($request->user()),
         ]);
     }
 

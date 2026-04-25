@@ -1,11 +1,16 @@
 <?php
 
 use App\Http\Controllers\AdminConfigController;
+use App\Http\Controllers\AdminRolesController;
+use App\Http\Controllers\AdminUsersController;
 use App\Http\Controllers\AiController;
+use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\BravoController;
 use App\Http\Controllers\ChallengeController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\EngagementController;
 use App\Http\Controllers\HrDashboardController;
+use App\Http\Controllers\NotificationCenterController;
 use App\Http\Controllers\RewardController;
 use App\Http\Controllers\StatsController;
 use App\Models\User;
@@ -44,22 +49,41 @@ Route::middleware(['auth'])->group(function () {
     Route::patch('/admin/config/bravo-values/{bravoValue}', [AdminConfigController::class, 'updateBravoValue']);
     Route::patch('/admin/config/bravo-values/{bravoValue}/toggle', [AdminConfigController::class, 'toggleBravoValue']);
 
+    Route::get('/admin/users', [AdminUsersController::class, 'index'])->name('admin.users.index');
+    Route::patch('/admin/users/{user}', [AdminUsersController::class, 'update'])->name('admin.users.update');
+
+    Route::get('/admin/roles', [AdminRolesController::class, 'index'])->name('admin.roles.index');
+    Route::patch('/admin/roles/{role}', [AdminRolesController::class, 'update'])->name('admin.roles.update');
+
+    Route::get('/notifications', [NotificationCenterController::class, 'index'])->name('notifications.index');
+    Route::post('/notifications/read-all', [NotificationCenterController::class, 'markAllRead'])->name('notifications.read-all');
+    Route::post('/notifications/{id}/read', [NotificationCenterController::class, 'markRead'])->name('notifications.read');
+
+    Route::get('/engagement', [EngagementController::class, 'index'])->name('engagement.index');
+    Route::post('/engagement/vote', [EngagementController::class, 'vote'])->name('engagement.vote');
+    Route::post('/engagement/surveys', [EngagementController::class, 'createSurvey'])->name('engagement.surveys.create');
+    Route::post('/engagement/surveys/{survey}/responses', [EngagementController::class, 'respondSurvey'])->name('engagement.surveys.respond');
+
+    Route::get('/audit', [AuditLogController::class, 'index'])->name('audit.index');
+
+    Route::get('/team', function () {
+        $users = User::query()
+            ->where('is_automation', false)
+            ->orderByDesc('points_total')
+            ->paginate(15)
+            ->withQueryString();
+
+        return Inertia::render('Team', [
+            'users'      => $users->items(),
+            'pagination' => [
+                'current_page' => $users->currentPage(),
+                'last_page'    => $users->lastPage(),
+                'per_page'     => $users->perPage(),
+                'total'        => $users->total(),
+            ],
+        ]);
+    })->name('team');
 });
-
-// Pages accessibles sans auth
-Route::get('/team', function () {
-    $users = User::orderByDesc('points_total')->paginate(15)->withQueryString();
-
-    return Inertia::render('Team', [
-        'users'      => $users->items(),
-        'pagination' => [
-            'current_page' => $users->currentPage(),
-            'last_page'    => $users->lastPage(),
-            'per_page'     => $users->perPage(),
-            'total'        => $users->total(),
-        ],
-    ]);
-})->middleware(['auth']);
 
 Route::get('/challenges', [ChallengeController::class, 'page']);
 

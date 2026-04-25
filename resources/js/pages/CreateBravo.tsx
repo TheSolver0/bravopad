@@ -1,19 +1,38 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useForm, router } from '@inertiajs/react';
-import { MessageSquare, Award, PlusCircle, Search, XCircle, CheckCircle, Mic, MicOff, Sparkles, Loader2 } from 'lucide-react';
+import { MessageSquare, Award, PlusCircle, Search, XCircle, CheckCircle, Mic, MicOff, Sparkles, Loader2, Lightbulb } from 'lucide-react';
 import { Card } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { User, BravoValue } from './types';
 
+export interface BravoInsights {
+  concentration_alerts: string[];
+  balancing_suggestions: {
+    id: number;
+    name: string;
+    department?: string;
+    reason: string;
+    received_recent: number;
+  }[];
+  quality: { score: number; tips: string[] };
+}
+
 interface CreateBravoProps {
   users: User[];
   bravoValues: BravoValue[];
+  bravoInsights?: BravoInsights;
   onSuccess?: () => void;
   isModal?: boolean;
 }
 
-export default function CreateBravo({ users, bravoValues, onSuccess, isModal }: CreateBravoProps) {
+const emptyInsights: BravoInsights = {
+  concentration_alerts: [],
+  balancing_suggestions: [],
+  quality: { score: 70, tips: [] },
+};
+
+export default function CreateBravo({ users, bravoValues, bravoInsights = emptyInsights, onSuccess, isModal }: CreateBravoProps) {
   const [selectedRecipient, setSelectedRecipient] = useState<User | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
@@ -143,6 +162,18 @@ export default function CreateBravo({ users, bravoValues, onSuccess, isModal }: 
     }
   };
 
+  const liveQualityScore = useMemo(() => {
+    let score = Math.round(bravoInsights.quality.score * 0.55);
+    const len = (data.message || '').trim().length;
+    if (len >= 120) score += 25;
+    else if (len >= 60) score += 15;
+    else if (len >= 20) score += 8;
+    if (data.value_ids.length >= 2) score += 15;
+    if (data.value_ids.length >= 3) score += 8;
+    if (selectedRecipient) score += 7;
+    return Math.min(100, Math.max(0, score));
+  }, [bravoInsights.quality.score, data.message, data.value_ids, selectedRecipient]);
+
   const handleSubmit = (e: React.SyntheticEvent) => {
     e.preventDefault();
     post('/bravos', {
@@ -176,6 +207,64 @@ export default function CreateBravo({ users, bravoValues, onSuccess, isModal }: 
           <h1 className="text-2xl font-extrabold tracking-tight">Envoyer un Bravo</h1>
           <p className="text-sm text-on-surface-variant font-medium">Célébrez le travail exceptionnel d'un collègue.</p>
         </div>
+      )}
+
+      {(bravoInsights.concentration_alerts.length > 0 ||
+        bravoInsights.balancing_suggestions.length > 0 ||
+        bravoInsights.quality.tips.length > 0) && (
+        <Card className="p-5 space-y-4 border-none shadow-lg bg-gradient-to-br from-amber-50/90 via-white to-sky-50/80">
+          <div className="flex items-center gap-2 text-amber-900">
+            <Lightbulb size={18} />
+            <span className="text-xs font-black uppercase tracking-widest">Anti-biais & qualité</span>
+          </div>
+          {bravoInsights.concentration_alerts.length > 0 && (
+            <div className="space-y-2">
+              {bravoInsights.concentration_alerts.map((a, i) => (
+                <p key={i} className="text-xs font-semibold text-amber-950 bg-amber-100/80 rounded-lg px-3 py-2">
+                  {a}
+                </p>
+              ))}
+            </div>
+          )}
+          {bravoInsights.balancing_suggestions.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-[11px] font-bold text-on-surface-variant">Suggestions cross-équipe (faible visibilité récente)</p>
+              <div className="flex flex-wrap gap-2">
+                {bravoInsights.balancing_suggestions.slice(0, 5).map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => {
+                      const u = users.find((x) => x.id === s.id);
+                      if (u) handleSelectRecipient(u);
+                    }}
+                    className="text-left text-[11px] font-bold px-3 py-2 rounded-xl bg-white border border-sky-200 text-sky-900 hover:border-primary/40 transition-colors"
+                  >
+                    {s.name}
+                    <span className="block font-medium text-on-surface-variant mt-0.5">
+                      {s.department ?? '—'} · {s.received_recent} reçus (90j)
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="flex items-center justify-between gap-4 pt-1 border-t border-amber-200/50">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Score qualité (aperçu)</p>
+              <p className="text-2xl font-black text-primary">{liveQualityScore}</p>
+            </div>
+            <div className="flex-1 space-y-1">
+              {(bravoInsights.quality.tips.length > 0 ? bravoInsights.quality.tips : ['Ajoutez un message personnalisé et plusieurs valeurs pour renforcer la reconnaissance.']).map(
+                (t, i) => (
+                  <p key={i} className="text-[11px] text-on-surface-variant leading-snug">
+                    · {t}
+                  </p>
+                ),
+              )}
+            </div>
+          </div>
+        </Card>
       )}
 
       <form onSubmit={handleSubmit}>

@@ -46,7 +46,7 @@ class AppServiceProvider extends ServiceProvider
         $this->configureDefaults();
         $this->registerPolicies();
         $this->registerEvents();
-        Schema::defaultStringLength(191);
+        Schema::defaultStringLength(171);
     }
 
     protected function registerPolicies(): void

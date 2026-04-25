@@ -2,6 +2,8 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\BravoValue;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Middleware;
@@ -82,6 +84,10 @@ class HandleInertiaRequests extends Middleware
                 'success' => $request->session()->get('success'),
                 'error'   => $request->session()->get('error'),
             ],
+            // Partagé globalement pour le modal "Envoyer un Bravo" accessible depuis toutes les pages
+            'bravoValues'   => fn () => BravoValue::where('is_active', true)->get(),
+            'users'         => fn () => $request->user() ? User::orderBy('name')->get() : [],
+            'unreadCount'   => fn () => $request->user()?->unreadNotifications()->count() ?? 0,
         ];
     }
 }

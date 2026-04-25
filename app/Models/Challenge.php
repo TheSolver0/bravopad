@@ -19,6 +19,7 @@ class Challenge extends Model
         'end_date',
         'points_bonus',
         'status',
+        'for_all',
         'created_by',
     ];
 
@@ -38,6 +39,12 @@ class Challenge extends Model
     public function bravos()
     {
         return $this->hasMany(Bravo::class, 'challenge_id');
+    }
+
+    // Participants volontaires
+    public function participants()
+    {
+        return $this->belongsToMany(User::class, 'challenge_participants')->withTimestamps();
     }
 
     /*

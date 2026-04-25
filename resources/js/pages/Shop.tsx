@@ -76,9 +76,8 @@ export default function Shop({ rewards, redemptions, userPoints }: ShopProps) {
         </Card>
       </div>
 
-      {/* Filtres */}
-      <div className="flex flex-col md:flex-row gap-4">
-        <div className="relative flex-1">
+      <div className="flex flex-col gap-3">
+        <div className="relative">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant/60" size={18} />
           <input
             type="text"
@@ -88,8 +87,8 @@ export default function Shop({ rewards, redemptions, userPoints }: ShopProps) {
             onChange={e => setSearchTerm(e.target.value)}
           />
         </div>
-        <div className="flex gap-2 flex-wrap">
-          {categories.map(cat => (
+        <div className="flex flex-wrap gap-2">
+          {categories.map((cat) => (
             <button
               key={cat}
               onClick={() => setActiveCategory(cat)}

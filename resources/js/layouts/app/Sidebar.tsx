@@ -1,4 +1,4 @@
-import { Link, usePage } from '@inertiajs/react';
+import { Link, usePage, router } from '@inertiajs/react';
 import { motion } from 'motion/react';
 import {
   Trophy,
@@ -19,6 +19,15 @@ import {
   KeyRound,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { usePermissions } from '@/hooks/usePermissions';
+import type { Permission } from '@/pages/types';
+
+interface NavItem {
+  href: string;
+  label: string;
+  icon: React.ElementType;
+  minPermission?: Permission;
+}
 import { useMemo } from 'react';
 
 export const navItems = [
@@ -99,7 +108,7 @@ function NavLink({
 }
 
 export default function Sidebar({ collapsed = false, onCollapseToggle, onClose, onCreateBravo }: SidebarProps) {
-  const page = usePage<{ auth?: AuthShared }>();
+  const page = usePage<{ auth?: AuthShared }><{ auth: { user?: { id: number; name: string; email: string; avatar?: string } } }>();
   const currentUrl = page.url;
   const nav = page.props.auth?.nav ?? {};
 
@@ -127,16 +136,23 @@ export default function Sidebar({ collapsed = false, onCollapseToggle, onClose, 
     () => [...navItems, { href: '/notifications', label: 'Notifications', icon: Bell }],
     [],
   );
+  const user = page.props.auth?.user;
+  const { permission } = usePermissions();
+  const userRank = PERM_RANK[permission] ?? 0;
+
+  const visibleItems = navItems.filter(item =>
+    !item.minPermission || userRank >= PERM_RANK[item.minPermission]
+  );
 
   return (
     <div className="flex flex-col h-full relative">
       <div className="p-3 flex items-center gap-3 border-b border-surface-container-high">
         <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0">
-          <img src="/assets/images/logo.png" alt="Logo" className="w-10 h-10 object-contain" />
+          <img src="/assets/images/orbit-logo.png" alt="Logo" className="w-10 h-10 object-contain" />
         </div>
         {!collapsed && (
           <div className="animate-in fade-in slide-in-from-left-4 duration-300">
-            <h2 className="font-extrabold text-lg leading-none tracking-tight text-primary">BravoPAD</h2>
+            <h2 className="font-extrabold text-lg leading-none tracking-tight text-primary">Bravo</h2>
           </div>
         )}
         {onClose && (
@@ -177,6 +193,32 @@ export default function Sidebar({ collapsed = false, onCollapseToggle, onClose, 
           </>
         )}
       </nav>
+
+      {/* User + Logout */}
+      <div className="p-3 border-t border-surface-container-high">
+        <div className={`flex items-center gap-3 ${collapsed ? 'justify-center' : ''}`}>
+          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden">
+            {user?.avatar ? (
+              <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-xs font-bold text-primary">{user?.name?.charAt(0)?.toUpperCase()}</span>
+            )}
+          </div>
+          {!collapsed && (
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold text-on-surface truncate">{user?.name}</p>
+              <p className="text-[10px] text-on-surface-variant truncate">{user?.email}</p>
+            </div>
+          )}
+          <button
+            onClick={() => router.post('/logout')}
+            className="p-1.5 rounded-lg hover:bg-red-50 text-on-surface-variant hover:text-red-500 transition-colors shrink-0"
+            title="Déconnexion"
+          >
+            <LogOut size={16} />
+          </button>
+        </div>
+      </div>
 
       {onCollapseToggle && (
         <button

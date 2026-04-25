@@ -85,6 +85,29 @@ Route::middleware(['auth'])->group(function () {
     })->name('team');
 });
 
-Route::get('/challenges', [ChallengeController::class, 'page']);
+Route::get('/challenges', [ChallengeController::class, 'page'])->middleware(['auth']);
+Route::post('/challenges', [ChallengeController::class, 'store'])->middleware(['auth']);
+Route::post('/challenges/{id}/participate', [ChallengeController::class, 'participate'])->middleware(['auth']);
 
 require __DIR__ . '/settings.php';
+Route::get('/dashboard', [DashboardController::class, 'index'])
+    ->middleware(['auth'])
+    ->name('dashboard');
+Route::resource('bravos', BravoController::class)->middleware(['auth']);
+Route::middleware(['auth'])->group(function () {
+    Route::post('/bravos/{bravo}/comments', [CommentController::class, 'store']);
+    Route::delete('/bravos/{bravo}/comments/{comment}', [CommentController::class, 'destroy']);
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::post('/notifications/{id}/read', [NotificationController::class, 'markAsRead']);
+    Route::post('/notifications/read-all', [NotificationController::class, 'markAllAsRead']);
+});
+Route::post('/ai/rephrase', [AiController::class, 'rephrase'])->middleware(['auth']);
+Route::middleware(['auth'])->group(function () {
+    Route::get('/admin', [AdminController::class, 'index'])->name('admin');
+    Route::patch('/admin/users/{user}/permission', [AdminController::class, 'updatePermission'])->name('admin.users.permission');
+});
+Route::get('/test', function () {
+    return Inertia::render('');
+});
+
+require __DIR__.'/settings.php';

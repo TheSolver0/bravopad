@@ -8,6 +8,7 @@ use App\Models\Bravo;
 use App\Models\BravoValue;
 use App\Models\Challenge;
 use App\Models\User;
+use App\Models\UserBadge;
 use App\Services\BravoPolicyService;
 use App\Services\BravoPointsService;
 use App\Services\Insights\BravoInsightsService;
@@ -138,18 +139,51 @@ class BravoController extends Controller
         $user        = $request->user();
         $pointsGiven = Bravo::where('sender_id', $userId)->sum('points');
 
+        $badgeMeta = [
+            'good_job'   => ['label' => 'Good Job',   'emoji' => '👍', 'color' => '#4CAF50'],
+            'excellent'  => ['label' => 'Excellent',  'emoji' => '⭐', 'color' => '#2196F3'],
+            'impressive' => ['label' => 'Impressive', 'emoji' => '🚀', 'color' => '#9C27B0'],
+        ];
+
+        $badgesSent = Bravo::selectRaw('badge, COUNT(*) as count')
+            ->where('sender_id', $userId)
+            ->whereNotNull('badge')
+            ->groupBy('badge')
+            ->get()
+            ->map(fn($row) => [
+                'key'   => $row->badge,
+                'label' => $badgeMeta[$row->badge]['label'] ?? $row->badge,
+                'emoji' => $badgeMeta[$row->badge]['emoji'] ?? '🏅',
+                'color' => $badgeMeta[$row->badge]['color'] ?? '#6366f1',
+                'count' => (int) $row->count,
+            ])
+            ->sortByDesc('count')
+            ->values();
+
+        $user->loadMissing('department');
+
+        $earnedBadges = UserBadge::where('user_id', $userId)
+            ->orderBy('earned_at')
+            ->get()
+            ->map(fn ($b) => ['badge_type' => $b->badge_type, 'earned_at' => $b->earned_at->toDateTimeString()]);
+
         return Inertia::render('History', [
             'bravos'        => $bravos,
             'currentUserId' => $userId,
+            'earnedBadges'  => $earnedBadges,
             'currentUser'   => [
-                'id'           => $user->id,
-                'name'         => $user->name,
-                'avatar'       => $user->avatar,
-                'department'   => $user->department,
-                'role'         => $user->role,
-                'points_total' => $user->points_total,
+                'id'                       => $user->id,
+                'name'                     => $user->name,
+                'avatar'                   => $user->avatar,
+                'department'               => $user->department?->name ?? null,
+                'role'                     => $user->role,
+                'permission'               => $user->permission ?? 'employee',
+                'points_total'             => $user->points_total,
+                'monthly_points_remaining' => $user->monthly_points_remaining,
+                'monthly_points_allowance' => $user->monthly_points_allowance ?? 100,
             ],
             'pointsGiven'   => (int) $pointsGiven,
+            'badgesSent'    => $badgesSent,
         ]);
     }
 

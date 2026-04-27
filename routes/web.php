@@ -114,6 +114,9 @@ Route::middleware(['auth'])->group(function () {
 Route::get('/challenges', [ChallengeController::class, 'page'])->middleware(['auth']);
 Route::post('/challenges', [ChallengeController::class, 'store'])->middleware(['auth']);
 Route::post('/challenges/{id}/participate', [ChallengeController::class, 'participate'])->middleware(['auth']);
+Route::get('/challenges/{id}/media', [ChallengeController::class, 'getMedia'])->middleware(['auth']);
+Route::post('/challenges/{id}/media', [ChallengeController::class, 'uploadMedia'])->middleware(['auth']);
+Route::delete('/challenge-media/{mediaId}', [ChallengeController::class, 'deleteMedia'])->middleware(['auth']);
 
 // Admin — gestion des défis (HR/Admin uniquement)
 Route::middleware(['auth'])->group(function () {

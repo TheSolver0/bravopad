@@ -3,10 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\Challenge;
+use App\Models\ChallengeMedia;
+use App\Models\Department;
 use App\Services\Audit\AuditLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 
 class ChallengeController extends Controller
@@ -27,6 +29,12 @@ class ChallengeController extends Controller
                     'id'                 => $challenge->id,
                     'name'               => $challenge->name,
                     'description'        => $challenge->description,
+                    'cover_image'        => $challenge->cover_image
+                        ? (filter_var($challenge->cover_image, FILTER_VALIDATE_URL)
+                            ? $challenge->cover_image
+                            : asset('storage/' . $challenge->cover_image))
+                        : null,
+                    'category'           => $challenge->category ?? 'autre',
                     'start_date'         => $challenge->start_date,
                     'end_date'           => $challenge->end_date,
                     'points_bonus'       => $challenge->points_bonus,
@@ -92,7 +100,7 @@ class ChallengeController extends Controller
         $this->authorize('create', Challenge::class);
 
         $challenges = Challenge::withCount(['bravos', 'participants'])
-            ->with('creator:id,name')
+            ->with(['creator:id,name', 'division:id,name'])
             ->latest()
             ->get()
             ->map(function ($challenge) {
@@ -100,11 +108,19 @@ class ChallengeController extends Controller
                     'id'                 => $challenge->id,
                     'name'               => $challenge->name,
                     'description'        => $challenge->description,
+                    'cover_image'        => $challenge->cover_image
+                        ? (filter_var($challenge->cover_image, FILTER_VALIDATE_URL)
+                            ? $challenge->cover_image
+                            : asset('storage/' . $challenge->cover_image))
+                        : null,
+                    'category'           => $challenge->category ?? 'autre',
                     'start_date'         => $challenge->start_date,
                     'end_date'           => $challenge->end_date,
                     'points_bonus'       => $challenge->points_bonus,
                     'status'             => $challenge->status,
                     'for_all'            => (bool) $challenge->for_all,
+                    'division_id'        => $challenge->division_id,
+                    'division_name'      => $challenge->division?->name,
                     'bravos_count'       => $challenge->bravos_count,
                     'participants_count' => $challenge->participants_count,
                     'created_by_name'    => $challenge->creator?->name,
@@ -113,13 +129,16 @@ class ChallengeController extends Controller
                 ];
             });
 
+        $departments = Department::orderBy('name')->select('id', 'name')->get();
+
         return Inertia::render('AdminChallenges', [
-            'challenges' => $challenges,
+            'challenges'  => $challenges,
+            'departments' => $departments,
         ]);
     }
 
     /**
-     * Créer un challenge — RH/Admin uniquement
+     * Créer un challenge — RH/Admin uniquement (page publique Challenges)
      */
     public function store(Request $request)
     {
@@ -128,24 +147,39 @@ class ChallengeController extends Controller
         $validated = $request->validate([
             'name'         => 'required|string|max:255',
             'description'  => 'nullable|string',
+            'cover_image'  => 'nullable|image|max:5120',
+            'category'     => 'nullable|string|in:sport,accueil,creativite,bien_etre,cohesion,autre',
             'start_date'   => 'required|date',
             'end_date'     => 'required|date|after_or_equal:start_date',
             'points_bonus' => 'nullable|integer|min:0',
             'for_all'      => 'boolean',
         ]);
 
+        $coverPath = null;
+        if ($request->hasFile('cover_image')) {
+            $coverPath = $request->file('cover_image')->store('challenges/covers', 'public');
+        }
+
         $challenge = Challenge::create([
-            ...$validated,
-            'status'     => 'active',
-            'created_by' => $request->user()->id,
+            'name'         => $validated['name'],
+            'description'  => $validated['description'] ?? null,
+            'cover_image'  => $coverPath,
+            'category'     => $validated['category'] ?? 'autre',
+            'start_date'   => $validated['start_date'],
+            'end_date'     => $validated['end_date'],
+            'points_bonus' => $validated['points_bonus'] ?? 0,
+            'for_all'      => $validated['for_all'] ?? true,
+            'status'       => 'active',
+            'created_by'   => $request->user()->id,
         ]);
 
         AuditLogger::log(
             'challenge_created',
             [
-                'name' => $challenge->name,
-                'start_date' => $challenge->start_date,
-                'end_date' => $challenge->end_date,
+                'name'         => $challenge->name,
+                'category'     => $challenge->category,
+                'start_date'   => $challenge->start_date,
+                'end_date'     => $challenge->end_date,
                 'points_bonus' => $challenge->points_bonus,
             ],
             $request->user(),
@@ -155,10 +189,7 @@ class ChallengeController extends Controller
             'Creation d un challenge.',
         );
 
-        return response()->json([
-            'message' => 'Challenge créé avec succès',
-            'data'    => $challenge,
-        ], 201);
+        return redirect()->back();
     }
 
     /**
@@ -171,16 +202,43 @@ class ChallengeController extends Controller
         $validated = $request->validate([
             'name'         => 'required|string|max:255',
             'description'  => 'nullable|string',
+            'cover_image'  => 'nullable',
+            'category'     => 'nullable|string|in:sport,accueil,creativite,bien_etre,cohesion,autre',
             'start_date'   => 'required|date',
             'end_date'     => 'required|date|after_or_equal:start_date',
             'points_bonus' => 'nullable|integer|min:0',
             'for_all'      => 'boolean',
+            'division_id'  => 'nullable|exists:departments,id',
         ]);
 
+        $coverPath = null;
+        if ($request->hasFile('cover_image')) {
+            $coverPath = $request->file('cover_image')->store('challenges/covers', 'public');
+        } elseif ($request->input('cover_image') && filter_var($request->input('cover_image'), FILTER_VALIDATE_URL)) {
+            // Download and store the image from URL
+            $imageContent = file_get_contents($request->input('cover_image'));
+            if ($imageContent !== false) {
+                $extension = pathinfo(parse_url($request->input('cover_image'), PHP_URL_PATH), PATHINFO_EXTENSION) ?: 'jpg';
+                $filename = 'challenges/covers/' . uniqid() . '.' . $extension;
+                Storage::disk('public')->put($filename, $imageContent);
+                $coverPath = $filename;
+            }
+        }
+
+        $forAll = $validated['for_all'] ?? true;
+
         $challenge = Challenge::create([
-            ...$validated,
-            'status'     => 'active',
-            'created_by' => $request->user()->id,
+            'name'         => $validated['name'],
+            'description'  => $validated['description'] ?? null,
+            'cover_image'  => $coverPath,
+            'category'     => $validated['category'] ?? 'autre',
+            'start_date'   => $validated['start_date'],
+            'end_date'     => $validated['end_date'],
+            'points_bonus' => $validated['points_bonus'] ?? 0,
+            'for_all'      => $forAll,
+            'division_id'  => $forAll ? null : ($validated['division_id'] ?? null),
+            'status'       => 'active',
+            'created_by'   => $request->user()->id,
         ]);
 
         AuditLogger::log(
@@ -207,11 +265,44 @@ class ChallengeController extends Controller
         $validated = $request->validate([
             'name'         => 'required|string|max:255',
             'description'  => 'nullable|string',
+            'cover_image'  => 'nullable',
+            'category'     => 'nullable|string|in:sport,accueil,creativite,bien_etre,cohesion,autre',
             'start_date'   => 'required|date',
             'end_date'     => 'required|date|after_or_equal:start_date',
             'points_bonus' => 'nullable|integer|min:0',
             'for_all'      => 'boolean',
+            'division_id'  => 'nullable|exists:departments,id',
         ]);
+
+        // Handle cover_image: file upload or URL
+        if ($request->hasFile('cover_image')) {
+            // File upload
+            if ($challenge->cover_image) {
+                Storage::disk('public')->delete($challenge->cover_image);
+            }
+            $validated['cover_image'] = $request->file('cover_image')->store('challenges/covers', 'public');
+        } elseif ($request->input('cover_image') && filter_var($request->input('cover_image'), FILTER_VALIDATE_URL)) {
+            // URL provided
+            if ($challenge->cover_image) {
+                Storage::disk('public')->delete($challenge->cover_image);
+            }
+            // Download and store the image from URL
+            $imageContent = file_get_contents($request->input('cover_image'));
+            if ($imageContent !== false) {
+                $extension = pathinfo(parse_url($request->input('cover_image'), PHP_URL_PATH), PATHINFO_EXTENSION) ?: 'jpg';
+                $filename = 'challenges/covers/' . uniqid() . '.' . $extension;
+                Storage::disk('public')->put($filename, $imageContent);
+                $validated['cover_image'] = $filename;
+            } else {
+                // Invalid URL or unable to download
+                unset($validated['cover_image']);
+            }
+        } else {
+            unset($validated['cover_image']);
+        }
+
+        $forAll = $validated['for_all'] ?? $challenge->for_all;
+        $validated['division_id'] = $forAll ? null : ($validated['division_id'] ?? null);
 
         $challenge->update($validated);
 
@@ -235,6 +326,10 @@ class ChallengeController extends Controller
     {
         $challenge = Challenge::findOrFail($id);
         $this->authorize('delete', $challenge);
+
+        if ($challenge->cover_image) {
+            Storage::disk('public')->delete($challenge->cover_image);
+        }
 
         AuditLogger::log(
             'challenge_deleted',
@@ -332,5 +427,71 @@ class ChallengeController extends Controller
 
         return response()->json($challenge);
     }
-}
 
+    /**
+     * Retourne les médias d'un challenge (JSON — chargement lazy pour le blog)
+     */
+    public function getMedia($id)
+    {
+        $media = ChallengeMedia::where('challenge_id', $id)
+            ->with('uploader:id,name')
+            ->latest()
+            ->get()
+            ->map(fn ($m) => [
+                'id'            => $m->id,
+                'url'           => asset('storage/' . $m->file_path),
+                'file_type'     => $m->file_type,
+                'caption'       => $m->caption,
+                'uploader_name' => $m->uploader->name,
+                'created_at'    => $m->created_at->diffForHumans(),
+            ]);
+
+        return response()->json($media);
+    }
+
+    /**
+     * Upload de photos/vidéos dans le blog d'un challenge — RH/Admin uniquement
+     */
+    public function uploadMedia(Request $request, $id)
+    {
+        $challenge = Challenge::findOrFail($id);
+        $this->authorize('update', $challenge);
+
+        $request->validate([
+            'files'    => 'required|array|min:1',
+            'files.*'  => 'required|file|max:102400|mimes:jpg,jpeg,png,gif,webp,mp4,mov,avi,webm',
+            'caption'  => 'nullable|string|max:255',
+        ]);
+
+        $videoMimes = ['video/mp4', 'video/quicktime', 'video/avi', 'video/webm', 'video/x-msvideo'];
+
+        foreach ($request->file('files', []) as $file) {
+            $fileType = in_array($file->getMimeType(), $videoMimes) ? 'video' : 'image';
+            $path = $file->store("challenges/{$id}/media", 'public');
+
+            ChallengeMedia::create([
+                'challenge_id' => $id,
+                'uploaded_by'  => $request->user()->id,
+                'file_path'    => $path,
+                'file_type'    => $fileType,
+                'caption'      => $request->caption,
+            ]);
+        }
+
+        return back();
+    }
+
+    /**
+     * Supprimer un média du blog — RH/Admin uniquement
+     */
+    public function deleteMedia(Request $request, $mediaId)
+    {
+        $media = ChallengeMedia::findOrFail($mediaId);
+        $this->authorize('update', $media->challenge);
+
+        Storage::disk('public')->delete($media->file_path);
+        $media->delete();
+
+        return back();
+    }
+}

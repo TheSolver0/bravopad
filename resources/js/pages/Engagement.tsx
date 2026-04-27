@@ -98,15 +98,7 @@ function CandidateAvatar({
 }
 
 function OptionLabel({ label }: { label: string }) {
-  if (label.length <= 50) return <span className="text-sm font-semibold leading-snug line-clamp-2">{label}</span>;
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span className="text-sm font-semibold leading-snug line-clamp-2 cursor-default">{label}</span>
-      </TooltipTrigger>
-      <TooltipContent side="top" className="max-w-xs text-xs">{label}</TooltipContent>
-    </Tooltip>
-  );
+  return <span className="text-sm font-semibold leading-snug line-clamp-2">{label}</span>;
 }
 
 function DeptCombobox({
@@ -225,17 +217,7 @@ function RankingSidebar({ ranking }: { ranking: RankingRow[] }) {
 
       
 
-        {totalPages > 1 && (
-          <div className="px-4 py-3 bg-gray-50/50 flex items-center justify-between border-t border-gray-100">
-            <button type="button" onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold text-gray-600 disabled:text-gray-300 disabled:cursor-default hover:bg-white transition-colors">
-              <ChevronLeft size={13} /> Préc.
-            </button>
-            <span className="text-[11px] font-semibold text-gray-500">{page + 1} / {totalPages}</span>
-            <button type="button" onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))} disabled={page === totalPages - 1} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold text-gray-600 disabled:text-gray-300 disabled:cursor-default hover:bg-white transition-colors">
-              Suiv. <ChevronRight size={13} />
-            </button>
-          </div>
-        )}
+        
 
         
       </Card>

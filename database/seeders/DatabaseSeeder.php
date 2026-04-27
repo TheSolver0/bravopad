@@ -25,6 +25,7 @@ class DatabaseSeeder extends Seeder
             RewardSeeder::class,
             BadgeSeeder::class,
             HrSurveySeeder::class,
+            BravoSeeder::class,
         ]);
 
         $superAdmin = User::firstOrNew(['email' => 'superadmin@bravo.test']);

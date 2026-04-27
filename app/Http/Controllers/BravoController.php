@@ -131,14 +131,28 @@ class BravoController extends Controller
     {
         $userId = $request->user()->id;
 
-        $bravos = Bravo::with(['sender', 'receiver', 'values'])
-            ->where(fn ($q) => $q->where('sender_id', $userId)->orWhere('receiver_id', $userId))
+        // Collect batch_ids where the user is involved, then expand to full batches
+        $involvedBatchIds = Bravo::where(fn ($q) => $q->where('sender_id', $userId)->orWhere('receiver_id', $userId))
+            ->whereNotNull('batch_id')
+            ->pluck('batch_id')
+            ->unique();
+
+        $rawBravos = Bravo::with(['sender', 'receiver', 'values', 'comments.user'])
+            ->where(function ($q) use ($userId, $involvedBatchIds) {
+                $q->where(fn ($q2) => $q2->where('sender_id', $userId)->orWhere('receiver_id', $userId))
+                  ->whereNull('batch_id');
+                if ($involvedBatchIds->isNotEmpty()) {
+                    $q->orWhereIn('batch_id', $involvedBatchIds);
+                }
+            })
             ->latest()
             ->get()
             ->map(fn ($b) => [
                 'id'          => $b->id,
+                'batch_id'    => $b->batch_id,
                 'sender_id'   => $b->sender_id,
                 'receiver_id' => $b->receiver_id,
+                'badge'       => $b->badge,
                 'message'     => $b->message,
                 'points'      => $b->points,
                 'likes_count' => $b->likes_count,
@@ -146,7 +160,28 @@ class BravoController extends Controller
                 'sender'      => $b->sender   ? ['id' => $b->sender->id,   'name' => $b->sender->name,   'avatar' => $b->sender->avatar]   : null,
                 'receiver'    => $b->receiver ? ['id' => $b->receiver->id, 'name' => $b->receiver->name, 'avatar' => $b->receiver->avatar] : null,
                 'values'      => $b->values->map(fn ($v) => ['id' => $v->id, 'name' => $v->name, 'color' => $v->color])->values(),
+                'comments'    => $b->comments->map(fn ($c) => [
+                    'id'         => $c->id,
+                    'content'    => $c->content,
+                    'created_at' => $c->created_at->diffForHumans(),
+                    'user'       => $c->user ? ['id' => $c->user->id, 'name' => $c->user->name, 'avatar' => $c->user->avatar] : null,
+                ])->values(),
             ]);
+
+        // Regrouper les bravos d'un même envoi (même batch_id) en une seule carte
+        $bravos = $rawBravos
+            ->groupBy(fn ($b) => $b['batch_id'] ?? ('_' . $b['id']))
+            ->map(function ($group) {
+                $first = $group->first();
+                $first['receivers'] = $group
+                    ->pluck('receiver')
+                    ->filter()
+                    ->unique('id')
+                    ->values()
+                    ->toArray();
+                return $first;
+            })
+            ->values();
 
         $user        = $request->user();
         $pointsGiven = Bravo::where('sender_id', $userId)->sum('points');

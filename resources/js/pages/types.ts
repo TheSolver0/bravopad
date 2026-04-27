@@ -130,6 +130,8 @@ export interface Challenge {
   id: number;
   name: string;
   description: string;
+  cover_image: string | null;
+  category: string;
   start_date: string;
   end_date: string;
   points_bonus: number;
@@ -139,6 +141,15 @@ export interface Challenge {
   bravos_count: number;
   participants_count: number;
   is_participating: boolean;
+}
+
+export interface ChallengeMedia {
+  id: number;
+  url: string;
+  file_type: 'image' | 'video';
+  caption: string | null;
+  uploader_name: string;
+  created_at: string;
 }
 
 export interface WeeklyData {

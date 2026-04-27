@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { router } from '@inertiajs/react';
 import {
@@ -91,6 +91,35 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
   const ITEMS_PER_PAGE = 5;
   const totalLeaderboardPages = Math.ceil(topUsers.length / ITEMS_PER_PAGE);
   const paginatedTopUsers = topUsers.slice(leaderboardPage * ITEMS_PER_PAGE, (leaderboardPage + 1) * ITEMS_PER_PAGE);
+
+  // Progressive loading for bravos
+  const [displayedBravos, setDisplayedBravos] = useState(bravos.slice(0, 10));
+  const [hasMore, setHasMore] = useState(bravos.length > 10);
+  const observer = useRef<IntersectionObserver | null>(null);
+
+  const loadMore = useCallback(() => {
+    setDisplayedBravos(prev => {
+      const next = bravos.slice(prev.length, prev.length + 10);
+      if (next.length === 0) setHasMore(false);
+      return [...prev, ...next];
+    });
+  }, [bravos]);
+
+  const lastBravoRef = useCallback((node: HTMLDivElement) => {
+    if (observer.current) observer.current.disconnect();
+    observer.current = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting && hasMore) {
+        loadMore();
+      }
+    });
+    if (node) observer.current.observe(node);
+  }, [hasMore, loadMore]);
+
+  useEffect(() => {
+    return () => {
+      if (observer.current) observer.current.disconnect();
+    };
+  }, []);
 
   async function submitComment(bravoId: number) {
     const text = (commentTexts[bravoId] ?? '').trim();
@@ -334,7 +363,7 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
               <div className="flex items-center gap-4">
                 <div className="hidden sm:flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl shadow-sm border border-surface-container-high">
                   <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-                  <span className="text-[9px] font-bold text-on-surface-variant uppercase tracking-widest">{bravos.length} récents</span>
+                  <span className="text-[9px] font-bold text-on-surface-variant uppercase tracking-widest">{displayedBravos.length} récents</span>
                 </div>
                 <Button variant="primary" className="shadow-md shadow-primary/20 px-4 py-2 text-xs" style={{ cursor: 'pointer' }} onClick={() => setShowCreateModal(true)}>
                   <PlusCircle size={20} /> <span className="hidden sm:inline">Envoyer un Bravo</span>
@@ -342,7 +371,7 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
               </div>
             </div>
 
-            {bravos.length === 0 ? (
+            {displayedBravos.length === 0 ? (
               <Card className="p-10 text-center border-none bg-white/80">
                 <MessageSquare className="mx-auto mb-3 text-primary/30" size={40} />
                 <p className="font-bold text-on-surface-variant">Aucun bravo pour l'instant.</p>
@@ -351,7 +380,7 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
               </Card>
             ) : (
               <div className="space-y-4">
-                {bravos.map((bravo, index) => {
+                {displayedBravos.map((bravo, index) => {
                   const badgeInfo = BADGES.find(x => x.key === bravo.badge);
                   const badgeColor = badgeInfo?.color ?? '#6366f1';
                   const bravoComments = commentLists[bravo.id] ?? [];
@@ -364,6 +393,7 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.08 }}
+                      ref={index === displayedBravos.length - 1 ? lastBravoRef : undefined}
                     >
                       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
 
@@ -848,6 +878,17 @@ function RecognitionCard({ counts }: RecognitionCardProps) {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Back to top button */}
+      <div className="fixed bottom-4 right-4 z-50">
+        <Button
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          className="rounded-full p-3 shadow-lg bg-primary hover:bg-primary/90"
+        >
+          <ChevronUp size={20} className="text-white" />
+        </Button>
+      </div>
+
     </div>
   );
 }

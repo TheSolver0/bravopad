@@ -50,7 +50,9 @@ Route::middleware(['auth'])->group(function () {
     Route::patch('/admin/config/bravo-values/{bravoValue}/toggle', [AdminConfigController::class, 'toggleBravoValue']);
 
     Route::get('/admin/users', [AdminUsersController::class, 'index'])->name('admin.users.index');
+    Route::post('/admin/users', [AdminUsersController::class, 'store'])->name('admin.users.store');
     Route::patch('/admin/users/{user}', [AdminUsersController::class, 'update'])->name('admin.users.update');
+    Route::delete('/admin/users/{user}', [AdminUsersController::class, 'destroy'])->name('admin.users.destroy');
 
     Route::get('/admin/roles', [AdminRolesController::class, 'index'])->name('admin.roles.index');
     Route::patch('/admin/roles/{role}', [AdminRolesController::class, 'update'])->name('admin.roles.update');

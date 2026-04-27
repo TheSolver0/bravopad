@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -68,31 +69,141 @@ class AdminUsersController extends Controller
 
         $allowed = $this->assignableRoleNames($actor);
         $validated = $request->validate([
-            'role' => ['required', 'string', Rule::in($allowed)],
+            'name'       => ['required', 'string', 'max:255'],
+            'email'      => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
+            'department' => ['nullable', 'string', 'max:100'],
+            'role_label' => ['nullable', 'string', 'max:100'],
+            'role'       => ['required', 'string', Rule::in($allowed)],
         ]);
 
         if ($validated['role'] === 'super_admin' && ! $actor->isSuperAdmin()) {
             abort(403);
         }
 
-        $before = $user->getRoleNames()->sort()->values()->all();
+        $beforeRoles = $user->getRoleNames()->sort()->values()->all();
+        $beforeProfile = [
+            'name' => $user->name,
+            'email' => $user->email,
+            'department' => $user->department,
+            'role_label' => $user->role,
+        ];
+
+        $user->fill([
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'department' => $validated['department'] ?? $user->department,
+            'role' => $validated['role_label'] ?? $user->role,
+        ])->save();
+
         $user->syncRoles([$validated['role']]);
 
         AuditLogger::log(
-            'user_role_updated',
+            'user_updated',
             [
                 'target_user_id' => $user->id,
-                'before'         => $before,
-                'after'          => [$validated['role']],
+                'before_roles'   => $beforeRoles,
+                'after_roles'    => [$validated['role']],
+                'before_profile' => $beforeProfile,
+                'after_profile'  => [
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'department' => $user->department,
+                    'role_label' => $user->role,
+                ],
             ],
             $actor,
             User::class,
             $user->id,
             'info',
-            "Rôle Spatie mis à jour pour {$user->email}.",
+            "Utilisateur admin modifie: {$user->email}.",
         );
 
-        return redirect()->back()->with('success', 'Rôle mis à jour.');
+        return redirect()->back()->with('success', 'Utilisateur mis à jour.');
+    }
+
+    public function store(Request $request)
+    {
+        Gate::authorize('manage-users');
+
+        $actor = $request->user();
+        $allowed = $this->assignableRoleNames($actor);
+
+        $validated = $request->validate([
+            'name'       => ['required', 'string', 'max:255'],
+            'email'      => ['required', 'email', 'max:255', 'unique:users,email'],
+            'department' => ['nullable', 'string', 'max:100'],
+            'role_label' => ['nullable', 'string', 'max:100'],
+            'role'       => ['required', 'string', Rule::in($allowed)],
+            'password'   => ['required', 'string', 'min:8'],
+        ]);
+
+        if ($validated['role'] === 'super_admin' && ! $actor->isSuperAdmin()) {
+            abort(403);
+        }
+
+        $user = User::create([
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'department' => $validated['department'] ?? 'N/A',
+            'role' => $validated['role_label'] ?? 'Employe',
+            'password' => Hash::make($validated['password']),
+            'points_total' => 0,
+        ]);
+        $user->syncRoles([$validated['role']]);
+
+        AuditLogger::log(
+            'user_created',
+            [
+                'target_user_id' => $user->id,
+                'role' => $validated['role'],
+            ],
+            $actor,
+            User::class,
+            $user->id,
+            'info',
+            "Nouvel utilisateur cree: {$user->email}.",
+        );
+
+        return redirect()->back()->with('success', 'Utilisateur cree.');
+    }
+
+    public function destroy(Request $request, User $user)
+    {
+        Gate::authorize('manage-users');
+
+        if ($user->is_automation) {
+            abort(404);
+        }
+
+        $actor = $request->user();
+        if ($user->hasRole('super_admin') && ! $actor->isSuperAdmin()) {
+            abort(403, 'Seul un super administrateur peut supprimer ce compte.');
+        }
+
+        if ($user->id === $actor->id) {
+            abort(403, 'Suppression de son propre compte interdite ici.');
+        }
+
+        $email = $user->email;
+        $id = $user->id;
+        $roles = $user->getRoleNames()->values()->all();
+        $user->delete();
+
+        AuditLogger::log(
+            'user_deleted_by_admin',
+            [
+                'target_user_id' => $id,
+                'target_email' => $email,
+                'roles' => $roles,
+            ],
+            $actor,
+            User::class,
+            $id,
+            'warning',
+            "Utilisateur supprime: {$email}.",
+        );
+
+        return redirect()->back()->with('success', 'Utilisateur supprime.');
     }
 
     /**

@@ -56,29 +56,6 @@ class ChallengeController extends Controller
         ]);
     }
 
-    public function store(Request $request)
-    {
-        Gate::authorize('manage-challenges');
-
-        $validated = $request->validate([
-            'name'         => 'required|string|max:255',
-            'description'  => 'nullable|string',
-            'start_date'   => 'required|date',
-            'end_date'     => 'required|date|after_or_equal:start_date',
-            'points_bonus' => 'nullable|integer|min:0',
-            'for_all'      => 'boolean',
-        ]);
-
-        Challenge::create([
-            ...$validated,
-            'status'     => 'active',
-            'for_all'    => $validated['for_all'] ?? true,
-            'created_by' => $request->user()->id,
-        ]);
-
-        return redirect('/challenges')->with('success', 'Défi créé avec succès !');
-    }
-
     public function participate(Request $request, $id)
     {
         $challenge = Challenge::where('status', 'active')->findOrFail($id);
@@ -108,6 +85,40 @@ class ChallengeController extends Controller
     }
 
     /**
+     * Page d'administration — liste tous les challenges avec options CRUD
+     */
+    public function adminPage(Request $request)
+    {
+        $this->authorize('create', Challenge::class);
+
+        $challenges = Challenge::withCount(['bravos', 'participants'])
+            ->with('creator:id,name')
+            ->latest()
+            ->get()
+            ->map(function ($challenge) {
+                return [
+                    'id'                 => $challenge->id,
+                    'name'               => $challenge->name,
+                    'description'        => $challenge->description,
+                    'start_date'         => $challenge->start_date,
+                    'end_date'           => $challenge->end_date,
+                    'points_bonus'       => $challenge->points_bonus,
+                    'status'             => $challenge->status,
+                    'for_all'            => (bool) $challenge->for_all,
+                    'bravos_count'       => $challenge->bravos_count,
+                    'participants_count' => $challenge->participants_count,
+                    'created_by_name'    => $challenge->creator?->name,
+                    'days_left'          => max(0, (int) now()->diffInDays($challenge->end_date, false)),
+                    'created_at'         => $challenge->created_at->format('d/m/Y'),
+                ];
+            });
+
+        return Inertia::render('AdminChallenges', [
+            'challenges' => $challenges,
+        ]);
+    }
+
+    /**
      * Créer un challenge — RH/Admin uniquement
      */
     public function store(Request $request)
@@ -120,6 +131,7 @@ class ChallengeController extends Controller
             'start_date'   => 'required|date',
             'end_date'     => 'required|date|after_or_equal:start_date',
             'points_bonus' => 'nullable|integer|min:0',
+            'for_all'      => 'boolean',
         ]);
 
         $challenge = Challenge::create([
@@ -150,6 +162,96 @@ class ChallengeController extends Controller
     }
 
     /**
+     * Créer un challenge via page admin (Inertia redirect)
+     */
+    public function adminStore(Request $request)
+    {
+        $this->authorize('create', Challenge::class);
+
+        $validated = $request->validate([
+            'name'         => 'required|string|max:255',
+            'description'  => 'nullable|string',
+            'start_date'   => 'required|date',
+            'end_date'     => 'required|date|after_or_equal:start_date',
+            'points_bonus' => 'nullable|integer|min:0',
+            'for_all'      => 'boolean',
+        ]);
+
+        $challenge = Challenge::create([
+            ...$validated,
+            'status'     => 'active',
+            'created_by' => $request->user()->id,
+        ]);
+
+        AuditLogger::log(
+            'challenge_created',
+            ['name' => $challenge->name, 'start_date' => $challenge->start_date, 'end_date' => $challenge->end_date],
+            $request->user(),
+            Challenge::class,
+            $challenge->id,
+            'info',
+            'Creation d un challenge via admin.',
+        );
+
+        return redirect()->route('admin.challenges.index')->with('success', 'Défi créé avec succès.');
+    }
+
+    /**
+     * Modifier un challenge — RH/Admin uniquement
+     */
+    public function update(Request $request, $id)
+    {
+        $challenge = Challenge::findOrFail($id);
+        $this->authorize('update', $challenge);
+
+        $validated = $request->validate([
+            'name'         => 'required|string|max:255',
+            'description'  => 'nullable|string',
+            'start_date'   => 'required|date',
+            'end_date'     => 'required|date|after_or_equal:start_date',
+            'points_bonus' => 'nullable|integer|min:0',
+            'for_all'      => 'boolean',
+        ]);
+
+        $challenge->update($validated);
+
+        AuditLogger::log(
+            'challenge_updated',
+            ['name' => $challenge->name],
+            $request->user(),
+            Challenge::class,
+            $challenge->id,
+            'info',
+            'Modification d un challenge.',
+        );
+
+        return redirect()->route('admin.challenges.index')->with('success', 'Défi mis à jour.');
+    }
+
+    /**
+     * Supprimer un challenge — Admin uniquement
+     */
+    public function destroy(Request $request, $id)
+    {
+        $challenge = Challenge::findOrFail($id);
+        $this->authorize('delete', $challenge);
+
+        AuditLogger::log(
+            'challenge_deleted',
+            ['name' => $challenge->name],
+            $request->user(),
+            Challenge::class,
+            $challenge->id,
+            'warning',
+            'Suppression d un challenge.',
+        );
+
+        $challenge->delete();
+
+        return redirect()->route('admin.challenges.index')->with('success', 'Défi supprimé.');
+    }
+
+    /**
      * Détail + stats d'un challenge (API)
      */
     public function show($id)
@@ -169,7 +271,7 @@ class ChallengeController extends Controller
     /**
      * Activer un challenge — RH/Admin uniquement
      */
-    public function activate($id)
+    public function activate(Request $request, $id)
     {
         $challenge = Challenge::findOrFail($id);
         $this->authorize('activate', $challenge);
@@ -179,38 +281,26 @@ class ChallengeController extends Controller
         AuditLogger::log(
             'challenge_activated',
             ['name' => $challenge->name],
-            request()->user(),
+            $request->user(),
             Challenge::class,
             $challenge->id,
             'info',
             'Activation d un challenge.',
         );
 
-        return response()->json(['message' => 'Challenge activé', 'data' => $challenge]);
-        return response()->json(['message' => 'Challenge activé', 'data' => $challenge]);
+        return redirect()->route('admin.challenges.index')->with('success', 'Défi activé.');
     }
 
     /**
      * Terminer un challenge + calcul leaderboard — RH/Admin uniquement
      */
-    public function finish($id)
+    public function finish(Request $request, $id)
     {
-        return DB::transaction(function () use ($id) {
+        return DB::transaction(function () use ($id, $request) {
             $challenge = Challenge::with('bravos.receiver')->findOrFail($id);
             $this->authorize('finish', $challenge);
 
             $challenge->update(['status' => 'finished']);
-
-            $leaderboard = $challenge->bravos
-                ->groupBy('receiver_id')
-                ->map(fn ($bravos) => [
-                    'user_id'      => $bravos->first()->receiver_id,
-                    'user_name'    => $bravos->first()->receiver?->name,
-                    'total_points' => $bravos->sum('points'),
-                    'total_bravos' => $bravos->count(),
-                ])
-                ->sortByDesc('total_points')
-                ->values();
 
             AuditLogger::log(
                 'challenge_finished',
@@ -218,17 +308,14 @@ class ChallengeController extends Controller
                     'name' => $challenge->name,
                     'total_entries' => $challenge->bravos->count(),
                 ],
-                request()->user(),
+                $request->user(),
                 Challenge::class,
                 $challenge->id,
                 'info',
                 'Cloture d un challenge.',
             );
 
-            return response()->json([
-                'message'     => 'Challenge terminé',
-                'leaderboard' => $leaderboard,
-            ]);
+            return redirect()->route('admin.challenges.index')->with('success', 'Défi clôturé.');
         });
     }
 

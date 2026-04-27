@@ -1,5 +1,0 @@
-<<<<<<<< HEAD:public/build/assets/security-DPxo0OVx.js
-import{n as e}from"./wayfinder-BhlyXthh.js";var t=e=>({url:t.url(e),method:`get`});t.definition={methods:[`get`,`head`],url:`/settings/security`},t.url=n=>t.definition.url+e(n),t.get=e=>({url:t.url(e),method:`get`}),t.head=e=>({url:t.url(e),method:`head`});var n=e=>({action:t.url(e),method:`get`});n.get=e=>({action:t.url(e),method:`get`}),n.head=e=>({action:t.url({[e?.mergeQuery?`mergeQuery`:`query`]:{_method:`HEAD`,...e?.query??e?.mergeQuery??{}}}),method:`get`}),t.form=n,Object.assign(t,t);export{t};
-========
-import{n as e}from"./wayfinder-CR5azXqq.js";var t=e=>({url:t.url(e),method:`get`});t.definition={methods:[`get`,`head`],url:`/settings/security`},t.url=n=>t.definition.url+e(n),t.get=e=>({url:t.url(e),method:`get`}),t.head=e=>({url:t.url(e),method:`head`});var n=e=>({action:t.url(e),method:`get`});n.get=e=>({action:t.url(e),method:`get`}),n.head=e=>({action:t.url({[e?.mergeQuery?`mergeQuery`:`query`]:{_method:`HEAD`,...e?.query??e?.mergeQuery??{}}}),method:`get`}),t.form=n,Object.assign(t,t);export{t};
->>>>>>>> 9a0fa5bb0e977b3e1cb7ceb1f3ed761b246e5d75:public/build/assets/security-DX-HQzyl.js

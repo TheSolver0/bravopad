@@ -24,7 +24,6 @@ import {
   PartyPopper,
   Cake,
   Briefcase,
-  Send,
 } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
 import { Card } from '../components/ui/card';
@@ -64,7 +63,10 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
   const nextMilestone = Math.ceil((currentUser.points_total + 1) / 500) * 500;
   const progress = nextMilestone > 0 ? Math.min(100, (currentUser.points_total / nextMilestone) * 100) : 0;
 
-  const myReceivedBravos = bravos.filter(b => b.receiver_id === currentUser.id);
+  const myReceivedBravos = bravos.filter(b =>
+    b.receiver_id === currentUser.id ||
+    (b.receivers ?? []).some(r => r.id === currentUser.id)
+  );
   const recognitionCounts = {
     good_job: myReceivedBravos.filter(b => b.badge === 'good_job').length,
     excellent: myReceivedBravos.filter(b => b.badge === 'excellent').length,
@@ -83,6 +85,12 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
 
   // Celebrations dismissal
   const [celebrationsDismissed, setCelebrationsDismissed] = useState(false);
+
+  // Leaderboard pagination
+  const [leaderboardPage, setLeaderboardPage] = useState(0);
+  const ITEMS_PER_PAGE = 5;
+  const totalLeaderboardPages = Math.ceil(topUsers.length / ITEMS_PER_PAGE);
+  const paginatedTopUsers = topUsers.slice(leaderboardPage * ITEMS_PER_PAGE, (leaderboardPage + 1) * ITEMS_PER_PAGE);
 
   async function submitComment(bravoId: number) {
     const text = (commentTexts[bravoId] ?? '').trim();
@@ -142,11 +150,11 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
       bg: 'from-[#003d7a] via-[#00529e] to-[#0066c2]',
       tag: (
         <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-white/70">
-          <Anchor size={11} /> Orbit Sarl
+          <Anchor size={11} /> PAD
         </span>
       ),
       title: 'Bienvenue sur Bravo ',
-      subtitle: 'Reconnaissez l\'excellence de vos collègues et valorisez les talents qui font la force de Orbit Sarl.',
+      subtitle: 'Reconnaissez l\'excellence de vos collègues et valorisez les talents qui font la force de PAD.',
       cta: { label: 'Envoyer un Bravo', action: () => setShowCreateModal(true) },
       badge: (
         <div className="flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md rounded-xl border border-white/10">
@@ -383,29 +391,63 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
                         {/* Corps */}
                         <div className="px-4 pt-4 pb-3 space-y-3">
                           <div className="flex items-start gap-4">
-                            <div className="flex items-center shrink-0">
-                              <div className="relative">
-                                <img
-                                  src={bravo.sender ? getAvatar(bravo.sender) : `https://ui-avatars.com/api/?name=?&background=e5e7eb&color=6b7280&size=64`}
-                                  alt=""
-                                  className="w-10 h-10 rounded-xl ring-2 ring-white shadow-sm z-0"
-                                  referrerPolicy="no-referrer"
-                                />
-                                <div className="absolute -right-1 -bottom-1 bg-primary/80 text-white p-0.5 rounded-md shadow z-10">
-                                  <ArrowRight size={9} />
+                            {(() => {
+                              const receivers = bravo.receivers && bravo.receivers.length > 0
+                                ? bravo.receivers
+                                : bravo.receiver ? [bravo.receiver] : [];
+                              const MAX_SHOWN = 3;
+                              const shown = receivers.slice(0, MAX_SHOWN);
+                              const extra = receivers.length - MAX_SHOWN;
+                              return (
+                                <div className="flex items-center shrink-0">
+                                  <div className="relative">
+                                    <img
+                                      src={bravo.sender ? getAvatar(bravo.sender) : `https://ui-avatars.com/api/?name=?&background=e5e7eb&color=6b7280&size=64`}
+                                      alt=""
+                                      className="w-10 h-10 rounded-xl ring-2 ring-white shadow-sm z-0"
+                                      referrerPolicy="no-referrer"
+                                    />
+                                    <div className="absolute -right-1 -bottom-1 bg-primary/80 text-white p-0.5 rounded-md shadow z-10">
+                                      <ArrowRight size={9} />
+                                    </div>
+                                  </div>
+                                  <div className="flex -ml-2">
+                                    {shown.map((r, i) => (
+                                      <img
+                                        key={r.id}
+                                        src={getAvatar(r)}
+                                        alt={r.name}
+                                        title={r.name}
+                                        className="w-14 h-14 rounded-2xl ring-4 ring-white shadow-md relative"
+                                        style={{ marginLeft: i > 0 ? '-20px' : undefined, zIndex: 10 + i }}
+                                        referrerPolicy="no-referrer"
+                                      />
+                                    ))}
+                                    {extra > 0 && (
+                                      <div
+                                        className="w-14 h-14 rounded-2xl ring-4 ring-white shadow-md -ml-5 z-20 relative bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-500"
+                                      >
+                                        +{extra}
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
-                              </div>
-                              <img
-                                src={bravo.receiver ? getAvatar(bravo.receiver) : `https://ui-avatars.com/api/?name=?&background=e5e7eb&color=6b7280&size=64`}
-                                alt=""
-                                className="w-14 h-14 rounded-2xl ring-4 ring-white shadow-md -ml-2 z-10 relative"
-                                referrerPolicy="no-referrer"
-                              />
-                            </div>
+                              );
+                            })()}
 
                             <div className="flex-1 min-w-0">
                               <p className="text-sm text-gray-500">
-                                To <span className="font-bold text-gray-800">{bravo.receiver?.name ?? '—'}</span>
+                                To{' '}
+                                {(() => {
+                                  const receivers = bravo.receivers && bravo.receivers.length > 0
+                                    ? bravo.receivers
+                                    : bravo.receiver ? [bravo.receiver] : [];
+                                  if (receivers.length === 0) return <span className="font-bold text-gray-800">—</span>;
+                                  if (receivers.length === 1) return <span className="font-bold text-gray-800">{receivers[0].name}</span>;
+                                  const names = receivers.slice(0, -1).map(r => r.name).join(', ');
+                                  const last = receivers[receivers.length - 1].name;
+                                  return <><span className="font-bold text-gray-800">{names}</span> <span className="text-gray-400">&</span> <span className="font-bold text-gray-800">{last}</span></>;
+                                })()}
                               </p>
                               {bravo.message && (
                                 <p className="text-sm text-gray-500 mt-1 leading-relaxed">{bravo.message}</p>
@@ -481,11 +523,11 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
                                           referrerPolicy="no-referrer"
                                         />
                                         <div className="flex-1 bg-white rounded-xl px-3 py-2 text-xs shadow-sm">
-                                          <span className="font-semibold text-gray-700">{c.user.name}</span>
+                                          <span className="font-semibold text-gray-700">{c.user?.name ?? 'Unknown'}</span>
                                           <span className="text-gray-500 ml-2">{c.content}</span>
                                           <span className="block text-[10px] text-gray-400 mt-0.5">{c.created_at}</span>
                                         </div>
-                                        {c.user.id === currentUser.id && (
+                                        {c.user?.id === currentUser.id && (
                                           <button
                                             onClick={() => deleteComment(bravo.id, c.id)}
                                             className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-400 transition-all cursor-pointer mt-1"
@@ -645,23 +687,52 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
                   </div>
                 </div>
                 <div className="divide-y divide-gray-50">
-                  {topUsers.map((user, index) => (
-                    <div key={user.id} className="flex items-center justify-between p-4 hover:bg-primary/5 transition-colors cursor-pointer group">
-                      <div className="flex items-center gap-4">
-                        <span className={`text-[10px] font-black w-3 ${index < 3 ? 'text-primary' : 'text-on-surface-variant'}`}>{index + 1}</span>
-                        <img src={getAvatar(user)} alt="" className="w-10 h-10 rounded-xl bg-surface-container-low" referrerPolicy="no-referrer" />
-                        <div>
-                          <p className="text-sm font-bold group-hover:text-primary transition-colors">{user.name}</p>
-                          <p className="text-[10px] font-semibold text-on-surface-variant uppercase tracking-wide">{user.department}</p>
+                  {paginatedTopUsers.map((user, index) => {
+                    const globalIndex = leaderboardPage * ITEMS_PER_PAGE + index;
+                    return (
+                      <div key={user.id} className="flex items-center justify-between p-4 hover:bg-primary/5 transition-colors cursor-pointer group">
+                        <div className="flex items-center gap-4">
+                          <span className={`text-[10px] font-black w-3 ${globalIndex < 3 ? 'text-primary' : 'text-on-surface-variant'}`}>{globalIndex + 1}</span>
+                          <img src={getAvatar(user)} alt="" className="w-10 h-10 rounded-xl bg-surface-container-low" referrerPolicy="no-referrer" />
+                          <div>
+                            <p className="text-sm font-bold group-hover:text-primary transition-colors">{user.name}</p>
+                            <p className="text-[10px] font-semibold text-on-surface-variant uppercase tracking-wide">{user.department}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-black text-on-surface">{user.points_total.toLocaleString()}</p>
+                          <p className="text-[8px] font-black text-on-surface-variant uppercase tracking-widest">pts</p>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm font-black text-on-surface">{user.points_total.toLocaleString()}</p>
-                        <p className="text-[8px] font-black text-on-surface-variant uppercase tracking-widest">pts</p>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
+                
+                {/* Pagination Controls */}
+                {totalLeaderboardPages > 1 && (
+                  <div className="px-4 py-3 bg-gray-50/50 flex items-center justify-between">
+                    <button
+                      onClick={() => setLeaderboardPage(p => Math.max(0, p - 1))}
+                      disabled={leaderboardPage === 0}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-600 disabled:text-gray-300 disabled:cursor-default hover:bg-white transition-colors cursor-pointer disabled:hover:bg-transparent"
+                    >
+                      <ChevronLeft size={14} />
+                      <span className="hidden sm:inline">Précédent</span>
+                    </button>
+                    <span className="text-xs font-semibold text-gray-500">
+                      Page {leaderboardPage + 1} sur {totalLeaderboardPages}
+                    </span>
+                    <button
+                      onClick={() => setLeaderboardPage(p => Math.min(totalLeaderboardPages - 1, p + 1))}
+                      disabled={leaderboardPage === totalLeaderboardPages - 1}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-600 disabled:text-gray-300 disabled:cursor-default hover:bg-white transition-colors cursor-pointer disabled:hover:bg-transparent"
+                    >
+                      <span className="hidden sm:inline">Suivant</span>
+                      <ChevronRight size={14} />
+                    </button>
+                  </div>
+                )}
+                
                 <div className="p-4 bg-gray-50/50">
                   <Button variant="ghost" className="w-full text-xs font-extrabold tracking-wide py-3" onClick={() => router.visit('/stats')}>
                     VOIR TOUT LE CLASSEMENT

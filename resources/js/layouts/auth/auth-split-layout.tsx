@@ -10,7 +10,7 @@ export default function AuthSplitLayout({
     const { name } = usePage().props;
 
     return (
-        <div className="relative grid h-dvh flex-col items-center justify-center lg:max-w-none lg:grid-cols-2">
+        <div className="relative grid min-h-screen flex-col items-center justify-center lg:max-w-none lg:grid-cols-2">
             {/* Panneau gauche — branding PAD */}
             <div className="relative hidden h-full flex-col lg:flex" style={{ background: 'linear-gradient(160deg, #0a1f44 0%, #0d3b7a 50%, #0a5fa8 100%)' }}>
                 {/* Motif vagues subtil */}
@@ -26,14 +26,14 @@ export default function AuthSplitLayout({
                     <Link href={home()} className="flex flex-col items-center gap-6">
                         <div className="flex h-40 w-40 items-center justify-center rounded-2xl bg-white p-4 shadow-2xl">
                             <img
-                                src="/assets/images/orbit-logo.png"
-                                alt="Orbit Sarl"
+                                src="/assets/images/pad-logo.png"
+                                alt="PAD"
                                 className="h-full w-full object-contain"
                             />
                         </div>
                         <div className="text-center">
                             <p className="text-lg font-semibold uppercase tracking-widest text-blue-200">
-                                Orbit Sarl
+                                PAD
                             </p>
                             {/* <p className="mt-1 text-sm text-blue-300 tracking-wider">
                                 Port Authority of Douala
@@ -42,9 +42,9 @@ export default function AuthSplitLayout({
                     </Link>
 
                     <div className="max-w-xs text-center">
-                        <h2 className="text-2xl font-bold text-white">Bravo</h2>
+                        <h2 className="text-2xl font-bold text-white">BravoPAD</h2>
                         <p className="mt-3 text-sm leading-relaxed text-blue-200/80">
-                            Plateforme de Reconnaissance entre employés de Orbit Sarl
+                            Plateforme de Reconnaissance entre employés de PAD
                         </p>
                     </div>
 
@@ -58,12 +58,12 @@ export default function AuthSplitLayout({
 
                 {/* Pied de page côté gauche */}
                 <div className="relative z-10 p-6 text-center text-xs text-blue-300/60">
-                    © {new Date().getFullYear()} Orbit Sarl — Tous droits réservés
+                    © {new Date().getFullYear()} PAD — Tous droits réservés
                 </div>
             </div>
 
             {/* Panneau droit — formulaire */}
-            <div className="flex h-full flex-col items-center justify-center bg-background px-8 py-12 sm:px-12">
+            <div className="flex h-full flex-col items-center bg-background px-8 py-12 sm:px-12">
                 {/* Logo visible sur mobile uniquement */}
                 <Link
                     href={home()}
@@ -71,17 +71,17 @@ export default function AuthSplitLayout({
                 >
                     <div className="flex h-20 w-20 items-center justify-center rounded-xl bg-white p-2 shadow-lg ring-1 ring-gray-200">
                         <img
-                            src="/assets/images/orbit-logo.png"
-                            alt="Orbit Sarl"
+                            src="/assets/images/pad-logo.png"
+                            alt="PAD"
                             className="h-full w-full object-contain"
                         />
                     </div>
                     <span className="text-sm font-semibold text-muted-foreground uppercase tracking-widest">
-                        Orbit Sarl
+                        PAD
                     </span>
                 </Link>
 
-                <div className="w-full max-w-sm">
+                <div className="flex-1 flex flex-col items-center justify-center w-full max-w-sm">
                     {/* En-tête du formulaire */}
                     <div className="mb-8 flex flex-col items-start gap-1 text-left">
                         <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
@@ -89,6 +89,10 @@ export default function AuthSplitLayout({
                     </div>
 
                     {children}
+                </div>
+
+                <div className="mt-10 text-center text-xs text-muted-foreground">
+                    Powered by ORBIT SARL
                 </div>
             </div>
         </div>

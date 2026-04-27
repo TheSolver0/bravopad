@@ -87,10 +87,11 @@ export default function AuditLog({ logs }: AuditLogProps) {
         </div>
       </div>
 
-      <Card className="overflow-x-auto border-none shadow-lg">
+      <Card className="overflow-x-auto border-none shadow-lg"  style={{background: 'white'}}>
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-surface-container-high text-left text-[10px] font-black uppercase tracking-widest text-on-surface-variant">
+            <tr className="border-b border-surface-container-high text-left text-[10px] font-black uppercase tracking-widest text-on-surface-variant"
+           >
               <th className="p-4">Date</th>
               <th className="p-4">Action</th>
               <th className="p-4">Gravité</th>

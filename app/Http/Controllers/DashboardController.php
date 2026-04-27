@@ -17,7 +17,7 @@ class DashboardController extends Controller
     {
         $users = User::query()->where('is_automation', false)->orderByDesc('points_total')->get();
 
-        $bravos = Bravo::with(['sender', 'receiver', 'values', 'comments.user'])
+        $rawBravos = Bravo::with(['sender', 'receiver', 'values', 'comments.user'])
             ->latest()
             ->get()
             ->map(fn ($b) => array_merge($b->toArray(), [
@@ -32,6 +32,21 @@ class DashboardController extends Controller
                     ],
                 ])->values()->toArray(),
             ]));
+
+        // Regrouper les bravos d'un même envoi (même batch_id) en une seule carte
+        $bravos = $rawBravos
+            ->groupBy(fn ($b) => $b['batch_id'] ?? ('_' . $b['id']))
+            ->map(function ($group) {
+                $first = $group->first();
+                $first['receivers'] = $group
+                    ->pluck('receiver')
+                    ->filter()
+                    ->unique('id')
+                    ->values()
+                    ->toArray();
+                return $first;
+            })
+            ->values();
 
         $activeChallenge = Challenge::where('status', 'active')
             ->where('start_date', '<=', now())
@@ -53,10 +68,13 @@ class DashboardController extends Controller
                 if ($u->birth_date && $u->birth_date->month === $todayMonth && $u->birth_date->day === $todayDay) {
                     $celebrations->push(['type' => 'birthday', 'name' => $u->name, 'years' => null]);
                 }
-                if ($u->hire_date && $u->hire_date->month === $todayMonth && $u->hire_date->day === $todayDay) {
-                    $years = $currentYear - $u->hire_date->year;
-                    if ($years > 0 && in_array($years, $anniversaryYears)) {
-                        $celebrations->push(['type' => 'anniversary', 'name' => $u->name, 'years' => $years]);
+                if ($u->hire_date) {
+                    $hireDate = \Carbon\Carbon::parse($u->hire_date);
+                    if ($hireDate->month === $todayMonth && $hireDate->day === $todayDay) {
+                        $years = $currentYear - $hireDate->year;
+                        if ($years > 0 && in_array($years, $anniversaryYears)) {
+                            $celebrations->push(['type' => 'anniversary', 'name' => $u->name, 'years' => $years]);
+                        }
                     }
                 }
             });

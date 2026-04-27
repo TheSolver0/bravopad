@@ -19,6 +19,7 @@ export interface BravoInsights {
   quality: { score: number; tips: string[] };
 }
 import { BADGES } from './constants';
+import { Card } from '@/components/ui/card';
 
 interface CreateBravoProps {
   users: User[];
@@ -41,7 +42,7 @@ const emptyInsights: BravoInsights = {
 };
 
 export default function CreateBravo({ users, bravoValues, bravoInsights = emptyInsights, onSuccess, isModal }: CreateBravoProps) {
-  const [selectedRecipient, setSelectedRecipient] = useState<User | null>(null);
+  const [selectedRecipients, setSelectedRecipients] = useState<User[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
   const [submitted, setSubmitted] = useState(false);
@@ -53,7 +54,7 @@ export default function CreateBravo({ users, bravoValues, bravoInsights = emptyI
   const searchRef = useRef<HTMLDivElement>(null);
 
   const { data, setData, post, processing, errors } = useForm({
-    receiver_id: '' as string | number,
+    receiver_ids: [] as number[],
     badge: '' as string,
     value_ids: [] as number[],
     message: '',
@@ -68,15 +69,22 @@ export default function CreateBravo({ users, bravoValues, bravoInsights = emptyI
   const selectedValues = bravoValues.filter(v => data.value_ids.includes(v.id));
   const valueBonus = Math.round(selectedValues.reduce((sum, v) => sum + 5 * v.multiplier, 0));
   const totalPoints = (selectedBadge?.points ?? 0) + valueBonus;
-  const pointsAfter = monthlyRemaining - totalPoints;
+  const recipientCount = Math.max(1, selectedRecipients.length);
+  const totalPointsAll = totalPoints * recipientCount;
+  const pointsAfter = monthlyRemaining - totalPointsAll;
 
   useEffect(() => {
     if (searchTerm.trim()) {
-      setFilteredUsers(users.filter(u => u.name.toLowerCase().includes(searchTerm.toLowerCase())));
+      setFilteredUsers(
+        users.filter(u =>
+          u.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
+          !data.receiver_ids.includes(u.id)
+        )
+      );
     } else {
       setFilteredUsers([]);
     }
-  }, [searchTerm, users]);
+  }, [searchTerm, users, data.receiver_ids]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -90,15 +98,16 @@ export default function CreateBravo({ users, bravoValues, bravoInsights = emptyI
   }, []);
 
   const handleSelectRecipient = (user: User) => {
-    setSelectedRecipient(user);
-    setData('receiver_id', user.id);
+    if (data.receiver_ids.includes(user.id)) return;
+    setSelectedRecipients(prev => [...prev, user]);
+    setData('receiver_ids', [...data.receiver_ids, user.id]);
     setSearchTerm('');
     setFilteredUsers([]);
   };
 
-  const handleRemoveRecipient = () => {
-    setSelectedRecipient(null);
-    setData('receiver_id', '');
+  const handleRemoveRecipient = (userId: number) => {
+    setSelectedRecipients(prev => prev.filter(u => u.id !== userId));
+    setData('receiver_ids', data.receiver_ids.filter(id => id !== userId));
   };
 
   const handleToggleValue = (valueId: number) => {
@@ -158,9 +167,9 @@ export default function CreateBravo({ users, bravoValues, bravoInsights = emptyI
     else if (len >= 20) score += 8;
     if (data.value_ids.length >= 2) score += 15;
     if (data.value_ids.length >= 3) score += 8;
-    if (selectedRecipient) score += 7;
+    if (selectedRecipients.length > 0) score += 7;
     return Math.min(100, Math.max(0, score));
-  }, [bravoInsights.quality.score, data.message, data.value_ids, selectedRecipient]);
+  }, [bravoInsights.quality.score, data.message, data.value_ids, selectedRecipients.length]);
 
   const handleSubmit = (e: React.SyntheticEvent) => {
     e.preventDefault();
@@ -173,15 +182,27 @@ export default function CreateBravo({ users, bravoValues, bravoInsights = emptyI
   };
 
   if (submitted) {
+    const count = selectedRecipients.length;
     return (
       <div className="flex flex-col items-center justify-center py-24 space-y-6 animate-in fade-in duration-500">
         <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center">
           <CheckCircle size={40} className="text-green-600" />
         </div>
-        <h2 className="text-2xl font-extrabold text-center">Bravo envoyé !</h2>
-        <p className="text-gray-500 text-center">Votre collègue a été notifié. Redirection…</p>
+        <h2 className="text-2xl font-extrabold text-center">
+          {count > 1 ? `${count} Bravos envoyés !` : 'Bravo envoyé !'}
+        </h2>
+        <p className="text-gray-500 text-center">
+          {count > 1 ? 'Vos collègues ont été notifiés.' : 'Votre collègue a été notifié.'} Redirection…
+        </p>
       </div>
     );
+  }
+
+  function handleRestoreOriginal(event: React.MouseEvent<HTMLButtonElement>): void {
+    if (originalMessage !== null) {
+      setData('message', originalMessage);
+      setOriginalMessage(null);
+    }
   }
 
   return (
@@ -193,86 +214,31 @@ export default function CreateBravo({ users, bravoValues, bravoInsights = emptyI
         <p className="text-sm text-gray-500 mt-0.5">Envoyez un message de reconnaissance</p>
       </div>
 
-      {(bravoInsights.concentration_alerts.length > 0 ||
-        bravoInsights.balancing_suggestions.length > 0 ||
-        bravoInsights.quality.tips.length > 0) && (
-        <Card className="p-5 space-y-4 border-none shadow-lg bg-gradient-to-br from-amber-50/90 via-white to-sky-50/80">
-          <div className="flex items-center gap-2 text-amber-900">
-            <Lightbulb size={18} />
-            <span className="text-xs font-black uppercase tracking-widest">Anti-biais & qualité</span>
-          </div>
-          {bravoInsights.concentration_alerts.length > 0 && (
-            <div className="space-y-2">
-              {bravoInsights.concentration_alerts.map((a, i) => (
-                <p key={i} className="text-xs font-semibold text-amber-950 bg-amber-100/80 rounded-lg px-3 py-2">
-                  {a}
-                </p>
-              ))}
-            </div>
-          )}
-          {bravoInsights.balancing_suggestions.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-[11px] font-bold text-on-surface-variant">Suggestions cross-équipe (faible visibilité récente)</p>
-              <div className="flex flex-wrap gap-2">
-                {bravoInsights.balancing_suggestions.slice(0, 5).map((s) => (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => {
-                      const u = users.find((x) => x.id === s.id);
-                      if (u) handleSelectRecipient(u);
-                    }}
-                    className="text-left text-[11px] font-bold px-3 py-2 rounded-xl bg-white border border-sky-200 text-sky-900 hover:border-primary/40 transition-colors"
-                  >
-                    {s.name}
-                    <span className="block font-medium text-on-surface-variant mt-0.5">
-                      {s.department ?? '—'} · {s.received_recent} reçus (90j)
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-          <div className="flex items-center justify-between gap-4 pt-1 border-t border-amber-200/50">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Score qualité (aperçu)</p>
-              <p className="text-2xl font-black text-primary">{liveQualityScore}</p>
-            </div>
-            <div className="flex-1 space-y-1">
-              {(bravoInsights.quality.tips.length > 0 ? bravoInsights.quality.tips : ['Ajoutez un message personnalisé et plusieurs valeurs pour renforcer la reconnaissance.']).map(
-                (t, i) => (
-                  <p key={i} className="text-[11px] text-on-surface-variant leading-snug">
-                    · {t}
-                  </p>
-                ),
-              )}
-            </div>
-          </div>
-        </Card>
-      )}
-
       <form onSubmit={handleSubmit} className="space-y-6">
 
-        {/* Destinataire */}
+        {/* Destinataires (multi-sélection) */}
         <div ref={searchRef} className="relative">
-          <div className="flex items-center gap-2 px-4 py-3 border border-gray-300 rounded-xl bg-white focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/10 transition-all">
+          <div className="flex flex-wrap items-center gap-2 px-4 py-3 border border-gray-300 rounded-xl bg-white focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/10 transition-all min-h-[52px]">
             <Search size={17} className="text-gray-400 shrink-0" />
-            {selectedRecipient ? (
-              <div className="flex items-center gap-2 bg-gray-100 rounded-full pl-1 pr-2 py-0.5">
-                <img src={getAvatar(selectedRecipient)} alt="" className="w-5 h-5 rounded-full" referrerPolicy="no-referrer" />
-                <span className="text-sm font-medium text-gray-700">{selectedRecipient.name}</span>
-                <button type="button" onClick={handleRemoveRecipient} className="text-gray-400 hover:text-gray-600 transition-colors ml-0.5">
+            {selectedRecipients.map(user => (
+              <div key={user.id} className="flex items-center gap-2 bg-gray-100 rounded-full pl-1 pr-2 py-0.5">
+                <img src={getAvatar(user)} alt="" className="w-5 h-5 rounded-full" referrerPolicy="no-referrer" />
+                <span className="text-sm font-medium text-gray-700">{user.name}</span>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveRecipient(user.id)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors ml-0.5"
+                >
                   <X size={13} />
                 </button>
               </div>
-            ) : (
-              <input
-                placeholder="Rechercher un collègue..."
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-                className="flex-1 outline-none text-sm text-gray-700 placeholder-gray-400"
-              />
-            )}
+            ))}
+            <input
+              placeholder={selectedRecipients.length === 0 ? 'Rechercher un collègue...' : 'Ajouter un autre...'}
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="flex-1 min-w-[140px] outline-none text-sm text-gray-700 placeholder-gray-400"
+            />
           </div>
           {filteredUsers.length > 0 && (
             <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-56 overflow-y-auto">
@@ -292,47 +258,46 @@ export default function CreateBravo({ users, bravoValues, bravoInsights = emptyI
               ))}
             </div>
           )}
-          {errors.receiver_id && <p className="text-xs text-red-500 mt-1">{errors.receiver_id}</p>}
+          {errors.receiver_ids && <p className="text-xs text-red-500 mt-1">{errors.receiver_ids}</p>}
         </div>
 
         {/* Sélection du niveau */}
-        <div className="space-y-3">
-          <h3 className="font-semibold text-gray-800">Choisir un niveau</h3>
+        <div className="space-y-2">
+          <h3 className="font-semibold text-gray-800 text-sm">Choisir un niveau</h3>
           <div className="flex flex-wrap gap-2">
             {BADGES.map(badge => {
               const isSelected = data.badge === badge.key;
               return (
-                <button
-                  type="button"
-                  key={badge.key}
-                  onClick={() => setData('badge', badge.key)}
-                  className="flex items-center gap-2 px-4 py-2 rounded-full border-2 text-sm font-semibold transition-all bg-white"
-                  style={isSelected
-                    ? { borderColor: badge.color, color: badge.color }
-                    : { borderColor: '#e5e7eb', color: '#6b7280' }
-                  }
-                >
-                  <div
-                    className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 transition-colors"
-                    style={{ backgroundColor: isSelected ? badge.color : '#e5e7eb' }}
+                <div key={badge.key} className="group relative">
+                  <button
+                    type="button"
+                    onClick={() => setData('badge', badge.key)}
+                    className="flex items-center gap-2 px-3 py-2 rounded-full border-2 text-sm font-semibold transition-all cursor-pointer"
+                    style={isSelected
+                      ? { backgroundColor: badge.color, borderColor: badge.color, color: '#fff' }
+                      : { backgroundColor: '#f3f4f6', borderColor: badge.color, color: badge.color }
+                    }
                   >
-                    <Star size={10} className="text-white fill-white" />
+                    <Star size={12} className="fill-current" />
+                    {badge.label}
+                  </button>
+                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-50">
+                    {badge.points} pts
                   </div>
-                  {badge.label}!
-                </button>
+                </div>
               );
             })}
           </div>
 
           {/* Info points */}
           {selectedBadge && (
-            <div className={`text-sm px-4 py-2.5 rounded-lg leading-relaxed ${pointsAfter < 0 ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700'}`}>
-              <span className="font-semibold">{selectedBadge.label}</span> = {totalPoints} pts.
-              {' '}Il vous restera{' '}
-              <span className={`font-semibold ${pointsAfter < 0 ? 'text-red-600' : ''}`}>
-                {pointsAfter < 0 ? '0' : pointsAfter} pt{pointsAfter !== 1 ? 's' : ''}
-              </span> à donner ce mois-ci.
-              {pointsAfter < 0 && <span className="block mt-1 text-xs font-medium">⚠ Quota mensuel insuffisant ({monthlyRemaining} pts restants).</span>}
+            <div className={`text-xs px-3 py-2 rounded-lg leading-relaxed ${pointsAfter < 0 ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700'}`}>
+              {recipientCount > 1
+                ? <><span className="font-semibold">{selectedBadge.label}</span> = {totalPoints} pts × {recipientCount} = <span className="font-semibold">{totalPointsAll} pts</span>. </>
+                : <><span className="font-semibold">{selectedBadge.label}</span> = {totalPoints} pts. </>
+              }
+              Reste: <span className={`font-semibold ${pointsAfter < 0 ? 'text-red-600' : ''}`}>{pointsAfter < 0 ? '0' : pointsAfter} pt{pointsAfter !== 1 ? 's' : ''}</span>.
+              {pointsAfter < 0 && <span className="block mt-0.5 text-[10px] font-medium">⚠ Quota insuffisant</span>}
             </div>
           )}
           {errors.badge && <p className="text-xs text-red-500">{errors.badge}</p>}
@@ -340,11 +305,11 @@ export default function CreateBravo({ users, bravoValues, bravoInsights = emptyI
 
         {/* Message */}
         <div className="space-y-2">
-          <h3 className="font-semibold text-gray-800">Écrire un message</h3>
+          <h3 className="font-semibold text-gray-800 text-sm">Écrire un message</h3>
           <div className="border border-gray-300 rounded-xl overflow-hidden focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/10 transition-all">
             <textarea
-              placeholder="Merci pour ton soutien ce mois-ci ! Ton aide fait vraiment la différence."
-              className="w-full px-4 pt-4 pb-2 min-h-[160px] outline-none text-sm text-gray-700 resize-none placeholder-gray-400"
+              placeholder="Merci pour ton soutien !"
+              className="w-full px-4 pt-3 pb-2 h-20 outline-none text-sm text-gray-700 resize-none placeholder-gray-400"
               value={data.message}
               onChange={e => setData('message', e.target.value)}
               maxLength={1000}
@@ -363,10 +328,6 @@ export default function CreateBravo({ users, bravoValues, bravoInsights = emptyI
                 >
                   {isListening ? <MicOff size={17} /> : <Mic size={17} />}
                 </button>
-                <button type="button" className="text-gray-400 hover:text-gray-600 transition-colors"><Smile size={17} /></button>
-                <button type="button" className="text-gray-400 hover:text-gray-600 transition-colors"><Paperclip size={17} /></button>
-                <button type="button" className="text-gray-400 hover:text-gray-600 transition-colors"><Sparkles size={17} /></button>
-                <button type="button" className="border border-gray-300 rounded px-1.5 py-0.5 text-[10px] font-bold text-gray-500 hover:border-gray-400 transition-colors">GIF</button>
               </div>
             </div>
           </div>
@@ -407,24 +368,25 @@ export default function CreateBravo({ users, bravoValues, bravoInsights = emptyI
         </div>
 
         {/* Qualités */}
-        <div className="space-y-3">
-          <h3 className="font-semibold text-gray-800">Choisir des qualités</h3>
-          <div className="flex flex-wrap gap-2">
+        <div className="space-y-2">
+          <h3 className="font-semibold text-gray-800 text-sm">Choisir des qualités</h3>
+          <div className="flex flex-wrap gap-1.5">
             {bravoValues.map(val => {
               const isSelected = data.value_ids.includes(val.id);
               return (
-                <button
-                  type="button"
-                  key={val.id}
-                  onClick={() => handleToggleValue(val.id)}
-                  className="px-3 py-1.5 rounded-full border text-sm transition-all"
-                  style={isSelected
-                    ? { backgroundColor: val.color, borderColor: val.color, color: '#fff' }
-                    : { backgroundColor: '#fff', borderColor: '#e5e7eb', color: '#374151' }
-                  }
-                >
-                  {val.name}
-                </button>
+                <div key={val.id} className="group relative">
+                  <button
+                    type="button"
+                    onClick={() => handleToggleValue(val.id)}
+                    className="px-2.5 py-1 rounded-full border text-xs font-medium transition-all cursor-pointer"
+                    style={isSelected
+                      ? { backgroundColor: val.color, borderColor: val.color, color: '#fff' }
+                      : { backgroundColor: '#f3f4f6', borderColor: val.color, color: val.color }
+                    }
+                  >
+                    {val.name}
+                  </button>
+                </div>
               );
             })}
           </div>
@@ -435,12 +397,20 @@ export default function CreateBravo({ users, bravoValues, bravoInsights = emptyI
         <Button
           type="submit"
           className="w-full py-3 text-sm font-semibold"
-          disabled={processing || !data.receiver_id || !data.badge || pointsAfter < 0}
+          disabled={processing || data.receiver_ids.length === 0 || !data.badge || pointsAfter < 0}
         >
-          {processing ? 'Envoi en cours…' : 'Envoyer le Bravo'}
+          {processing
+            ? 'Envoi en cours…'
+            : selectedRecipients.length > 1
+              ? `Envoyer ${selectedRecipients.length} Bravos`
+              : 'Envoyer le Bravo'
+          }
         </Button>
         <p className="text-center text-[10px] text-gray-400 uppercase tracking-widest">
-          La personne remerciée recevra une notification immédiate.
+          {selectedRecipients.length > 1
+            ? 'Les personnes remerciées recevront une notification immédiate.'
+            : 'La personne remerciée recevra une notification immédiate.'
+          }
         </p>
       </form>
     </div>

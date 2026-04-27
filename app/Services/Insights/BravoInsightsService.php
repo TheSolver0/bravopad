@@ -39,7 +39,8 @@ class BravoInsightsService
             }
         }
 
-        $senderDept = $sender->department;
+        $sender->loadMissing('department');
+        $senderDept = $sender->department?->name;
         $balancingSuggestions = $this->balancingCandidates($sender, $senderDept, 5);
 
         $quality = $this->qualityPreview($sender, $byReceiver, $topReceiverId, $totalSent);
@@ -68,13 +69,14 @@ class BravoInsightsService
             ->whereKeyNot($sender->id)
             ->where('is_automation', false)
             ->orderBy('name')
-            ->get(['id', 'name', 'department'])
+            ->with('department:id,name')
+            ->get(['id', 'name', 'department_id'])
             ->filter(function (User $u) use ($senderDept) {
                 if ($senderDept === null || $senderDept === '') {
                     return true;
                 }
 
-                return $u->department !== $senderDept;
+                return $u->department?->name !== $senderDept;
             })
             ->map(function (User $u) use ($receivedCounts) {
                 $c = (int) ($receivedCounts[$u->id] ?? 0);
@@ -82,7 +84,7 @@ class BravoInsightsService
                 return [
                     'id'           => $u->id,
                     'name'         => $u->name,
-                    'department'   => $u->department,
+                    'department'   => $u->department?->name,
                     'reason'       => 'Autre direction / service — visibilité croisée.',
                     'received_90d' => $c,
                 ];

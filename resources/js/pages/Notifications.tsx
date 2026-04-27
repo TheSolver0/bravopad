@@ -70,7 +70,7 @@ export default function Notifications({ notifications }: NotificationsProps) {
 
       <div className="space-y-3">
         {rows.length === 0 ? (
-          <Card className="p-10 text-center text-on-surface-variant border-none shadow-sm">
+          <Card className="p-10 text-center text-on-surface-variant border-none shadow-sm" style={{background:'white',}}>
             Aucune notification pour le moment.
           </Card>
         ) : (

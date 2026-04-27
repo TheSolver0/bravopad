@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AppSetting;
 use App\Models\BravoValue;
+use App\Models\Reward;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
 use Illuminate\Http\Request;
@@ -34,9 +35,21 @@ class AdminConfigController extends Controller
             'is_active'   => $v->is_active,
         ]);
 
+        $rewards = Reward::orderBy('cost_points')->get()->map(fn ($r) => [
+            'id'          => $r->id,
+            'name'        => $r->name,
+            'description' => $r->description,
+            'category'    => $r->category,
+            'cost_points' => $r->cost_points,
+            'image_url'   => $r->image_url,
+            'stock'       => $r->stock,
+            'is_active'   => $r->is_active,
+        ]);
+
         return Inertia::render('AdminConfig', [
             'settings'    => $settings,
             'bravoValues' => $bravoValues,
+            'rewards'     => $rewards,
         ]);
     }
 
@@ -121,7 +134,7 @@ class AdminConfigController extends Controller
             'info',
         );
 
-        return response()->json(['message' => 'Valeur créée.', 'data' => $bravoValue], 201);
+        return redirect()->back()->with('success', 'Valeur créée.');
     }
 
     /**

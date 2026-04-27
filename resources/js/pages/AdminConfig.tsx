@@ -1,13 +1,25 @@
 import { useState } from 'react';
 import { router } from '@inertiajs/react';
-import { Settings, ToggleLeft, ToggleRight, Plus, Save, Zap } from 'lucide-react';
+import { Settings, ToggleLeft, ToggleRight, Plus, Save, Zap, ShoppingBag, Pencil, Trash2, X, Check } from 'lucide-react';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
-import { AppSetting, BravoValue } from './types';
+import { AppSetting, BravoValue, Reward } from './types';
+
+const CATEGORY_LABELS: Record<string, string> = {
+    vouchers:    'Bons',
+    tickets:     'Tickets',
+    experiences: 'Expériences',
+    equipment:   'Équipement',
+};
+
+const CATEGORIES = ['vouchers', 'tickets', 'experiences', 'equipment'] as const;
+
+type AdminReward = Required<Pick<Reward, 'id' | 'name' | 'description' | 'category' | 'cost_points' | 'image_url' | 'stock' | 'is_active'>>;
 
 interface AdminConfigProps {
     settings: AppSetting[];
     bravoValues: BravoValue[];
+    rewards: AdminReward[];
 }
 
 const SETTING_LABELS: Record<string, string> = {
@@ -19,7 +31,11 @@ const SETTING_LABELS: Record<string, string> = {
     notify_bravo_by_email:         'Notifications email activées',
 };
 
-export default function AdminConfig({ settings, bravoValues }: AdminConfigProps) {
+type RewardCategory = 'vouchers' | 'tickets' | 'experiences' | 'equipment';
+type RewardFormState = { name: string; description: string; category: RewardCategory; cost_points: string; image_url: string; stock: string };
+const EMPTY_REWARD: RewardFormState = { name: '', description: '', category: 'vouchers', cost_points: '', image_url: '', stock: '' };
+
+export default function AdminConfig({ settings, bravoValues, rewards }: AdminConfigProps) {
     const [editedSettings, setEditedSettings] = useState<Record<string, string>>(
         Object.fromEntries(settings.map(s => [s.key, s.value]))
     );
@@ -30,6 +46,76 @@ export default function AdminConfig({ settings, bravoValues }: AdminConfigProps)
     const [showNewValue, setShowNewValue] = useState(false);
     const [newValue, setNewValue]         = useState({ name: '', multiplier: '1', color: '#6366f1', icon: '' });
     const [savingValue, setSavingValue]   = useState(false);
+
+    // Récompenses
+    const [showNewReward, setShowNewReward]   = useState(false);
+    const [newReward, setNewReward]           = useState(EMPTY_REWARD);
+    const [savingReward, setSavingReward]     = useState(false);
+    const [editingReward, setEditingReward]   = useState<number | null>(null);
+    const [editRewardData, setEditRewardData] = useState(EMPTY_REWARD);
+    const [togglingReward, setTogglingReward] = useState<number | null>(null);
+    const [deletingReward, setDeletingReward] = useState<number | null>(null);
+
+    const handleCreateReward = () => {
+        if (!newReward.name.trim()) return;
+        setSavingReward(true);
+        router.post('/admin/rewards', {
+            name:        newReward.name.trim(),
+            description: newReward.description || null,
+            category:    newReward.category,
+            cost_points: parseInt(newReward.cost_points as string) || 0,
+            image_url:   newReward.image_url || null,
+            stock:       newReward.stock ? parseInt(newReward.stock as string) : null,
+            is_active:   true,
+        }, {
+            preserveScroll: true,
+            onSuccess: () => { setNewReward(EMPTY_REWARD); setShowNewReward(false); },
+            onFinish:  () => setSavingReward(false),
+        });
+    };
+
+    const startEditReward = (r: AdminReward) => {
+        setEditingReward(r.id);
+        setEditRewardData({
+            name:        r.name,
+            description: r.description ?? '',
+            category:    r.category,
+            cost_points: String(r.cost_points),
+            image_url:   r.image_url ?? '',
+            stock:       r.stock != null ? String(r.stock) : '',
+        });
+    };
+
+    const handleUpdateReward = (id: number) => {
+        router.patch(`/admin/rewards/${id}`, {
+            name:        editRewardData.name.trim(),
+            description: editRewardData.description || null,
+            category:    editRewardData.category,
+            cost_points: parseInt(editRewardData.cost_points as string) || 0,
+            image_url:   editRewardData.image_url || null,
+            stock:       editRewardData.stock ? parseInt(editRewardData.stock as string) : null,
+        }, {
+            preserveScroll: true,
+            onSuccess: () => setEditingReward(null),
+        });
+    };
+
+    const handleToggleReward = (id: number) => {
+        setTogglingReward(id);
+        router.patch(`/admin/rewards/${id}/toggle`, {}, {
+            preserveScroll: true,
+            onFinish: () => setTogglingReward(null),
+        });
+    };
+
+    const handleDeleteReward = (id: number) => {
+        if (!confirm('Supprimer cette récompense ?')) return;
+        setDeletingReward(id);
+        router.delete(`/admin/rewards/${id}`, {
+            preserveScroll: true,
+            onFinish: () => setDeletingReward(null),
+        });
+    };
 
     const handleSaveSettings = () => {
         setSavingSettings(true);
@@ -220,6 +306,159 @@ export default function AdminConfig({ settings, bravoValues }: AdminConfigProps)
                                     }
                                 </button>
                             </div>
+                        </div>
+                    ))}
+                </div>
+            </Card>
+
+            {/* Récompenses (boutique) */}
+            <Card className="border-none bg-white/80 space-y-6">
+                <div className="flex items-center justify-between">
+                    <h2 className="text-lg font-black tracking-tight flex items-center gap-2">
+                        <ShoppingBag size={18} className="text-primary" />
+                        Récompenses
+                    </h2>
+                    <Button variant="outline" onClick={() => setShowNewReward(v => !v)} className="gap-2">
+                        <Plus size={14} />
+                        Nouvelle récompense
+                    </Button>
+                </div>
+
+                {/* Formulaire création */}
+                {showNewReward && (
+                    <div className="p-4 bg-surface-container-low rounded-xl space-y-4 border border-primary/20">
+                        <p className="text-xs font-black uppercase tracking-widest text-primary">Créer une récompense</p>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="col-span-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Nom *</label>
+                                <input type="text" value={newReward.name} onChange={e => setNewReward(p => ({ ...p, name: e.target.value }))}
+                                    placeholder="Ex: Carte cadeau Amazon" className="mt-1 w-full border rounded-lg px-3 py-2 text-sm font-bold" />
+                            </div>
+                            <div className="col-span-2">
+                                <label className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Description</label>
+                                <textarea value={newReward.description} onChange={e => setNewReward(p => ({ ...p, description: e.target.value }))}
+                                    rows={2} placeholder="Description optionnelle..." className="mt-1 w-full border rounded-lg px-3 py-2 text-sm font-bold resize-none" />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Catégorie</label>
+                                <select value={newReward.category} onChange={e => setNewReward(p => ({ ...p, category: e.target.value as RewardCategory }))}
+                                    className="mt-1 w-full border rounded-lg px-3 py-2 text-sm font-bold">
+                                    {CATEGORIES.map(c => <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Coût (pts) *</label>
+                                <input type="number" min="1" value={newReward.cost_points} onChange={e => setNewReward(p => ({ ...p, cost_points: e.target.value }))}
+                                    className="mt-1 w-full border rounded-lg px-3 py-2 text-sm font-bold" />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Stock (vide = illimité)</label>
+                                <input type="number" min="1" value={newReward.stock} onChange={e => setNewReward(p => ({ ...p, stock: e.target.value }))}
+                                    className="mt-1 w-full border rounded-lg px-3 py-2 text-sm font-bold" />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">URL image</label>
+                                <input type="url" value={newReward.image_url} onChange={e => setNewReward(p => ({ ...p, image_url: e.target.value }))}
+                                    placeholder="https://..." className="mt-1 w-full border rounded-lg px-3 py-2 text-sm font-bold" />
+                            </div>
+                        </div>
+                        <div className="flex gap-2 justify-end">
+                            <Button variant="outline" onClick={() => { setShowNewReward(false); setNewReward(EMPTY_REWARD); }}>Annuler</Button>
+                            <Button variant="primary" onClick={handleCreateReward} disabled={savingReward || !newReward.name.trim() || !newReward.cost_points}>
+                                {savingReward ? 'Création...' : 'Créer'}
+                            </Button>
+                        </div>
+                    </div>
+                )}
+
+                {/* Liste des récompenses */}
+                <div className="space-y-3">
+                    {rewards.length === 0 && (
+                        <p className="text-sm text-on-surface-variant text-center py-6">Aucune récompense configurée.</p>
+                    )}
+                    {rewards.map(r => (
+                        <div key={r.id} className="rounded-xl border border-surface-container-high overflow-hidden">
+                            {editingReward === r.id ? (
+                                /* Formulaire édition inline */
+                                <div className="p-4 space-y-3 bg-surface-container-low">
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="col-span-2">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Nom</label>
+                                            <input type="text" value={editRewardData.name} onChange={e => setEditRewardData(p => ({ ...p, name: e.target.value }))}
+                                                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm font-bold" />
+                                        </div>
+                                        <div className="col-span-2">
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Description</label>
+                                            <textarea value={editRewardData.description} onChange={e => setEditRewardData(p => ({ ...p, description: e.target.value }))}
+                                                rows={2} className="mt-1 w-full border rounded-lg px-3 py-2 text-sm font-bold resize-none" />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Catégorie</label>
+                                            <select value={editRewardData.category} onChange={e => setEditRewardData(p => ({ ...p, category: e.target.value as RewardCategory }))}
+                                                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm font-bold">
+                                                {CATEGORIES.map(c => <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>)}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Coût (pts)</label>
+                                            <input type="number" min="1" value={editRewardData.cost_points} onChange={e => setEditRewardData(p => ({ ...p, cost_points: e.target.value }))}
+                                                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm font-bold" />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">Stock</label>
+                                            <input type="number" min="1" value={editRewardData.stock} onChange={e => setEditRewardData(p => ({ ...p, stock: e.target.value }))}
+                                                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm font-bold" />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">URL image</label>
+                                            <input type="url" value={editRewardData.image_url} onChange={e => setEditRewardData(p => ({ ...p, image_url: e.target.value }))}
+                                                className="mt-1 w-full border rounded-lg px-3 py-2 text-sm font-bold" />
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-2 justify-end">
+                                        <Button variant="outline" onClick={() => setEditingReward(null)} className="gap-1"><X size={13} />Annuler</Button>
+                                        <Button variant="primary" onClick={() => handleUpdateReward(r.id)} className="gap-1"><Check size={13} />Enregistrer</Button>
+                                    </div>
+                                </div>
+                            ) : (
+                                /* Vue normale */
+                                <div className="flex items-center justify-between p-4 bg-white gap-4">
+                                    <div className="flex items-center gap-3 min-w-0">
+                                        {r.image_url ? (
+                                            <img src={r.image_url} alt={r.name} className="w-10 h-10 rounded-lg object-cover shrink-0" referrerPolicy="no-referrer" />
+                                        ) : (
+                                            <div className="w-10 h-10 rounded-lg bg-surface-container-low flex items-center justify-center shrink-0">
+                                                <ShoppingBag size={18} className="text-on-surface-variant/40" />
+                                            </div>
+                                        )}
+                                        <div className="min-w-0">
+                                            <p className="font-bold text-sm truncate">{r.name}</p>
+                                            <p className="text-xs text-on-surface-variant">
+                                                {CATEGORY_LABELS[r.category]} · {r.cost_points.toLocaleString()} pts
+                                                {r.stock != null && ` · Stock : ${r.stock}`}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                        <span className={`text-xs font-bold ${r.is_active ? 'text-green-600' : 'text-on-surface-variant'}`}>
+                                            {r.is_active ? 'Active' : 'Inactive'}
+                                        </span>
+                                        <button onClick={() => handleToggleReward(r.id)} disabled={togglingReward === r.id} className="focus:outline-none">
+                                            {r.is_active
+                                                ? <ToggleRight size={28} className="text-primary cursor-pointer" />
+                                                : <ToggleLeft  size={28} className="text-on-surface-variant cursor-pointer" />
+                                            }
+                                        </button>
+                                        <button onClick={() => startEditReward(r)} className="p-1.5 rounded-lg hover:bg-surface-container-low transition-colors text-on-surface-variant hover:text-primary">
+                                            <Pencil size={14} />
+                                        </button>
+                                        <button onClick={() => handleDeleteReward(r.id)} disabled={deletingReward === r.id}
+                                            className="p-1.5 rounded-lg hover:bg-red-50 transition-colors text-on-surface-variant hover:text-red-500 disabled:opacity-40">
+                                            <Trash2 size={14} />
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     ))}
                 </div>

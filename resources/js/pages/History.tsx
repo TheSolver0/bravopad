@@ -153,8 +153,11 @@ export default function History({ bravos, currentUserId, currentUser, pointsGive
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
 
-  const received = useMemo(() => bravos.filter(b => b.receiver_id === currentUserId), [bravos, currentUserId]);
-  const sent      = useMemo(() => bravos.filter(b => b.sender_id   === currentUserId), [bravos, currentUserId]);
+  const received = useMemo(() => bravos.filter(b =>
+    b.receiver_id === currentUserId ||
+    (b.receivers ?? []).some(r => r.id === currentUserId)
+  ), [bravos, currentUserId]);
+  const sent = useMemo(() => bravos.filter(b => b.sender_id === currentUserId), [bravos, currentUserId]);
 
   const topValues = useMemo(() => {
     const counts: Record<string, { name: string; color?: string; count: number }> = {};
@@ -182,20 +185,24 @@ export default function History({ bravos, currentUserId, currentUser, pointsGive
 
   const rewardSuggestion = useMemo(() => {
     const pts = currentUser.points_total;
-    const affordable = MOCK_REWARDS.filter(r => r.cost <= pts).sort((a, b) => b.cost - a.cost);
+    const getCost = (r: any) => (r.cost ?? r.price ?? r.points ?? 0);
+    const affordable = (MOCK_REWARDS as any[]).filter((r: any) => getCost(r) <= pts).sort((a: any, b: any) => getCost(b) - getCost(a));
     if (affordable.length > 0) return { reward: affordable[0], canAfford: true, missing: 0 };
-    const next = [...MOCK_REWARDS].sort((a, b) => a.cost - b.cost)[0];
-    return { reward: next, canAfford: false, missing: next.cost - pts };
+    const next = [...(MOCK_REWARDS as any[])].sort((a: any, b: any) => getCost(a) - getCost(b))[0];
+    return { reward: next, canAfford: false, missing: getCost(next) - pts };
   }, [currentUser.points_total]);
 
   const filtered = bravos.filter(b => {
     if (filter === 'sent'     && b.sender_id   !== currentUserId) return false;
-    if (filter === 'received' && b.receiver_id !== currentUserId) return false;
+    if (filter === 'received' && b.receiver_id !== currentUserId
+      && !(b.receivers ?? []).some(r => r.id === currentUserId)) return false;
     if (search) {
       const q = search.toLowerCase();
+      const receiverMatch = (b.receivers ?? []).some(r => r.name.toLowerCase().includes(q));
       if (!b.message?.toLowerCase().includes(q)
         && !b.sender?.name.toLowerCase().includes(q)
-        && !b.receiver?.name.toLowerCase().includes(q)) return false;
+        && !b.receiver?.name.toLowerCase().includes(q)
+        && !receiverMatch) return false;
     }
     return true;
   });
@@ -307,29 +314,63 @@ export default function History({ bravos, currentUserId, currentUser, pointsGive
                       <div className="px-4 pt-4 pb-3 space-y-3">
                         <div className="flex items-start gap-4">
                           {/* Avatars superposés */}
-                          <div className="flex items-center shrink-0">
-                            <div className="relative">
-                              <img
-                                src={bravo.sender ? getAvatar(bravo.sender) : `https://ui-avatars.com/api/?name=?&background=e5e7eb&color=6b7280&size=64`}
-                                alt=""
-                                className="w-10 h-10 rounded-xl ring-2 ring-white shadow-sm z-0"
-                                referrerPolicy="no-referrer"
-                              />
-                              <div className="absolute -right-1 -bottom-1 bg-primary/80 text-white p-0.5 rounded-md shadow z-10">
-                                <ArrowRight size={9} />
+                          {(() => {
+                            const receivers = bravo.receivers && bravo.receivers.length > 0
+                              ? bravo.receivers
+                              : bravo.receiver ? [bravo.receiver] : [];
+                            const MAX_SHOWN = 3;
+                            const shown = receivers.slice(0, MAX_SHOWN);
+                            const extra = receivers.length - MAX_SHOWN;
+                            return (
+                              <div className="flex items-center shrink-0">
+                                <div className="relative">
+                                  <img
+                                    src={bravo.sender ? getAvatar(bravo.sender) : `https://ui-avatars.com/api/?name=?&background=e5e7eb&color=6b7280&size=64`}
+                                    alt=""
+                                    className="w-10 h-10 rounded-xl ring-2 ring-white shadow-sm z-0"
+                                    referrerPolicy="no-referrer"
+                                  />
+                                  <div className="absolute -right-1 -bottom-1 bg-primary/80 text-white p-0.5 rounded-md shadow z-10">
+                                    <ArrowRight size={9} />
+                                  </div>
+                                </div>
+                                <div className="flex -ml-2">
+                                  {shown.map((r, i) => (
+                                    <img
+                                      key={r.id}
+                                      src={getAvatar(r)}
+                                      alt={r.name}
+                                      title={r.name}
+                                      className="w-14 h-14 rounded-2xl ring-4 ring-white shadow-md relative"
+                                      style={{ marginLeft: i > 0 ? '-20px' : undefined, zIndex: 10 + i }}
+                                      referrerPolicy="no-referrer"
+                                    />
+                                  ))}
+                                  {extra > 0 && (
+                                    <div
+                                      className="w-14 h-14 rounded-2xl ring-4 ring-white shadow-md -ml-5 z-20 relative bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-500"
+                                    >
+                                      +{extra}
+                                    </div>
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                            <img
-                              src={bravo.receiver ? getAvatar(bravo.receiver) : `https://ui-avatars.com/api/?name=?&background=e5e7eb&color=6b7280&size=64`}
-                              alt=""
-                              className="w-14 h-14 rounded-2xl ring-4 ring-white shadow-md -ml-2 z-10 relative"
-                              referrerPolicy="no-referrer"
-                            />
-                          </div>
+                            );
+                          })()}
 
                           <div className="flex-1 min-w-0">
                             <p className="text-sm text-gray-500">
-                              To <span className="font-bold text-gray-800">{bravo.receiver?.name ?? '—'}</span>
+                              To{' '}
+                              {(() => {
+                                const receivers = bravo.receivers && bravo.receivers.length > 0
+                                  ? bravo.receivers
+                                  : bravo.receiver ? [bravo.receiver] : [];
+                                if (receivers.length === 0) return <span className="font-bold text-gray-800">—</span>;
+                                if (receivers.length === 1) return <span className="font-bold text-gray-800">{receivers[0].name}</span>;
+                                const names = receivers.slice(0, -1).map(r => r.name).join(', ');
+                                const last = receivers[receivers.length - 1].name;
+                                return <><span className="font-bold text-gray-800">{names}</span> <span className="text-gray-400">&</span> <span className="font-bold text-gray-800">{last}</span></>;
+                              })()}
                             </p>
                             {bravo.message && (
                               <p className="text-sm text-gray-500 mt-1 leading-relaxed">{bravo.message}</p>
@@ -408,11 +449,11 @@ export default function History({ bravos, currentUserId, currentUser, pointsGive
                                         referrerPolicy="no-referrer"
                                       />
                                       <div className="flex-1 bg-white rounded-xl px-3 py-2 text-xs shadow-sm">
-                                        <span className="font-semibold text-gray-700">{c.user.name}</span>
+                                        <span className="font-semibold text-gray-700">{c.user?.name ?? '—'}</span>
                                         <span className="text-gray-500 ml-2">{c.content}</span>
                                         <span className="block text-[10px] text-gray-400 mt-0.5">{c.created_at}</span>
                                       </div>
-                                      {c.user.id === currentUserId && (
+                                      {c.user?.id === currentUserId && (
                                         <button
                                           onClick={async () => {
                                             await fetch(`/bravos/${bravo.id}/comments/${c.id}`, {
@@ -710,7 +751,7 @@ export default function History({ bravos, currentUserId, currentUser, pointsGive
               </div>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-primary">{rewardSuggestion.reward.cost.toLocaleString()} pts</span>
+              <span className="text-xs font-bold text-primary">{((rewardSuggestion.reward as any).cost ?? (rewardSuggestion.reward as any).price ?? (rewardSuggestion.reward as any).points ?? 0).toLocaleString()} pts</span>
               {rewardSuggestion.canAfford ? (
                 <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full">Échangeable !</span>
               ) : (

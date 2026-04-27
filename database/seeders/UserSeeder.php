@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\Department;
 use App\Models\Direction;
 use App\Models\User;
 use Illuminate\Database\Seeder;
@@ -87,16 +88,20 @@ class UserSeeder extends Seeder
             }
         }
 
+        $departmentIdByCode = [];
+        foreach ($directions as $direction) {
+            $dept = Department::firstOrCreate(['name' => $direction->name]);
+            $departmentIdByCode[$direction->code] = $dept->id;
+        }
+
         foreach ($users as [$data, $spatieRole]) {
             $directionCode = $data['direction_code'] ?? null;
-            // On stocke le code direction dans "department" pour l'affichage Team.
-            $department = $directionCode ?? 'N/A';
             unset($data['direction_code']);
 
             $attributes = array_merge(
                 $data,
                 [
-                    'department' => $department,
+                    'department_id' => $departmentIdByCode[$directionCode] ?? null,
                     'password' => Hash::make('password'),
                 ]
             );
@@ -107,7 +112,7 @@ class UserSeeder extends Seeder
 
             if (! $user->avatar) {
                 $seed = urlencode($data['name']);
-                $user->avatar = "https://api.dicebear.com/7.x/avataaars/svg?seed={$seed}";
+                $user->avatar = "https://i.pinimg.com/1200x/3f/7d/8b/3f7d8becaae321ae2a91bb9078f6b0e6.jpg";
                 $user->save();
             }
 

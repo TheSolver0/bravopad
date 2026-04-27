@@ -1,10 +1,12 @@
 import { useState, useMemo } from 'react';
-import { ShoppingBag, Search, ShoppingCart, Clock, CheckCircle, XCircle, Truck } from 'lucide-react';
+import { ShoppingBag, Search, ShoppingCart, Clock, CheckCircle, XCircle, Truck, ChevronLeft, ChevronRight } from 'lucide-react';
 import { router } from '@inertiajs/react';
 import { Card } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
 import { Reward, Redemption } from './types';
+
+const ITEMS_PER_PAGE = 8;
 
 interface ShopProps {
   rewards: Reward[];
@@ -31,18 +33,22 @@ export default function Shop({ rewards, redemptions, userPoints }: ShopProps) {
   const [searchTerm, setSearchTerm]         = useState('');
   const [activeCategory, setActiveCategory] = useState('Tous');
   const [redeeming, setRedeeming]           = useState<number | null>(null);
+  const [page, setPage]                     = useState(1);
 
   const categories = ['Tous', 'vouchers', 'tickets', 'experiences', 'equipment'];
 
-  const filtered = useMemo(() =>
-    rewards.filter(r => {
+  const filtered = useMemo(() => {
+    setPage(1);
+    return rewards.filter(r => {
       const matchSearch = r.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (r.description ?? '').toLowerCase().includes(searchTerm.toLowerCase());
       const matchCat = activeCategory === 'Tous' || r.category === activeCategory;
       return matchSearch && matchCat;
-    }),
-    [rewards, searchTerm, activeCategory]
-  );
+    });
+  }, [rewards, searchTerm, activeCategory]);
+
+  const totalPages  = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
+  const paginated   = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
 
   const handleRedeem = (reward: Reward) => {
     if (redeeming) return;
@@ -109,7 +115,7 @@ export default function Shop({ rewards, redemptions, userPoints }: ShopProps) {
         <p className="text-center text-on-surface-variant py-16">Aucune récompense disponible.</p>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {filtered.map(reward => (
+          {paginated.map(reward => (
             <Card key={reward.id} className="p-0 overflow-hidden group hover:shadow-xl transition-all duration-500 border-none bg-white">
               <div className="relative h-48 overflow-hidden bg-surface-container-low">
                 {reward.image_url ? (
@@ -164,6 +170,39 @@ export default function Shop({ rewards, redemptions, userPoints }: ShopProps) {
               </div>
             </Card>
           ))}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2">
+          <button
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={page === 1}
+            className="p-2 rounded-lg bg-white border border-surface-container-high disabled:opacity-40 hover:bg-surface-container-low transition-colors cursor-pointer disabled:cursor-not-allowed"
+          >
+            <ChevronLeft size={16} />
+          </button>
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+            <button
+              key={p}
+              onClick={() => setPage(p)}
+              className={`w-9 h-9 rounded-lg text-sm font-bold transition-colors cursor-pointer ${
+                p === page
+                  ? 'bg-primary text-white shadow-md shadow-primary/20'
+                  : 'bg-white border border-surface-container-high hover:bg-surface-container-low text-on-surface-variant'
+              }`}
+            >
+              {p}
+            </button>
+          ))}
+          <button
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            disabled={page === totalPages}
+            className="p-2 rounded-lg bg-white border border-surface-container-high disabled:opacity-40 hover:bg-surface-container-low transition-colors cursor-pointer disabled:cursor-not-allowed"
+          >
+            <ChevronRight size={16} />
+          </button>
         </div>
       )}
 

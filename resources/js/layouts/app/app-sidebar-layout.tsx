@@ -95,7 +95,11 @@ export default function AppSidebarLayout({ breadcrumbs = [], children }: AppSide
           )}
         </AnimatePresence>
 
-        <main className={`flex-1 overflow-y-auto pb-20 md:pb-0 ${isDashboard ? '' : 'p-6 md:p-8'}`}>{children}</main>
+        <main className={`flex-1 overflow-y-auto pb-28 ${isDashboard ? '' : 'p-6 md:p-8'}`}>{children}</main>
+
+        <footer className="border-t border-surface-container-high bg-surface-container-lowest px-6 py-4 text-center text-xs text-muted-foreground md:px-8">
+          Powered by ORBIT SARL
+        </footer>
       </div>
 
       {/* ── Modal Créer un Bravo — rendu au niveau racine pour éviter le stacking context de la sidebar ── */}

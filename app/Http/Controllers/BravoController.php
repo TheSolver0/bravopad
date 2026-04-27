@@ -8,6 +8,7 @@ use App\Models\Bravo;
 use App\Models\BravoValue;
 use App\Models\Challenge;
 use App\Models\User;
+use Illuminate\Support\Str;
 use App\Models\UserBadge;
 use App\Services\BravoPolicyService;
 use App\Services\BravoPointsService;
@@ -56,25 +57,28 @@ class BravoController extends Controller
     }
 
     /**
-     * Crée un Bravo — calcul points serveur + règles anti-abus
+     * Crée un ou plusieurs Bravos — calcul points serveur + règles anti-abus
      */
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'receiver_id' => 'required|exists:users,id',
-            'value_ids'   => 'required|array|min:1',
-            'value_ids.*' => 'exists:bravo_values,id',
-            'message'     => 'nullable|string|max:1000',
+            'receiver_ids'   => 'required|array|min:1',
+            'receiver_ids.*' => 'exists:users,id',
+            'value_ids'      => 'required|array|min:1',
+            'value_ids.*'    => 'exists:bravo_values,id',
+            'message'        => 'nullable|string|max:1000',
         ]);
 
-        $sender     = $request->user();
-        $receiverId = (int) $validated['receiver_id'];
-        $points     = $this->pointsService->calculate($validated['value_ids']);
+        $sender      = $request->user();
+        $receiverIds = array_map('intval', $validated['receiver_ids']);
+        $points      = $this->pointsService->calculate($validated['value_ids']);
 
-        // Valide toutes les règles anti-abus (lance BravoRuleException si violation)
-        $this->policyService->validate($sender, $receiverId, $points);
+        // Valide les règles anti-abus pour chaque destinataire avant de créer quoi que ce soit
+        foreach ($receiverIds as $receiverId) {
+            $this->policyService->validate($sender, $receiverId, $points);
+        }
 
-        return DB::transaction(function () use ($validated, $sender, $receiverId, $points, $request) {
+        return DB::transaction(function () use ($validated, $sender, $receiverIds, $points, $request) {
 
             $primaryValue = BravoValue::findOrFail($validated['value_ids'][0]);
 
@@ -83,31 +87,39 @@ class BravoController extends Controller
                 ->where('end_date', '>=', now())
                 ->first();
 
-            $bravo = Bravo::create([
-                'sender_id'    => $sender->id,
-                'receiver_id'  => $receiverId,
-                'value_id'     => $primaryValue->id,
-                'challenge_id' => $activeChallenge?->id,
-                'message'      => $validated['message'] ?? null,
-                'points'       => $points,
-            ]);
+            // Groupe tous les bravos d'un même envoi multiple sous un même UUID
+            $batchId = count($receiverIds) > 1 ? Str::uuid()->toString() : null;
 
-            $bravo->values()->sync($validated['value_ids']);
+            $bravos = [];
 
-            // Mise à jour points du destinataire
-            User::where('id', $receiverId)->increment('points_total', $points);
+            foreach ($receiverIds as $receiverId) {
+                $bravo = Bravo::create([
+                    'batch_id'     => $batchId,
+                    'sender_id'    => $sender->id,
+                    'receiver_id'  => $receiverId,
+                    'value_id'     => $primaryValue->id,
+                    'challenge_id' => $activeChallenge?->id,
+                    'message'      => $validated['message'] ?? null,
+                    'points'       => $points,
+                ]);
 
-            // Émet l'événement (notifications)
-            event(new BravoSent($bravo->load(['sender', 'receiver', 'values'])));
+                $bravo->values()->sync($validated['value_ids']);
+                User::where('id', $receiverId)->increment('points_total', $points);
+                event(new BravoSent($bravo->load(['sender', 'receiver', 'values'])));
+
+                $bravos[] = $bravo;
+            }
+
+            $count = count($bravos);
 
             if ($request->hasHeader('X-Inertia')) {
                 return redirect()->route('dashboard')
-                    ->with('success', 'Bravo envoyé avec succès !');
+                    ->with('success', $count > 1 ? "{$count} Bravos envoyés avec succès !" : 'Bravo envoyé avec succès !');
             }
 
             return response()->json([
-                'message' => 'Bravo envoyé avec succès',
-                'data'    => $bravo,
+                'message' => 'Bravos envoyés avec succès',
+                'data'    => $bravos,
             ], 201);
         });
     }

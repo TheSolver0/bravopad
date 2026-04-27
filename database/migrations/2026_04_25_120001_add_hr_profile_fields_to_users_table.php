@@ -9,8 +9,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('users', function (Blueprint $table) {
-            $table->date('birth_date')->nullable()->after('department');
-            $table->date('hired_at')->nullable()->after('birth_date');
+            $table->date('hired_at')->nullable()->after('hire_date');
             $table->boolean('is_automation')->default(false)->after('hired_at');
         });
     }
@@ -18,7 +17,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('users', function (Blueprint $table) {
-            $table->dropColumn(['birth_date', 'hired_at', 'is_automation']);
+            $table->dropColumn(['hired_at', 'is_automation']);
         });
     }
 };

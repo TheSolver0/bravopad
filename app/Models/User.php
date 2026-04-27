@@ -11,7 +11,7 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 use Spatie\Permission\Traits\HasRoles;
 
-#[Fillable(['name', 'email', 'password', 'role', 'department', 'birth_date', 'hired_at', 'is_automation', 'avatar', 'points_total'])]
+#[Fillable(['name', 'email', 'password', 'role', 'department_id', 'birth_date', 'hired_at', 'is_automation', 'avatar', 'points_total'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -33,6 +33,11 @@ class User extends Authenticatable
     // -------------------------------------------------------------------------
     // Relations
     // -------------------------------------------------------------------------
+
+    public function department(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(\App\Models\Department::class);
+    }
 
     public function sentBravos()
     {

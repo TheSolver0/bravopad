@@ -42,18 +42,22 @@ class HandleInertiaRequests extends Middleware
 
         $nav = $user
             ? [
-                'hr_dashboard' => Gate::forUser($user)->allows('view-hr-dashboard'),
-                'admin_config' => Gate::forUser($user)->allows('configure-settings'),
-                'admin_users'  => Gate::forUser($user)->allows('manage-users'),
-                'admin_roles'  => Gate::forUser($user)->allows('manage-roles-permissions'),
-                'audit'        => Gate::forUser($user)->allows('view-audit-log'),
+                'hr_dashboard'   => Gate::forUser($user)->allows('view-hr-dashboard'),
+                'admin_config'   => Gate::forUser($user)->allows('configure-settings'),
+                'admin_users'    => Gate::forUser($user)->allows('manage-users'),
+                'admin_roles'    => Gate::forUser($user)->allows('manage-roles-permissions'),
+                'audit'          => Gate::forUser($user)->allows('view-audit-log'),
+                'admin_surveys'  => $user->isHr(),
+                'admin_challenges' => $user->isHr(),
             ]
             : [
-                'hr_dashboard' => false,
-                'admin_config' => false,
-                'admin_users'  => false,
-                'admin_roles'  => false,
-                'audit'        => false,
+                'hr_dashboard'   => false,
+                'admin_config'   => false,
+                'admin_users'    => false,
+                'admin_roles'    => false,
+                'audit'          => false,
+                'admin_surveys'  => false,
+                'admin_challenges' => false,
             ];
 
         return [

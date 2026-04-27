@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Link, usePage, router } from '@inertiajs/react';
 import { motion } from 'motion/react';
 import {
@@ -11,16 +12,23 @@ import {
   ChevronRight,
   Home,
   Bell,
-  Medal,
+  ClipboardList,
+  ClipboardCheck,
   Shield,
-  LayoutDashboard,
   Settings,
   UserCog,
   KeyRound,
+  LogOut,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { usePermissions } from '@/hooks/usePermissions';
 import type { Permission } from '@/pages/types';
+
+const PERM_RANK: Record<string, number> = {
+  user: 0,
+  moderator: 1,
+  admin: 2,
+};
 
 interface NavItem {
   href: string;
@@ -28,15 +36,14 @@ interface NavItem {
   icon: React.ElementType;
   minPermission?: Permission;
 }
-import { useMemo } from 'react';
 
-export const navItems = [
+export const navItems: NavItem[] = [
   { href: '/dashboard', label: 'Accueil', icon: Home },
   { href: '/history', label: 'Mes Bravos', icon: History },
   { href: '/challenges', label: 'Défis', icon: Trophy },
-  { href: '/engagement', label: 'Engagement', icon: Medal },
-  { href: '/team', label: 'Équipe', icon: Users },
-  { href: '/stats', label: 'Stats', icon: BarChart3 },
+  { href: '/engagement', label: 'Sondages', icon: ClipboardList },
+  { href: '/team', label: 'Personnel', icon: Users },
+  // { href: '/stats', label: 'Stats', icon: BarChart3 },
   { href: '/shop', label: 'Boutique', icon: ShoppingBag },
 ];
 
@@ -46,6 +53,8 @@ type AuthNav = {
   admin_users?: boolean;
   admin_roles?: boolean;
   audit?: boolean;
+  admin_surveys?: boolean;
+  admin_challenges?: boolean;
 };
 
 type AuthShared = {
@@ -59,7 +68,7 @@ interface SidebarProps {
   onCreateBravo?: () => void;
 }
 
-type NavEntry = { href: string; label: string; icon: typeof Home };
+type NavEntry = { href: string; label: string; icon: React.ElementType };
 
 function pathWithoutQuery(url: string): string {
   const i = url.indexOf('?');
@@ -108,14 +117,20 @@ function NavLink({
 }
 
 export default function Sidebar({ collapsed = false, onCollapseToggle, onClose, onCreateBravo }: SidebarProps) {
-  const page = usePage<{ auth?: AuthShared }><{ auth: { user?: { id: number; name: string; email: string; avatar?: string } } }>();
+  const page = usePage<{ auth?: AuthShared & { user?: { id: number; name: string; email: string; avatar?: string } } }>();
   const currentUrl = page.url;
   const nav = page.props.auth?.nav ?? {};
 
   const adminLinks = useMemo((): NavEntry[] => {
     const links: NavEntry[] = [];
     if (nav.hr_dashboard) {
-      links.push({ href: '/hr/dashboard', label: 'Tableau RH', icon: LayoutDashboard });
+      links.push({ href: '/hr/dashboard', label: 'Tableau de board', icon: BarChart3 });
+    }
+    if (nav.admin_surveys) {
+      links.push({ href: '/admin/surveys', label: 'Gérer les sondages', icon: ClipboardCheck });
+    }
+    if (nav.admin_challenges) {
+      links.push({ href: '/admin/challenges', label: 'Gérer les défis', icon: Trophy });
     }
     if (nav.admin_config) {
       links.push({ href: '/admin/config', label: 'Configuration', icon: Settings });
@@ -130,7 +145,7 @@ export default function Sidebar({ collapsed = false, onCollapseToggle, onClose, 
       links.push({ href: '/audit', label: 'Audit', icon: Shield });
     }
     return links;
-  }, [nav.hr_dashboard, nav.admin_config, nav.admin_users, nav.admin_roles, nav.audit]);
+  }, [nav.hr_dashboard, nav.admin_config, nav.admin_users, nav.admin_roles, nav.audit, nav.admin_surveys, nav.admin_challenges]);
 
   const mainLinks: NavEntry[] = useMemo(
     () => [...navItems, { href: '/notifications', label: 'Notifications', icon: Bell }],
@@ -148,11 +163,11 @@ export default function Sidebar({ collapsed = false, onCollapseToggle, onClose, 
     <div className="flex flex-col h-full relative">
       <div className="p-3 flex items-center gap-3 border-b border-surface-container-high">
         <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0">
-          <img src="/assets/images/orbit-logo.png" alt="Logo" className="w-10 h-10 object-contain" />
+          <img src="/assets/images/pad-logo.png" alt="Logo" className="w-10 h-10 object-contain" />
         </div>
         {!collapsed && (
           <div className="animate-in fade-in slide-in-from-left-4 duration-300">
-            <h2 className="font-extrabold text-lg leading-none tracking-tight text-primary">Bravo</h2>
+            <h2 className="font-extrabold text-lg leading-none tracking-tight text-primary">Bravo PAD</h2>
           </div>
         )}
         {onClose && (

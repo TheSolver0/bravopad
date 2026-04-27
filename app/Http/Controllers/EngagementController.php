@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Services\Audit\AuditLogger;
 use App\Services\Engagement\BadgeProgressService;
 use Carbon\Carbon;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -39,7 +40,8 @@ class EngagementController extends Controller
 
         $ranking = $this->employeeOfMonthRanking($period);
 
-        $activeSurvey = HrSurvey::query()
+        // Tous les sondages actifs (dans leur fenêtre de dates)
+        $activeSurveys = HrSurvey::query()
             ->where('is_active', true)
             ->where(function ($q) {
                 $q->whereNull('starts_at')->orWhere('starts_at', '<=', now());
@@ -47,100 +49,178 @@ class EngagementController extends Controller
             ->where(function ($q) {
                 $q->whereNull('ends_at')->orWhere('ends_at', '>=', now());
             })
-            ->latest()
-            ->first();
+            ->orderByDesc('created_at')
+            ->get();
 
-        $surveyStats = null;
-        $mySurveyResponse = null;
-        if ($activeSurvey) {
-            $surveyStats = HrSurveyResponse::query()
-                ->select('option_key', DB::raw('COUNT(*) as total'))
-                ->where('survey_id', $activeSurvey->id)
-                ->groupBy('option_key')
+        $surveyIds = $activeSurveys->pluck('id');
+
+        $allStats = HrSurveyResponse::query()
+            ->select('survey_id', 'option_key', DB::raw('COUNT(*) as total'))
+            ->whereIn('survey_id', $surveyIds)
+            ->groupBy('survey_id', 'option_key')
+            ->get()
+            ->groupBy('survey_id');
+
+        $myResponses = HrSurveyResponse::query()
+            ->where('user_id', $user->id)
+            ->whereIn('survey_id', $surveyIds)
+            ->pluck('option_key', 'survey_id');
+
+        $surveysData = $activeSurveys->map(function (HrSurvey $s) use ($allStats, $myResponses) {
+            $breakdown = $allStats->get($s->id, collect())
                 ->pluck('total', 'option_key')
                 ->all();
-
-            $mySurveyResponse = HrSurveyResponse::query()
-                ->where('survey_id', $activeSurvey->id)
-                ->where('user_id', $user->id)
-                ->value('option_key');
-        }
-
-        $myBadges = $user->badges()
-            ->orderByDesc('visibility_score')
-            ->get(['badges.id', 'badges.name', 'badges.rarity', 'badges.level', 'badges.description'])
-            ->map(fn ($b) => [
-                'id' => $b->id,
-                'name' => $b->name,
-                'rarity' => $b->rarity,
-                'level' => $b->level,
-                'description' => $b->description,
-                'progress' => (int) $b->pivot->progress,
-                'awarded_at' => $b->pivot->awarded_at,
-            ])
-            ->values();
-
-        $badgeLeaderboard = User::query()
-            ->where('is_automation', false)
-            ->with(['badges' => fn ($q) => $q->orderByDesc('visibility_score')])
-            ->orderByDesc('points_total')
-            ->limit(10)
-            ->get()
-            ->map(function (User $u) {
-                $earned = $u->badges->filter(fn ($b) => $b->pivot->awarded_at !== null);
-                $visibility = $earned->sum('visibility_score');
-                return [
-                    'id' => $u->id,
-                    'name' => $u->name,
-                    'department' => $u->department,
-                    'avatar' => $u->avatar,
-                    'points_total' => (int) $u->points_total,
-                    'badge_count' => $earned->count(),
-                    'visibility_score' => $visibility,
-                    'status' => $this->statusFromVisibility($visibility),
-                ];
-            });
+            return [
+                'id'              => $s->id,
+                'title'           => $s->title,
+                'question'        => $s->question,
+                'options'         => $s->options,
+                'starts_at'       => $s->starts_at?->toIso8601String(),
+                'ends_at'         => $s->ends_at?->toIso8601String(),
+                'total_responses' => (int) array_sum($breakdown),
+                'stats'           => $breakdown,
+                'my_response'     => $myResponses[$s->id] ?? null,
+            ];
+        })->values();
 
         return Inertia::render('Engagement', [
-            'period' => $period,
-            'can_manage' => $request->user()->isHr(),
-            'vote_candidates' => User::query()
+            'period'                  => $period,
+            'can_manage'              => $user->isHr(),
+            'vote_candidates'         => User::query()
                 ->where('is_automation', false)
-                ->where('id', '!=', $request->user()->id)
+                ->where('id', '!=', $user->id)
                 ->orderBy('name')
                 ->limit(200)
-                ->get(['id', 'name', 'department']),
-            'my_vote' => $myVote ? [
-                'nominee_id' => $myVote->nominee_id,
+                ->with('department:id,name')
+                ->get(['id', 'name', 'department_id', 'avatar'])
+                ->map(fn ($u) => [
+                    'id'         => $u->id,
+                    'name'       => $u->name,
+                    'department' => $u->department?->name,
+                    'avatar'     => $u->avatar,
+                ])
+                ->values(),
+            'my_vote'                 => $myVote ? [
+                'nominee_id'  => $myVote->nominee_id,
                 'is_anonymous' => $myVote->is_anonymous,
-                'comment' => $myVote->comment,
+                'comment'     => $myVote->comment,
             ] : null,
             'employee_of_month_ranking' => $ranking,
-            'my_badges' => $myBadges,
-            'badge_leaderboard' => $badgeLeaderboard,
-            'badges_catalog' => Badge::query()
-                ->where('is_active', true)
-                ->orderByDesc('visibility_score')
-                ->get(['id', 'name', 'rarity', 'level', 'description', 'type', 'criteria']),
-            'active_survey' => $activeSurvey ? [
-                'id' => $activeSurvey->id,
-                'title' => $activeSurvey->title,
-                'question' => $activeSurvey->question,
-                'options' => $activeSurvey->options,
-                'starts_at' => $activeSurvey->starts_at?->toIso8601String(),
-                'ends_at' => $activeSurvey->ends_at?->toIso8601String(),
-            ] : null,
-            'survey_stats' => $surveyStats,
-            'my_survey_response' => $mySurveyResponse,
+            'surveys'                 => $surveysData,
         ]);
     }
 
-    public function vote(Request $request): \Illuminate\Http\RedirectResponse
+    // ── Admin: liste complète pour la gestion RH ─────────────────────────────
+
+    public function adminSurveys(Request $request): Response
+    {
+        if (! $request->user()->isHr()) {
+            abort(403);
+        }
+
+        $surveys = HrSurvey::query()
+            ->orderByDesc('created_at')
+            ->get()
+            ->map(function (HrSurvey $s) {
+                return [
+                    'id'              => $s->id,
+                    'title'           => $s->title,
+                    'question'        => $s->question,
+                    'options'         => $s->options,
+                    'is_active'       => $s->is_active,
+                    'starts_at'       => $s->starts_at?->toIso8601String(),
+                    'ends_at'         => $s->ends_at?->toIso8601String(),
+                    'responses_count' => HrSurveyResponse::where('survey_id', $s->id)->count(),
+                    'created_at'      => $s->created_at->toIso8601String(),
+                ];
+            });
+
+        return Inertia::render('AdminSurveys', [
+            'surveys' => $surveys,
+        ]);
+    }
+
+    public function toggleSurvey(Request $request, HrSurvey $survey): RedirectResponse
+    {
+        if (! $request->user()->isHr()) {
+            abort(403);
+        }
+
+        $survey->update(['is_active' => ! $survey->is_active]);
+
+        AuditLogger::log(
+            'hr_survey_toggled',
+            ['title' => $survey->title, 'is_active' => $survey->is_active],
+            $request->user(),
+            HrSurvey::class,
+            $survey->id,
+            'info',
+            'Changement de statut d un sondage RH.',
+        );
+
+        return back()->with('success', $survey->is_active ? 'Sondage activé.' : 'Sondage désactivé.');
+    }
+
+    public function destroySurvey(Request $request, HrSurvey $survey): RedirectResponse
+    {
+        if (! $request->user()->isHr()) {
+            abort(403);
+        }
+
+        AuditLogger::log(
+            'hr_survey_deleted',
+            ['title' => $survey->title],
+            $request->user(),
+            HrSurvey::class,
+            $survey->id,
+            'warning',
+            'Suppression d un sondage RH.',
+        );
+
+        $survey->delete();
+
+        return back()->with('success', 'Sondage supprimé.');
+    }
+
+    public function exportSurvey(Request $request, HrSurvey $survey): \Symfony\Component\HttpFoundation\StreamedResponse
+    {
+        if (! $request->user()->isHr()) {
+            abort(403);
+        }
+
+        $stats = HrSurveyResponse::query()
+            ->select('option_key', DB::raw('COUNT(*) as total'))
+            ->where('survey_id', $survey->id)
+            ->groupBy('option_key')
+            ->pluck('total', 'option_key');
+
+        $totalResponses = (int) $stats->sum();
+        $filename = 'sondage-' . str($survey->title)->slug() . '-' . now()->format('Y-m-d') . '.csv';
+
+        return response()->streamDownload(function () use ($survey, $stats, $totalResponses) {
+            $handle = fopen('php://output', 'w');
+            fprintf($handle, chr(0xEF) . chr(0xBB) . chr(0xBF)); // UTF-8 BOM for Excel
+            fputcsv($handle, ['Option', 'Réponses', 'Pourcentage'], ';');
+            foreach ($survey->options as $option) {
+                $count = (int) ($stats[$option['key']] ?? 0);
+                $pct = $totalResponses > 0 ? round(($count / $totalResponses) * 100, 1) : 0;
+                fputcsv($handle, [$option['label'], $count, $pct . ' %'], ';');
+            }
+            fputcsv($handle, ['Total', $totalResponses, '100 %'], ';');
+            fclose($handle);
+        }, $filename, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+        ]);
+    }
+
+    // ── Vote employé du mois ─────────────────────────────────────────────────
+
+    public function vote(Request $request): RedirectResponse
     {
         $validated = $request->validate([
-            'nominee_id' => ['required', 'integer', 'exists:users,id'],
+            'nominee_id'  => ['required', 'integer', 'exists:users,id'],
             'is_anonymous' => ['nullable', 'boolean'],
-            'comment' => ['nullable', 'string', 'max:300'],
+            'comment'     => ['nullable', 'string', 'max:300'],
         ]);
 
         if ((int) $validated['nominee_id'] === (int) $request->user()->id) {
@@ -151,10 +231,10 @@ class EngagementController extends Controller
         PeerVote::query()->updateOrCreate(
             ['voter_id' => $request->user()->id, 'period' => $period],
             [
-                'nominee_id' => $validated['nominee_id'],
+                'nominee_id'   => $validated['nominee_id'],
                 'is_anonymous' => (bool) ($validated['is_anonymous'] ?? true),
-                'comment' => $validated['comment'] ?? null,
-                'weight' => $this->voterWeight($request->user()),
+                'comment'      => $validated['comment'] ?? null,
+                'weight'       => $this->voterWeight($request->user()),
             ]
         );
 
@@ -167,42 +247,42 @@ class EngagementController extends Controller
             'info'
         );
 
-        return back()->with('success', 'Vote enregistre.');
+        return back()->with('success', 'Vote enregistré.');
     }
 
-    public function createSurvey(Request $request): \Illuminate\Http\RedirectResponse
+    public function createSurvey(Request $request): RedirectResponse
     {
         if (! $request->user()->isHr()) {
             abort(403);
         }
 
         $validated = $request->validate([
-            'title' => ['required', 'string', 'max:120'],
-            'question' => ['required', 'string', 'max:300'],
-            'options' => ['required', 'array', 'min:2', 'max:6'],
-            'options.*.key' => ['required', 'string', 'max:40'],
-            'options.*.label' => ['required', 'string', 'max:120'],
-            'ends_at' => ['nullable', 'date'],
+            'title'             => ['required', 'string', 'max:120'],
+            'question'          => ['required', 'string', 'max:300'],
+            'options'           => ['required', 'array', 'min:2', 'max:6'],
+            'options.*.key'     => ['required', 'string', 'max:40'],
+            'options.*.label'   => ['required', 'string', 'max:120'],
+            'ends_at'           => ['nullable', 'date'],
         ]);
 
         HrSurvey::query()->where('is_active', true)->update(['is_active' => false]);
 
         $survey = HrSurvey::query()->create([
-            'title' => $validated['title'],
-            'question' => $validated['question'],
-            'options' => $validated['options'],
-            'is_active' => true,
+            'title'      => $validated['title'],
+            'question'   => $validated['question'],
+            'options'    => $validated['options'],
+            'is_active'  => true,
             'created_by' => $request->user()->id,
-            'starts_at' => now(),
-            'ends_at' => $validated['ends_at'] ?? null,
+            'starts_at'  => now(),
+            'ends_at'    => $validated['ends_at'] ?? null,
         ]);
 
         AuditLogger::log(
             'hr_survey_created',
             [
-                'title' => $validated['title'],
+                'title'         => $validated['title'],
                 'options_count' => count($validated['options']),
-                'ends_at' => $validated['ends_at'] ?? null,
+                'ends_at'       => $validated['ends_at'] ?? null,
             ],
             $request->user(),
             HrSurvey::class,
@@ -211,10 +291,10 @@ class EngagementController extends Controller
             'Creation d un sondage RH.',
         );
 
-        return back()->with('success', 'Sondage RH cree.');
+        return back()->with('success', 'Sondage RH créé et activé.');
     }
 
-    public function respondSurvey(Request $request, HrSurvey $survey): \Illuminate\Http\RedirectResponse
+    public function respondSurvey(Request $request, HrSurvey $survey): RedirectResponse
     {
         $validated = $request->validate([
             'option_key' => ['required', 'string', 'max:40'],
@@ -240,8 +320,10 @@ class EngagementController extends Controller
             'Reponse a un sondage RH.',
         );
 
-        return back()->with('success', 'Merci pour votre retour.');
+        return back()->with('success', 'Merci pour votre retour !');
     }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
 
     private function voterWeight(User $user): float
     {
@@ -281,7 +363,8 @@ class EngagementController extends Controller
 
         $users = User::query()
             ->whereIn('id', $nomineeIds)
-            ->get(['id', 'name', 'department', 'avatar']);
+            ->with('department:id,name')
+            ->get(['id', 'name', 'department_id', 'avatar']);
 
         return $users
             ->map(function (User $u) use ($voteRows, $bravoRows, $maxPoints) {
@@ -292,15 +375,15 @@ class EngagementController extends Controller
 
                 return [
                     'user' => [
-                        'id' => $u->id,
-                        'name' => $u->name,
-                        'department' => $u->department,
-                        'avatar' => $u->avatar,
+                        'id'         => $u->id,
+                        'name'       => $u->name,
+                        'department' => $u->department?->name,
+                        'avatar'     => $u->avatar,
                     ],
-                    'votes_count' => $votes,
+                    'votes_count'    => $votes,
                     'weighted_votes' => $weightedVotes,
-                    'bravo_points' => $bravoPoints,
-                    'merit_score' => $merit,
+                    'bravo_points'   => $bravoPoints,
+                    'merit_score'    => $merit,
                 ];
             })
             ->sortByDesc('merit_score')
@@ -314,9 +397,9 @@ class EngagementController extends Controller
         return match (true) {
             $score >= 180 => 'Ambassadeur Legend',
             $score >= 120 => 'Leader Reconnaissance',
-            $score >= 80 => 'Influenceur Positif',
-            $score >= 40 => 'Contributeur Regulier',
-            default => 'Nouveau Talent',
+            $score >= 80  => 'Influenceur Positif',
+            $score >= 40  => 'Contributeur Regulier',
+            default       => 'Nouveau Talent',
         };
     }
 }

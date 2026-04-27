@@ -13,6 +13,7 @@ class Bravo extends Model
     protected $table = 'bravos';
 
     protected $fillable = [
+        'batch_id',
         'sender_id',
         'receiver_id',
         'badge',
@@ -52,12 +53,6 @@ class Bravo extends Model
         return $this->belongsTo(Challenge::class, 'challenge_id');
     }
 
-    // Commentaires
-    public function comments()
-    {
-        return $this->hasMany(BravoComment::class)->with('user')->latest();
-    }
-
     /*
     |--------------------------------------------------------------------------
     | Scopes utiles (feed social)
@@ -88,10 +83,9 @@ class Bravo extends Model
         return $this->belongsToMany(User::class, 'bravo_likes')->withTimestamps();
     }
 
-    // Commentaires (avec soft delete)
     public function comments()
     {
-        return $this->hasMany(BravoComment::class)->latest();
+        return $this->hasMany(BravoComment::class)->with('user')->latest();
     }
 
     /*

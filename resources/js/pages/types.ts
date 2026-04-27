@@ -27,6 +27,7 @@ export interface Reward {
   stock: number | null;
   has_stock: boolean;
   affordable: boolean;
+  is_active?: boolean;
 }
 
 export interface Redemption {
@@ -70,8 +71,11 @@ export interface User {
 export interface BravoValue {
   id: number;
   name: string;
+  description?: string | null;
   color: string;
+  icon?: string | null;
   multiplier: number;
+  is_active: boolean;
 }
 
 export interface BravoComment {
@@ -83,6 +87,7 @@ export interface BravoComment {
 
 export interface Bravo {
   id: number;
+  batch_id?: string | null;
   sender_id: number;
   receiver_id: number;
   badge?: 'good_job' | 'excellent' | 'impressive';
@@ -96,6 +101,7 @@ export interface Bravo {
   created_at: string;
   sender?: User;
   receiver?: User;
+  receivers?: User[];
   values?: { id: number; name: string; color?: string }[];
   comments?: BravoComment[];
 }

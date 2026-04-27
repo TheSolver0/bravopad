@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import NotificationPanel from '@/components/NotificationPanel';
 
 interface HeaderProps {
   breadcrumbs?: BreadcrumbItem[];
@@ -37,12 +38,13 @@ function previewTitle(data: Record<string, unknown>): string {
 }
 
 export default function Header({ breadcrumbs = [], onMenuOpen }: HeaderProps) {
-  const { auth } = usePage<{
+  const { auth, unreadCount } = usePage<{
     auth: {
       user?: { id: number; name: string; email: string; avatar?: string; role?: string; points_total?: number };
       unread_notifications_count?: number;
       recent_notifications?: RecentNotification[];
     };
+    unreadCount: number;
   }>().props;
 
   const user = auth?.user;

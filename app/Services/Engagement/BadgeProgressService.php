@@ -132,13 +132,13 @@ class BadgeProgressService
             $metric = $criteria['metric'] ?? null;
             $threshold = (int) ($criteria['threshold'] ?? 0);
 
-            $progress = match ($metric) {
-                'points_total' => max(0, (int) $user->points_total),
+            $progress = max(0, match ($metric) {
+                'points_total' => (int) $user->points_total,
                 'received_bravos' => $receivedBravos,
                 'years_in_company' => $user->hired_at ? (int) now()->diffInYears($user->hired_at) : 0,
                 'received_value_keyword' => $this->valueKeywordCount($user, (string) ($criteria['keyword'] ?? '')),
                 default => 0,
-            };
+            });
 
             $existing = $user->badges()->where('badge_id', $badge->id)->first();
             $awardedAt = $progress >= $threshold && $threshold > 0

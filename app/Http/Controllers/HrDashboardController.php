@@ -39,7 +39,11 @@ class HrDashboardController extends Controller
 
         [$from, $to] = $this->parseDateRange($request);
 
-        $bravos = Bravo::with(['sender:id,name,department', 'receiver:id,name,department', 'values:name'])
+        $bravos = Bravo::with([
+            'sender' => fn ($q) => $q->select(['id', 'name', 'department_id'])->with('department:id,name'),
+            'receiver' => fn ($q) => $q->select(['id', 'name', 'department_id'])->with('department:id,name'),
+            'values:name',
+        ])
             ->whereBetween('created_at', [$from->startOfDay(), $to->endOfDay()])
             ->latest()
             ->get();
@@ -55,9 +59,9 @@ class HrDashboardController extends Controller
                 fputcsv($handle, [
                     $b->created_at->format('d/m/Y H:i'),
                     $b->sender?->name,
-                    $b->sender?->department,
+                    $b->sender?->department?->name,
                     $b->receiver?->name,
-                    $b->receiver?->department,
+                    $b->receiver?->department?->name,
                     $b->points,
                     $b->values->pluck('name')->join(', '),
                     $b->message,
@@ -88,26 +92,31 @@ class HrDashboardController extends Controller
     {
         $base = Bravo::whereBetween('created_at', [$from, $to]);
 
+        $senderIds   = (clone $base)->distinct()->pluck('sender_id');
+        $receiverIds = (clone $base)->distinct()->pluck('receiver_id');
+        $activeUsers = $senderIds->merge($receiverIds)->unique()->count();
+
         return [
-            'total_bravos'   => (clone $base)->count(),
-            'total_points'   => (int) (clone $base)->sum('points'),
-            'active_givers'  => (clone $base)->distinct('sender_id')->count('sender_id'),
-            'active_receivers'=> (clone $base)->distinct('receiver_id')->count('receiver_id'),
-            'total_users'    => User::count(),
+            'total_bravos'    => (clone $base)->count(),
+            'total_points'    => (int) (clone $base)->sum('points'),
+            'active_givers'   => (clone $base)->distinct('sender_id')->count('sender_id'),
+            'active_receivers' => (clone $base)->distinct('receiver_id')->count('receiver_id'),
+            'total_users'     => User::count(),
+            'active_users'    => $activeUsers,
         ];
     }
 
     private function topGivers(CarbonInterface $from, CarbonInterface $to, int $limit = 10): array
     {
         return Bravo::select('sender_id', DB::raw('COUNT(*) as bravo_count'), DB::raw('SUM(points) as points_given'))
-            ->with('sender:id,name,avatar,department')
+            ->with(['sender' => fn ($q) => $q->select(['id', 'name', 'avatar', 'department_id'])->with('department:id,name')])
             ->whereBetween('created_at', [$from, $to])
             ->groupBy('sender_id')
             ->orderByDesc('bravo_count')
             ->limit($limit)
             ->get()
             ->map(fn ($row) => [
-                'user'         => $row->sender ? ['id' => $row->sender->id, 'name' => $row->sender->name, 'avatar' => $row->sender->avatar, 'department' => $row->sender->department] : null,
+                'user'         => $row->sender ? ['id' => $row->sender->id, 'name' => $row->sender->name, 'avatar' => $row->sender->avatar, 'department' => $row->sender->department?->name] : null,
                 'bravo_count'  => $row->bravo_count,
                 'points_given' => $row->points_given,
             ])
@@ -117,14 +126,14 @@ class HrDashboardController extends Controller
     private function topReceivers(CarbonInterface $from, CarbonInterface $to, int $limit = 10): array
     {
         return Bravo::select('receiver_id', DB::raw('COUNT(*) as bravo_count'), DB::raw('SUM(points) as points_received'))
-            ->with('receiver:id,name,avatar,department')
+            ->with(['receiver' => fn ($q) => $q->select(['id', 'name', 'avatar', 'department_id'])->with('department:id,name')])
             ->whereBetween('created_at', [$from, $to])
             ->groupBy('receiver_id')
             ->orderByDesc('points_received')
             ->limit($limit)
             ->get()
             ->map(fn ($row) => [
-                'user'            => $row->receiver ? ['id' => $row->receiver->id, 'name' => $row->receiver->name, 'avatar' => $row->receiver->avatar, 'department' => $row->receiver->department] : null,
+                'user'            => $row->receiver ? ['id' => $row->receiver->id, 'name' => $row->receiver->name, 'avatar' => $row->receiver->avatar, 'department' => $row->receiver->department?->name] : null,
                 'bravo_count'     => $row->bravo_count,
                 'points_received' => $row->points_received,
             ])
@@ -133,11 +142,12 @@ class HrDashboardController extends Controller
 
     private function byDepartment(CarbonInterface $from, CarbonInterface $to): array
     {
-        return Bravo::select('users.department', DB::raw('COUNT(*) as bravo_count'), DB::raw('SUM(bravos.points) as total_points'))
+        return Bravo::select('departments.name as department', DB::raw('COUNT(*) as bravo_count'), DB::raw('SUM(bravos.points) as total_points'))
             ->join('users', 'bravos.receiver_id', '=', 'users.id')
+            ->join('departments', 'users.department_id', '=', 'departments.id')
             ->whereBetween('bravos.created_at', [$from, $to])
-            ->whereNotNull('users.department')
-            ->groupBy('users.department')
+            ->whereNotNull('users.department_id')
+            ->groupBy('departments.id', 'departments.name')
             ->orderByDesc('bravo_count')
             ->get()
             ->map(fn ($r) => [
@@ -181,7 +191,7 @@ class HrDashboardController extends Controller
                 'bravos' => $count,
             ];
 
-            $cursor->addWeek();
+            $cursor = $cursor->addWeek();
         }
 
         return $weeks;

@@ -14,19 +14,20 @@ class AppSetting extends Model
      */
     public static function get(string $key, mixed $default = null): mixed
     {
-        $setting = Cache::remember("app_setting:{$key}", 300, fn () =>
-            static::where('key', $key)->first()
+        // Cache a plain array (not an Eloquent model) to avoid unserialize failures
+        $data = Cache::remember("app_setting:{$key}", 300, fn () =>
+            static::where('key', $key)->select('value', 'cast')->first()?->toArray()
         );
 
-        if (! $setting) {
+        if (! $data) {
             return $default;
         }
 
-        return match ($setting->cast) {
-            'int'     => (int) $setting->value,
-            'float'   => (float) $setting->value,
-            'boolean' => filter_var($setting->value, FILTER_VALIDATE_BOOLEAN),
-            default   => $setting->value,
+        return match ($data['cast']) {
+            'int'     => (int) $data['value'],
+            'float'   => (float) $data['value'],
+            'boolean' => filter_var($data['value'], FILTER_VALIDATE_BOOLEAN),
+            default   => $data['value'],
         };
     }
 

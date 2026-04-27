@@ -1,5 +1,13 @@
 import { Reward } from './types';
 
+export const BADGES = [
+  { key: 'good_job',   label: 'Good Job',   points: 10, color: '#F97316', emoji: '⭐' },
+  { key: 'excellent',  label: 'Impressive', points: 25, color: '#3B82F6', emoji: '✨' },
+  { key: 'impressive', label: 'Exceptional', points: 50, color: '#9333EA', emoji: '🏆' },
+] as const;
+
+export type BadgeKey = typeof BADGES[number]['key'];
+
 // MOCK_REWARDS — utilisé uniquement par la boutique (données statiques, pas en DB)
 export const MOCK_REWARDS: Reward[] = [
   {

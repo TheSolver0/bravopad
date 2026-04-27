@@ -179,6 +179,43 @@ class RewardController extends Controller
         return response()->json(['message' => 'Récompense mise à jour.', 'data' => $reward]);
     }
 
+    public function toggleActive(Request $request, Reward $reward)
+    {
+        $this->authorize('update', $reward);
+
+        $reward->update(['is_active' => ! $reward->is_active]);
+
+        AuditLogger::log(
+            'reward_toggled',
+            ['is_active' => $reward->is_active],
+            $request->user(),
+            Reward::class,
+            $reward->id,
+            'info',
+        );
+
+        return redirect()->back()->with('success', $reward->is_active ? 'Récompense activée.' : 'Récompense désactivée.');
+    }
+
+    public function destroy(Request $request, Reward $reward)
+    {
+        $this->authorize('delete', $reward);
+
+        $name = $reward->name;
+        $reward->delete();
+
+        AuditLogger::log(
+            'reward_deleted',
+            ['name' => $name],
+            $request->user(),
+            Reward::class,
+            $reward->id,
+            'warning',
+        );
+
+        return redirect()->back()->with('success', 'Récompense supprimée.');
+    }
+
     /**
      * Liste des demandes de récompenses (RH)
      */

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use App\Models\BravoComment;
 
 class Bravo extends Model
 {
@@ -12,8 +13,10 @@ class Bravo extends Model
     protected $table = 'bravos';
 
     protected $fillable = [
+        'batch_id',
         'sender_id',
         'receiver_id',
+        'badge',
         'value_id',
         'challenge_id',
         'message',
@@ -80,10 +83,9 @@ class Bravo extends Model
         return $this->belongsToMany(User::class, 'bravo_likes')->withTimestamps();
     }
 
-    // Commentaires (avec soft delete)
     public function comments()
     {
-        return $this->hasMany(BravoComment::class)->latest();
+        return $this->hasMany(BravoComment::class)->with('user')->latest();
     }
 
     /*

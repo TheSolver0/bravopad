@@ -15,10 +15,14 @@ class Challenge extends Model
     protected $fillable = [
         'name',
         'description',
+        'cover_image',
+        'category',
         'start_date',
         'end_date',
         'points_bonus',
         'status',
+        'for_all',
+        'division_id',
         'created_by',
     ];
 
@@ -27,6 +31,12 @@ class Challenge extends Model
     | Relations
     |--------------------------------------------------------------------------
     */
+
+    // Division ciblée (null = tous)
+    public function division()
+    {
+        return $this->belongsTo(\App\Models\Department::class, 'division_id');
+    }
 
     // RH ou admin qui a créé le challenge
     public function creator()
@@ -38,6 +48,18 @@ class Challenge extends Model
     public function bravos()
     {
         return $this->hasMany(Bravo::class, 'challenge_id');
+    }
+
+    // Participants volontaires
+    public function participants()
+    {
+        return $this->belongsToMany(User::class, 'challenge_participants')->withTimestamps();
+    }
+
+    // Médias du blog (photos/vidéos)
+    public function media()
+    {
+        return $this->hasMany(ChallengeMedia::class);
     }
 
     /*

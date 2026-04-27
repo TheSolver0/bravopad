@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Http;
 class AiController extends Controller
 {
     /**
-     * Rephrase a bravo message using Claude (Anthropic API).
+     * Rephrase a bravo message using Groq (Llama 3, free tier).
      */
     public function rephrase(Request $request)
     {
@@ -16,23 +16,26 @@ class AiController extends Controller
             'message' => 'required|string|max:2000',
         ]);
 
-        $apiKey = config('services.anthropic.key');
+        $apiKey = config('services.groq.key');
 
         if (! $apiKey) {
-            return response()->json(['error' => 'Clé API Anthropic non configurée.'], 503);
+            return response()->json(['error' => 'Clé API Groq non configurée.'], 503);
         }
 
         $response = Http::withHeaders([
-            'x-api-key'         => $apiKey,
-            'anthropic-version' => '2023-06-01',
-            'content-type'      => 'application/json',
-        ])->post('https://api.anthropic.com/v1/messages', [
-            'model'      => 'claude-haiku-4-5-20251001',
+            'Authorization' => "Bearer {$apiKey}",
+            'Content-Type'  => 'application/json',
+        ])->post('https://api.groq.com/openai/v1/chat/completions', [
+            'model'      => 'llama-3.1-8b-instant',
             'max_tokens' => 512,
             'messages'   => [
                 [
+                    'role'    => 'system',
+                    'content' => 'Tu es un assistant RH bienveillant. Reformule les messages de reconnaissance professionnelle pour les rendre plus chaleureux, précis et inspirants, tout en conservant le sens original. Réponds uniquement avec le message reformulé, sans introduction ni commentaire.',
+                ],
+                [
                     'role'    => 'user',
-                    'content' => "Tu es un assistant RH bienveillant. Reformule le message de reconnaissance professionnelle suivant pour le rendre plus chaleureux, précis et inspirant, tout en conservant le sens original. Réponds uniquement avec le message reformulé, sans introduction ni commentaire.\n\nMessage original :\n{$request->message}",
+                    'content' => $request->message,
                 ],
             ],
         ]);
@@ -41,7 +44,7 @@ class AiController extends Controller
             return response()->json(['error' => 'Erreur lors de la requête IA.'], 502);
         }
 
-        $rephrased = $response->json('content.0.text') ?? '';
+        $rephrased = $response->json('choices.0.message.content') ?? '';
 
         return response()->json(['message' => trim($rephrased)]);
     }

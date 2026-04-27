@@ -24,15 +24,16 @@ class DatabaseSeeder extends Seeder
             ChallengeSeeder::class,
             RewardSeeder::class,
             BadgeSeeder::class,
+            HrSurveySeeder::class,
+            BravoSeeder::class,
         ]);
 
         $superAdmin = User::firstOrNew(['email' => 'superadmin@bravo.test']);
         $superAdmin->fill([
-            'name' => 'Super Admin',
-            'role' => 'Super Administrateur',
-            'department' => 'DSI',
+            'name'         => 'Super Admin',
+            'role'         => 'Super Administrateur',
             'points_total' => 0,
-            'password' => Hash::make('password'),
+            'password'     => Hash::make('password'),
         ]);
         $superAdmin->save();
         $superAdmin->syncRoles(['super_admin']);
@@ -42,7 +43,6 @@ class DatabaseSeeder extends Seeder
         $adminDemo->fill([
             'name'         => 'Admin PAD',
             'role'         => 'Administrateur',
-            'department'   => 'DSI',
             'points_total' => 0,
             'password'     => Hash::make('password'),
         ]);
@@ -53,7 +53,6 @@ class DatabaseSeeder extends Seeder
         $rhDemo->fill([
             'name'         => 'RH PAD',
             'role'         => 'Responsable RH',
-            'department'   => 'DRH',
             'points_total' => 0,
             'password'     => Hash::make('password'),
         ]);
@@ -62,12 +61,11 @@ class DatabaseSeeder extends Seeder
 
         $automation = User::firstOrNew(['email' => 'automations@bravo.internal']);
         $automation->fill([
-            'name'           => 'Automatisations PAD',
-            'role'           => 'Compte système',
-            'department'     => 'DSI',
-            'points_total'   => 0,
-            'is_automation'  => true,
-            'password'       => Hash::make(Str::random(48)),
+            'name'          => 'Automatisations PAD',
+            'role'          => 'Compte système',
+            'points_total'  => 0,
+            'is_automation' => true,
+            'password'      => Hash::make(Str::random(48)),
         ]);
         $automation->save();
         $automation->syncRoles(['employee']);

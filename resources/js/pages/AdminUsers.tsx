@@ -99,7 +99,7 @@ export default function AdminUsers({ users, filters, assignable_roles }: AdminUs
   };
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-6xl mx-auto">
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-6xl mx-auto" >
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="p-3 rounded-2xl bg-primary/10 text-primary">
@@ -191,7 +191,7 @@ export default function AdminUsers({ users, filters, assignable_roles }: AdminUs
         </Button>
       </form>
 
-      <Card className="overflow-x-auto border-none shadow-lg">
+      <Card className="overflow-x-auto border-none shadow-lg" style={{background: 'white'}}>
         <table className="w-full text-sm min-w-[720px]">
           <thead>
             <tr className="text-left text-[10px] font-black uppercase tracking-widest text-on-surface-variant border-b border-surface-container-high">

@@ -27,6 +27,7 @@ export interface Reward {
   stock: number | null;
   has_stock: boolean;
   affordable: boolean;
+  is_active?: boolean;
 }
 
 export interface Redemption {
@@ -52,27 +53,44 @@ export interface AppSetting {
   description: string | null;
 }
 
+export type Permission = 'admin' | 'manager' | 'employee';
+
 export interface User {
   id: number;
   name: string;
   email?: string;
   role: string;
-  department: string;
+  permission: Permission;
+  department: string | null;
   avatar: string;
   points_total: number;
+  monthly_points_allowance?: number;
+  monthly_points_remaining?: number;
 }
 
 export interface BravoValue {
   id: number;
   name: string;
+  description?: string | null;
   color: string;
+  icon?: string | null;
   multiplier: number;
+  is_active: boolean;
+}
+
+export interface BravoComment {
+  id: number;
+  content: string;
+  created_at: string;
+  user: { id: number; name: string; avatar?: string | null };
 }
 
 export interface Bravo {
   id: number;
+  batch_id?: string | null;
   sender_id: number;
   receiver_id: number;
+  badge?: 'good_job' | 'excellent' | 'impressive';
   value_id?: number | null;
   challenge_id?: number;
   message: string;
@@ -83,19 +101,55 @@ export interface Bravo {
   created_at: string;
   sender?: User;
   receiver?: User;
+  receivers?: User[];
   values?: { id: number; name: string; color?: string }[];
+  comments?: BravoComment[];
+}
+
+export interface UserBadge {
+  id: number;
+  badge_type: string;
+  earned_at: string;
+}
+
+export interface AppNotification {
+  id: string;
+  type: string;
+  data: Record<string, unknown>;
+  read_at: string | null;
+  created_at: string;
+}
+
+export interface Celebration {
+  type: 'birthday' | 'anniversary';
+  name: string;
+  years: number | null;
 }
 
 export interface Challenge {
   id: number;
   name: string;
   description: string;
+  cover_image: string | null;
+  category: string;
   start_date: string;
   end_date: string;
   points_bonus: number;
   status: 'active' | 'finished';
+  for_all: boolean;
   days_left: number;
   bravos_count: number;
+  participants_count: number;
+  is_participating: boolean;
+}
+
+export interface ChallengeMedia {
+  id: number;
+  url: string;
+  file_type: 'image' | 'video';
+  caption: string | null;
+  uploader_name: string;
+  created_at: string;
 }
 
 export interface WeeklyData {
@@ -108,4 +162,25 @@ export interface ValueStat {
   value: number;
   color: string;
   icon: string;
+}
+
+export interface BadgeStat {
+  key: string;
+  label: string;
+  emoji: string;
+  color: string;
+  count: number;
+}
+
+export interface TopUser {
+  id: number;
+  name: string;
+  avatar: string;
+  department: string | null;
+  count: number;
+}
+
+export interface Department {
+  id: number;
+  name: string;
 }

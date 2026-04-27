@@ -55,7 +55,7 @@ export default function AdminRoles({ roles, permissions }: AdminRolesProps) {
   }
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-5xl mx-auto">
+    <div className="space-y-8 p-8 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-5xl mx-auto" >
       <div className="flex items-center gap-3">
         <div className="p-3 rounded-2xl bg-secondary/15 text-secondary">
           <KeyRound size={22} />
@@ -68,7 +68,7 @@ export default function AdminRoles({ roles, permissions }: AdminRolesProps) {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2" >
         {roles.map((r) => (
           <button
             key={r.id}
@@ -84,7 +84,7 @@ export default function AdminRoles({ roles, permissions }: AdminRolesProps) {
         ))}
       </div>
 
-      <Card className="p-6 space-y-6 border-none shadow-lg">
+      <Card className="p-6 space-y-6 border-none shadow-lg" style={{background:'white',}}>
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div>
             <h2 className="text-lg font-extrabold capitalize">{selected.name}</h2>

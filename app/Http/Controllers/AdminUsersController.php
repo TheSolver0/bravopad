@@ -20,7 +20,7 @@ class AdminUsersController extends Controller
 
         $query = User::query()
             ->where('is_automation', false)
-            ->with('roles');
+            ->with(['roles', 'department:id,name']);
 
         if (! $request->user()->isAdmin()) {
             $query->whereDoesntHave('roles', fn ($q) => $q->whereIn('name', ['hr', 'admin', 'super_admin']));
@@ -41,7 +41,7 @@ class AdminUsersController extends Controller
                 'name'          => $u->name,
                 'email'         => $u->email,
                 'role_label'    => $u->role,
-                'department'    => $u->department,
+                'department'    => $u->department?->name,
                 'points_total'  => $u->points_total,
                 'roles'         => $u->getRoleNames()->values()->all(),
             ];

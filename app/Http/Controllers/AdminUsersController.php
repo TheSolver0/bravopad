@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Direction;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
 use Illuminate\Http\Request;
@@ -20,7 +21,7 @@ class AdminUsersController extends Controller
 
         $query = User::query()
             ->where('is_automation', false)
-            ->with(['roles', 'department:id,name']);
+            ->with(['roles', 'direction:id,name', 'department:id,name']);
 
         if (! $request->user()->isAdmin()) {
             $query->whereDoesntHave('roles', fn ($q) => $q->whereIn('name', ['hr', 'admin', 'super_admin']));
@@ -41,7 +42,8 @@ class AdminUsersController extends Controller
                 'name'          => $u->name,
                 'email'         => $u->email,
                 'role_label'    => $u->role,
-                'department'    => $u->department?->name,
+                'direction_id'  => $u->direction_id,
+                'direction'     => $u->direction?->name ?? $u->department?->name,
                 'points_total'  => $u->points_total,
                 'roles'         => $u->getRoleNames()->values()->all(),
             ];
@@ -51,6 +53,7 @@ class AdminUsersController extends Controller
             'users'            => $paginator,
             'filters'          => ['q' => $request->string('q')->toString()],
             'assignable_roles' => $this->assignableRoleNames($request->user()),
+            'directions'       => Direction::query()->orderBy('name')->get(['id', 'name']),
         ]);
     }
 
@@ -71,7 +74,7 @@ class AdminUsersController extends Controller
         $validated = $request->validate([
             'name'       => ['required', 'string', 'max:255'],
             'email'      => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->id)],
-            'department' => ['nullable', 'string', 'max:100'],
+            'direction_id' => ['nullable', 'integer', 'exists:directions,id'],
             'role_label' => ['nullable', 'string', 'max:100'],
             'role'       => ['required', 'string', Rule::in($allowed)],
         ]);
@@ -84,14 +87,14 @@ class AdminUsersController extends Controller
         $beforeProfile = [
             'name' => $user->name,
             'email' => $user->email,
-            'department' => $user->department,
+            'direction_id' => $user->direction_id,
             'role_label' => $user->role,
         ];
 
         $user->fill([
             'name' => $validated['name'],
             'email' => $validated['email'],
-            'department' => $validated['department'] ?? $user->department,
+            'direction_id' => $validated['direction_id'] ?? null,
             'role' => $validated['role_label'] ?? $user->role,
         ])->save();
 
@@ -107,7 +110,7 @@ class AdminUsersController extends Controller
                 'after_profile'  => [
                     'name' => $user->name,
                     'email' => $user->email,
-                    'department' => $user->department,
+                    'direction_id' => $user->direction_id,
                     'role_label' => $user->role,
                 ],
             ],
@@ -131,7 +134,7 @@ class AdminUsersController extends Controller
         $validated = $request->validate([
             'name'       => ['required', 'string', 'max:255'],
             'email'      => ['required', 'email', 'max:255', 'unique:users,email'],
-            'department' => ['nullable', 'string', 'max:100'],
+            'direction_id' => ['nullable', 'integer', 'exists:directions,id'],
             'role_label' => ['nullable', 'string', 'max:100'],
             'role'       => ['required', 'string', Rule::in($allowed)],
             'password'   => ['required', 'string', 'min:8'],
@@ -144,7 +147,7 @@ class AdminUsersController extends Controller
         $user = User::create([
             'name' => $validated['name'],
             'email' => $validated['email'],
-            'department' => $validated['department'] ?? 'N/A',
+            'direction_id' => $validated['direction_id'] ?? null,
             'role' => $validated['role_label'] ?? 'Employe',
             'password' => Hash::make($validated['password']),
             'points_total' => 0,

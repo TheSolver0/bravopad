@@ -15,6 +15,7 @@ use App\Http\Controllers\CommentController;
 use App\Http\Controllers\NotificationCenterController;
 use App\Http\Controllers\RewardController;
 use App\Http\Controllers\StatsController;
+use App\Models\Direction;
 use App\Models\Department;
 use App\Models\User;
 use Illuminate\Support\Facades\Route;
@@ -86,19 +87,19 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/team', function () {
         $users = User::query()
             ->where('is_automation', false)
-            ->with('department:id,name')
+            ->with(['direction:id,name', 'department:id,name'])
             ->orderByDesc('points_total')
             ->paginate(15)
             ->withQueryString();
 
-        $departments = Department::orderBy('name')->pluck('name');
+        $departments = Direction::orderBy('code')->pluck('code');
 
         return Inertia::render('Team', [
             'users'       => $users->map(fn ($u) => [
                 'id'           => $u->id,
                 'name'         => $u->name,
                 'role'         => $u->role,
-                'department'   => $u->department?->name,
+                'department'   => $u->direction?->code ?? $u->direction?->name ?? $u->department?->name,
                 'avatar'       => $u->avatar,
                 'points_total' => $u->points_total,
             ]),

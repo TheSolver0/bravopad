@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
@@ -9,6 +10,30 @@ class ChallengeSeeder extends Seeder
 {
     public function run(): void
     {
+        $superAdminId = User::query()->where('email', 'superadmin@bravo.test')->value('id');
+        $adminId = User::query()
+            ->whereHas('roles', fn ($q) => $q->where('name', 'admin'))
+            ->value('id');
+        $hrId = User::query()
+            ->whereHas('roles', fn ($q) => $q->where('name', 'hr'))
+            ->value('id');
+        $managerId = User::query()
+            ->whereHas('roles', fn ($q) => $q->where('name', 'manager'))
+            ->value('id');
+
+        $defaultCreatorId = $superAdminId
+            ?? $adminId
+            ?? $hrId
+            ?? $managerId
+            ?? User::query()->value('id');
+
+        if (! $defaultCreatorId) {
+            return;
+        }
+
+        $existingDepartmentIds = array_flip(DB::table('departments')->pluck('id')->all());
+        $resolveDivisionId = static fn (?int $id): ?int => ($id && isset($existingDepartmentIds[$id])) ? $id : null;
+
         DB::table('challenges')->insert([
             [
                 'id'          => 1,
@@ -21,8 +46,8 @@ class ChallengeSeeder extends Seeder
                 'points_bonus'=> 250,
                 'status'      => 'active',
                 'for_all'     => 0,
-                'created_by'  => 181,
-                'division_id' => 14,
+                'created_by'  => $adminId ?? $defaultCreatorId,
+                'division_id' => $resolveDivisionId(14),
                 'created_at'  => '2026-04-24 13:48:01',
                 'updated_at'  => '2026-04-24 13:48:01',
             ],
@@ -37,8 +62,8 @@ class ChallengeSeeder extends Seeder
                 'points_bonus'=> 250,
                 'status'      => 'active',
                 'for_all'     => 0,
-                'created_by'  => 171,
-                'division_id' => 5,
+                'created_by'  => $hrId ?? $defaultCreatorId,
+                'division_id' => $resolveDivisionId(5),
                 'created_at'  => '2026-04-25 13:48:01',
                 'updated_at'  => '2026-04-25 13:48:01',
             ],
@@ -53,8 +78,8 @@ class ChallengeSeeder extends Seeder
                 'points_bonus'=> 300,
                 'status'      => 'active',
                 'for_all'     => 0,
-                'created_by'  => 181,
-                'division_id' => 10,
+                'created_by'  => $adminId ?? $defaultCreatorId,
+                'division_id' => $resolveDivisionId(10),
                 'created_at'  => '2026-04-17 13:48:01',
                 'updated_at'  => '2026-04-17 13:48:01',
             ],
@@ -69,7 +94,7 @@ class ChallengeSeeder extends Seeder
                 'points_bonus'=> 180,
                 'status'      => 'active',
                 'for_all'     => 1,
-                'created_by'  => 171,
+                'created_by'  => $hrId ?? $defaultCreatorId,
                 'division_id' => null,
                 'created_at'  => '2026-04-26 13:48:01',
                 'updated_at'  => '2026-04-26 13:48:01',
@@ -85,7 +110,7 @@ class ChallengeSeeder extends Seeder
                 'points_bonus'=> 220,
                 'status'      => 'active',
                 'for_all'     => 1,
-                'created_by'  => 171,
+                'created_by'  => $hrId ?? $defaultCreatorId,
                 'division_id' => null,
                 'created_at'  => '2026-04-22 13:48:01',
                 'updated_at'  => '2026-04-22 13:48:01',
@@ -101,8 +126,8 @@ class ChallengeSeeder extends Seeder
                 'points_bonus'=> 150,
                 'status'      => 'active',
                 'for_all'     => 1,
-                'created_by'  => 181,
-                'division_id' => 15,
+                'created_by'  => $adminId ?? $defaultCreatorId,
+                'division_id' => $resolveDivisionId(15),
                 'created_at'  => '2026-04-23 13:48:01',
                 'updated_at'  => '2026-04-23 13:48:01',
             ],
@@ -117,7 +142,7 @@ class ChallengeSeeder extends Seeder
                 'points_bonus'=> 200,
                 'status'      => 'finished',
                 'for_all'     => 1,
-                'created_by'  => 181,
+                'created_by'  => $adminId ?? $defaultCreatorId,
                 'division_id' => null,
                 'created_at'  => '2026-02-11 13:48:01',
                 'updated_at'  => '2026-04-12 13:48:01',
@@ -133,7 +158,7 @@ class ChallengeSeeder extends Seeder
                 'points_bonus'=> 300,
                 'status'      => 'finished',
                 'for_all'     => 1,
-                'created_by'  => 171,
+                'created_by'  => $hrId ?? $defaultCreatorId,
                 'division_id' => null,
                 'created_at'  => '2026-01-27 13:48:01',
                 'updated_at'  => '2026-04-07 13:48:01',
@@ -149,8 +174,8 @@ class ChallengeSeeder extends Seeder
                 'points_bonus'=> 120,
                 'status'      => 'finished',
                 'for_all'     => 0,
-                'created_by'  => 181,
-                'division_id' => 14,
+                'created_by'  => $adminId ?? $defaultCreatorId,
+                'division_id' => $resolveDivisionId(14),
                 'created_at'  => '2025-12-28 13:48:01',
                 'updated_at'  => '2026-02-22 13:48:01',
             ],
@@ -165,8 +190,8 @@ class ChallengeSeeder extends Seeder
                 'points_bonus'=> 500,
                 'status'      => 'finished',
                 'for_all'     => 0,
-                'created_by'  => 181,
-                'division_id' => 19,
+                'created_by'  => $adminId ?? $defaultCreatorId,
+                'division_id' => $resolveDivisionId(19),
                 'created_at'  => '2026-02-26 13:48:01',
                 'updated_at'  => '2026-03-30 13:48:01',
             ],
@@ -181,7 +206,7 @@ class ChallengeSeeder extends Seeder
                 'points_bonus'=> 180,
                 'status'      => 'finished',
                 'for_all'     => 1,
-                'created_by'  => 171,
+                'created_by'  => $hrId ?? $defaultCreatorId,
                 'division_id' => null,
                 'created_at'  => '2026-03-03 13:48:01',
                 'updated_at'  => '2026-03-10 13:48:01',
@@ -197,7 +222,7 @@ class ChallengeSeeder extends Seeder
                 'points_bonus'=> 100,
                 'status'      => 'active',
                 'for_all'     => 1,
-                'created_by'  => 241,
+                'created_by'  => $superAdminId ?? $adminId ?? $defaultCreatorId,
                 'division_id' => null,
                 'created_at'  => '2026-04-27 14:16:20',
                 'updated_at'  => '2026-04-27 14:16:20',

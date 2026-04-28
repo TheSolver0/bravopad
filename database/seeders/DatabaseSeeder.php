@@ -22,6 +22,7 @@ class DatabaseSeeder extends Seeder
             DirectionSeeder::class,
             UserSeeder::class,
             ChallengeSeeder::class,
+            ChallengeMediaSeeder::class,
             RewardSeeder::class,
             BadgeSeeder::class,
             HrSurveySeeder::class,

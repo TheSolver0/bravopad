@@ -38,6 +38,42 @@ class ChallengeController extends Controller
         return asset('storage/' . $value);
     }
 
+    private function resolveMediaUrl(?string $value): ?string
+    {
+        if (! $value) {
+            return null;
+        }
+
+        if (filter_var($value, FILTER_VALIDATE_URL)) {
+            return $value;
+        }
+
+        if (str_starts_with($value, '/')) {
+            return $value;
+        }
+
+        if (str_starts_with($value, 'assets/')) {
+            return '/' . $value;
+        }
+
+        return asset('storage/' . $value);
+    }
+
+    private function isStoragePath(?string $value): bool
+    {
+        if (! $value) {
+            return false;
+        }
+
+        // Anything that looks like /assets/... should not be deleted from Storage disk.
+        if (str_starts_with($value, '/') || str_starts_with($value, 'assets/')) {
+            return false;
+        }
+
+        // For now, only treat non-url, non-asset paths as storage paths.
+        return ! filter_var($value, FILTER_VALIDATE_URL);
+    }
+
     public function page(Request $request)
     {
         $userId = $request->user()?->id;
@@ -456,7 +492,7 @@ class ChallengeController extends Controller
             ->get()
             ->map(fn ($m) => [
                 'id'            => $m->id,
-                'url'           => asset('storage/' . $m->file_path),
+                'url'           => $this->resolveMediaUrl($m->file_path),
                 'file_type'     => $m->file_type,
                 'caption'       => $m->caption,
                 'uploader_name' => $m->uploader->name,
@@ -506,7 +542,9 @@ class ChallengeController extends Controller
         $media = ChallengeMedia::findOrFail($mediaId);
         $this->authorize('update', $media->challenge);
 
-        Storage::disk('public')->delete($media->file_path);
+        if ($this->isStoragePath($media->file_path)) {
+            Storage::disk('public')->delete($media->file_path);
+        }
         $media->delete();
 
         return back();

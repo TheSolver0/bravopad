@@ -190,7 +190,7 @@ class ChallengeSeeder extends Seeder
                 'id'          => 13,
                 'name'        => 'Olympiade MultiSport du PAD',
                 'description' => null,
-                'cover_image' => 'challenges/covers/ROHT87KeJKuMuV1HzN4dM7NzbV0mvkHXxpFvNqnj.jpg',
+                'cover_image' => 'https://scontent.fdla4-1.fna.fbcdn.net/v/t39.30808-6/683823862_2897804757238519_342783856676516119_n.jpg?_nc_cat=102&ccb=1-7&_nc_sid=13d280&_nc_eui2=AeHNhO0CNeOZOk1gUpKKV6bfOHd9sRW1ZmQ4d32xFbVmZGFKItWm9sKilaqIPMQ-w5LHsgW313QTb0NOs6rNuweX&_nc_ohc=mJl--UbJQvAQ7kNvwEAjpCC&_nc_oc=Adodbxh4YTE-OhX23ni7cDB9h8IEgV-b4wBeG76tdQurG7Bc4vk28GaH9BXauXRP2XU&_nc_zt=23&_nc_ht=scontent.fdla4-1.fna&_nc_gid=4-alyqb4bn0paz4DD-OUPQ&_nc_ss=7b2a8&oh=00_Af3lzdyk1z9L98HEs6c_3dkCPYtEQrbnc7OsRKoKxAp9eA&oe=69F65B1E',
                 'category'    => 'autre',
                 'start_date'  => '2026-04-27',
                 'end_date'    => '2026-04-27',

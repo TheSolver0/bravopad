@@ -9,7 +9,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('challenges', function (Blueprint $table) {
-            $table->string('cover_image')->nullable()->after('description');
+            $table->longText('cover_image')->nullable()->after('description');
             $table->string('category')->nullable()->default('autre')->after('cover_image');
         });
     }

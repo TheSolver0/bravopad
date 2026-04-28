@@ -21,7 +21,7 @@ class AdminUsersController extends Controller
 
         $query = User::query()
             ->where('is_automation', false)
-            ->with(['roles', 'direction:id,name', 'department:id,name']);
+            ->with(['roles', 'direction:id,code,name', 'department:id,name']);
 
         if (! $request->user()->isAdmin()) {
             $query->whereDoesntHave('roles', fn ($q) => $q->whereIn('name', ['hr', 'admin', 'super_admin']));
@@ -43,7 +43,7 @@ class AdminUsersController extends Controller
                 'email'         => $u->email,
                 'role_label'    => $u->role,
                 'direction_id'  => $u->direction_id,
-                'direction'     => $u->direction?->name ?? $u->department?->name,
+                'direction'     => $u->direction?->code ?? $u->direction?->name ?? $u->department?->name,
                 'points_total'  => $u->points_total,
                 'roles'         => $u->getRoleNames()->values()->all(),
             ];
@@ -53,7 +53,7 @@ class AdminUsersController extends Controller
             'users'            => $paginator,
             'filters'          => ['q' => $request->string('q')->toString()],
             'assignable_roles' => $this->assignableRoleNames($request->user()),
-            'directions'       => Direction::query()->orderBy('name')->get(['id', 'name']),
+            'directions'       => Direction::query()->orderBy('code')->get(['id', 'code', 'name']),
         ]);
     }
 

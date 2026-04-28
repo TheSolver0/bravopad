@@ -13,6 +13,31 @@ use Inertia\Inertia;
 
 class ChallengeController extends Controller
 {
+    private function resolveCoverImage(?string $value): ?string
+    {
+        if (! $value) {
+            return null;
+        }
+
+        // External URL
+        if (filter_var($value, FILTER_VALIDATE_URL)) {
+            return $value;
+        }
+
+        // Local public assets (ex: /assets/images/challenges/olympiade.jpg)
+        if (str_starts_with($value, '/')) {
+            return $value;
+        }
+
+        // Local assets without leading slash
+        if (str_starts_with($value, 'assets/')) {
+            return '/' . $value;
+        }
+
+        // Stored file path in public disk
+        return asset('storage/' . $value);
+    }
+
     public function page(Request $request)
     {
         $userId = $request->user()?->id;
@@ -29,11 +54,7 @@ class ChallengeController extends Controller
                     'id'                 => $challenge->id,
                     'name'               => $challenge->name,
                     'description'        => $challenge->description,
-                    'cover_image'        => $challenge->cover_image
-                        ? (filter_var($challenge->cover_image, FILTER_VALIDATE_URL)
-                            ? $challenge->cover_image
-                            : asset('storage/' . $challenge->cover_image))
-                        : null,
+                    'cover_image'        => $this->resolveCoverImage($challenge->cover_image),
                     'category'           => $challenge->category ?? 'autre',
                     'start_date'         => $challenge->start_date,
                     'end_date'           => $challenge->end_date,
@@ -108,11 +129,7 @@ class ChallengeController extends Controller
                     'id'                 => $challenge->id,
                     'name'               => $challenge->name,
                     'description'        => $challenge->description,
-                    'cover_image'        => $challenge->cover_image
-                        ? (filter_var($challenge->cover_image, FILTER_VALIDATE_URL)
-                            ? $challenge->cover_image
-                            : asset('storage/' . $challenge->cover_image))
-                        : null,
+                    'cover_image'        => $this->resolveCoverImage($challenge->cover_image),
                     'category'           => $challenge->category ?? 'autre',
                     'start_date'         => $challenge->start_date,
                     'end_date'           => $challenge->end_date,

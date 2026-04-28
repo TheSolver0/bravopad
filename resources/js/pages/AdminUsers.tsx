@@ -18,6 +18,7 @@ interface UserRow {
 
 interface DirectionOption {
   id: number;
+  code: string;
   name: string;
 }
 
@@ -136,84 +137,85 @@ export default function AdminUsers({ users, filters, assignable_roles, direction
             </p>
           </div>
         </div>
+        <div className="flex justify-end">
+          <Dialog open={openCreate} onOpenChange={setOpenCreate}>
+            <DialogTrigger asChild>
+              <Button type="button" className="gap-2">
+                <Plus size={14} />
+                Créer un user
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Créer un utilisateur</DialogTitle>
+                <DialogDescription>Ajoutez un compte avec rôle et direction.</DialogDescription>
+              </DialogHeader>
+              <form onSubmit={submitCreate} className="grid md:grid-cols-2 gap-3">
+                <input
+                  value={createForm.name}
+                  onChange={(e) => setCreateForm((f) => ({ ...f, name: e.target.value }))}
+                  placeholder="Nom"
+                  className="rounded-lg border border-surface-container-high px-3 py-2 text-sm"
+                  required
+                />
+                <input
+                  value={createForm.email}
+                  onChange={(e) => setCreateForm((f) => ({ ...f, email: e.target.value }))}
+                  placeholder="Email"
+                  className="rounded-lg border border-surface-container-high px-3 py-2 text-sm"
+                  type="email"
+                  required
+                />
+                <select
+                  value={createForm.direction_id}
+                  onChange={(e) => setCreateForm((f) => ({ ...f, direction_id: e.target.value }))}
+                  className="rounded-lg border border-surface-container-high px-3 py-2 text-sm"
+                >
+                  <option value="">Direction (optionnel)</option>
+                  {directions.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.code} — {d.name}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  value={createForm.role_label}
+                  onChange={(e) => setCreateForm((f) => ({ ...f, role_label: e.target.value }))}
+                  placeholder="Libellé rôle"
+                  className="rounded-lg border border-surface-container-high px-3 py-2 text-sm"
+                />
+                <select
+                  value={createForm.role}
+                  onChange={(e) => setCreateForm((f) => ({ ...f, role: e.target.value }))}
+                  className="rounded-lg border border-surface-container-high px-3 py-2 text-sm"
+                >
+                  {assignable_roles.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  value={createForm.password}
+                  onChange={(e) => setCreateForm((f) => ({ ...f, password: e.target.value }))}
+                  placeholder="Mot de passe"
+                  className="rounded-lg border border-surface-container-high px-3 py-2 text-sm"
+                  type="password"
+                  required
+                />
+                <div className="md:col-span-2">
+                  <Button type="submit" className="gap-1">
+                    <Plus size={14} />
+                    Créer
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <div>
-        <Dialog open={openCreate} onOpenChange={setOpenCreate}>
-          <DialogTrigger asChild>
-            <Button type="button" className="gap-2">
-              <Plus size={14} />
-              Créer un user
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Créer un utilisateur</DialogTitle>
-              <DialogDescription>Ajoutez un compte avec rôle et direction.</DialogDescription>
-            </DialogHeader>
-            <form onSubmit={submitCreate} className="grid md:grid-cols-2 gap-3">
-              <input
-                value={createForm.name}
-                onChange={(e) => setCreateForm((f) => ({ ...f, name: e.target.value }))}
-                placeholder="Nom"
-                className="rounded-lg border border-surface-container-high px-3 py-2 text-sm"
-                required
-              />
-              <input
-                value={createForm.email}
-                onChange={(e) => setCreateForm((f) => ({ ...f, email: e.target.value }))}
-                placeholder="Email"
-                className="rounded-lg border border-surface-container-high px-3 py-2 text-sm"
-                type="email"
-                required
-              />
-              <select
-                value={createForm.direction_id}
-                onChange={(e) => setCreateForm((f) => ({ ...f, direction_id: e.target.value }))}
-                className="rounded-lg border border-surface-container-high px-3 py-2 text-sm"
-              >
-                <option value="">Direction (optionnel)</option>
-                {directions.map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name}
-                  </option>
-                ))}
-              </select>
-              <input
-                value={createForm.role_label}
-                onChange={(e) => setCreateForm((f) => ({ ...f, role_label: e.target.value }))}
-                placeholder="Libellé rôle"
-                className="rounded-lg border border-surface-container-high px-3 py-2 text-sm"
-              />
-              <select
-                value={createForm.role}
-                onChange={(e) => setCreateForm((f) => ({ ...f, role: e.target.value }))}
-                className="rounded-lg border border-surface-container-high px-3 py-2 text-sm"
-              >
-                {assignable_roles.map((r) => (
-                  <option key={r} value={r}>
-                    {r}
-                  </option>
-                ))}
-              </select>
-              <input
-                value={createForm.password}
-                onChange={(e) => setCreateForm((f) => ({ ...f, password: e.target.value }))}
-                placeholder="Mot de passe"
-                className="rounded-lg border border-surface-container-high px-3 py-2 text-sm"
-                type="password"
-                required
-              />
-              <div className="md:col-span-2">
-                <Button type="submit" className="gap-1">
-                  <Plus size={14} />
-                  Créer
-                </Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
-
         <Dialog
           open={openEdit}
           onOpenChange={(v) => {
@@ -252,7 +254,7 @@ export default function AdminUsers({ users, filters, assignable_roles, direction
                 <option value="">Direction (optionnel)</option>
                 {directions.map((d) => (
                   <option key={d.id} value={d.id}>
-                    {d.name}
+                    {d.code} — {d.name}
                   </option>
                 ))}
               </select>
@@ -318,7 +320,7 @@ export default function AdminUsers({ users, filters, assignable_roles, direction
               const current = u.roles[0] ?? 'employee';
               const directionLabel =
                 u.direction ??
-                (u.direction_id ? directions.find((d) => d.id === u.direction_id)?.name : null) ??
+                (u.direction_id ? directions.find((d) => d.id === u.direction_id)?.code : null) ??
                 '—';
 
               return (

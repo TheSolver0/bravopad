@@ -15,7 +15,7 @@ class HrSurveySeeder extends Seeder
 
         $surveys = [
             [
-                'title'    => "Journée de l'Excellence PAD 2025 — Activité team building",
+                'title'    => "Journée de l'Excellence PAD 2026 — Activité team building",
                 'question' => "Quelle activité souhaitez-vous pour la prochaine journée de team building du Port Autonome de Douala ?",
                 'options'  => [
                     ['key' => 'kribi',     'label' => 'Excursion touristique à Kribi (plage + cascades de la Lobé)'],
@@ -28,7 +28,7 @@ class HrSurveySeeder extends Seeder
                 'ends_at'   => now()->addDays(28),
             ],
             [
-                'title'    => "Dîner de fin d'année 2025 — Choix du lieu",
+                'title'    => "Dîner de fin d'année 2026 — Choix du lieu",
                 'question' => "Quel cadre préférez-vous pour le dîner officiel de fin d'année du personnel PAD ?",
                 'options'  => [
                     ['key' => 'akwa',      'label' => "Salle de réception de l'hôtel Akwa Palace — Douala Centre"],
@@ -41,7 +41,7 @@ class HrSurveySeeder extends Seeder
                 'ends_at'   => now()->addDays(18),
             ],
             [
-                'title'    => "Bien-être au travail — Priorités du personnel 2025",
+                'title'    => "Bien-être au travail — Priorités du personnel 2026",
                 'question' => "Quelle amélioration de vos conditions de travail vous semble la plus urgente à mettre en place au PAD ?",
                 'options'  => [
                     ['key' => 'sport',    'label' => 'Salle de sport et de remise en forme au sein du PAD'],

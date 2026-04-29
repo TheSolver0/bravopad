@@ -30,7 +30,7 @@ class ChallengeController extends Controller
                     'name'               => $challenge->name,
                     'description'        => $challenge->description,
                     'cover_image'        => $challenge->cover_image
-                        ? (filter_var($challenge->cover_image, FILTER_VALIDATE_URL)
+                        ? (filter_var($challenge->cover_image, FILTER_VALIDATE_URL) || str_starts_with($challenge->cover_image, '/')
                             ? $challenge->cover_image
                             : asset('storage/' . $challenge->cover_image))
                         : null,
@@ -109,7 +109,7 @@ class ChallengeController extends Controller
                     'name'               => $challenge->name,
                     'description'        => $challenge->description,
                     'cover_image'        => $challenge->cover_image
-                        ? (filter_var($challenge->cover_image, FILTER_VALIDATE_URL)
+                        ? (filter_var($challenge->cover_image, FILTER_VALIDATE_URL) || str_starts_with($challenge->cover_image, '/')
                             ? $challenge->cover_image
                             : asset('storage/' . $challenge->cover_image))
                         : null,

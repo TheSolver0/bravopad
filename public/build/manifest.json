@@ -638,7 +638,7 @@
     ]
   },
   "resources/css/app.css": {
-    "file": "assets/app-xjw2BNVL.css",
+    "file": "assets/app-DRXCucZp.css",
     "name": "app",
     "names": [
       "app.css"
@@ -647,7 +647,7 @@
     "isEntry": true
   },
   "resources/js/app.tsx": {
-    "file": "assets/app-dKDd8gVq.js",
+    "file": "assets/app-DTIsTXp3.js",
     "name": "app",
     "src": "resources/js/app.tsx",
     "isEntry": true,

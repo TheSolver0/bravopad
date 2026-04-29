@@ -145,7 +145,7 @@ class ChallengeSeeder extends Seeder
                 'cover_image' => 'https://i.pinimg.com/1200x/4d/2d/64/4d2d64342060ec5de9aa64c4b0eaa9c5.jpg',
                 'category'    => 'performance',
                 'start_date'  => '2025-12-28',
-                'end_date'    => '2026-02-22',
+                'end_date'    => '2026-02-22',  
                 'points_bonus'=> 120,
                 'status'      => 'finished',
                 'for_all'     => 0,

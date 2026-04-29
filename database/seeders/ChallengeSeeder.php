@@ -9,6 +9,7 @@ class ChallengeSeeder extends Seeder
 {
     public function run(): void
     {
+         DB::statement('SET FOREIGN_KEY_CHECKS=0;');
         DB::table('challenges')->insert([
             [
                 'id'          => 1,
@@ -202,6 +203,8 @@ class ChallengeSeeder extends Seeder
                 'created_at'  => '2026-04-27 14:16:20',
                 'updated_at'  => '2026-04-27 14:16:20',
             ],
+
+    DB::statement('SET FOREIGN_KEY_CHECKS=1;');
         ]);
     }
 }

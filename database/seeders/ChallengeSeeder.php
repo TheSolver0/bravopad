@@ -101,7 +101,7 @@ class ChallengeSeeder extends Seeder
                 'points_bonus'=> 150,
                 'status'      => 'active',
                 'for_all'     => 1,
-                'created_by'  => 181,
+                'created_by'  => 1,
                 'division_id' => 15,
                 'created_at'  => '2026-04-23 13:48:01',
                 'updated_at'  => '2026-04-23 13:48:01',

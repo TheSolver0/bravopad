@@ -91,8 +91,8 @@ export default function AuthSplitLayout({
                     {children}
                 </div>
 
-                <div className="mt-10 text-center text-xs text-muted-foreground">
-                    Powered by ORBIT SARL
+                <div className="fixed bottom-4 left-1/2 z-20 -translate-x-1/2 text-center text-xs text-muted-foreground">
+                    Powered by Kenny LOMIE
                 </div>
             </div>
         </div>

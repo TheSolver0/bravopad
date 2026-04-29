@@ -15,6 +15,7 @@ use App\Http\Controllers\CommentController;
 use App\Http\Controllers\NotificationCenterController;
 use App\Http\Controllers\RewardController;
 use App\Http\Controllers\StatsController;
+use App\Models\Direction;
 use App\Models\Department;
 use App\Models\User;
 use Illuminate\Support\Facades\Route;
@@ -59,7 +60,9 @@ Route::middleware(['auth'])->group(function () {
     Route::delete('/admin/rewards/{reward}', [RewardController::class, 'destroy'])->name('admin.rewards.destroy');
 
     Route::get('/admin/users', [AdminUsersController::class, 'index'])->name('admin.users.index');
+    Route::post('/admin/users', [AdminUsersController::class, 'store'])->name('admin.users.store');
     Route::patch('/admin/users/{user}', [AdminUsersController::class, 'update'])->name('admin.users.update');
+    Route::delete('/admin/users/{user}', [AdminUsersController::class, 'destroy'])->name('admin.users.destroy');
 
     Route::get('/admin/roles', [AdminRolesController::class, 'index'])->name('admin.roles.index');
     Route::patch('/admin/roles/{role}', [AdminRolesController::class, 'update'])->name('admin.roles.update');
@@ -84,19 +87,19 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/team', function () {
         $users = User::query()
             ->where('is_automation', false)
-            ->with('department:id,name')
+            ->with(['direction:id,name', 'department:id,name'])
             ->orderByDesc('points_total')
             ->paginate(15)
             ->withQueryString();
 
-        $departments = Department::orderBy('name')->pluck('name');
+        $departments = Direction::orderBy('code')->pluck('code');
 
         return Inertia::render('Team', [
             'users'       => $users->map(fn ($u) => [
                 'id'           => $u->id,
                 'name'         => $u->name,
                 'role'         => $u->role,
-                'department'   => $u->department?->name,
+                'department'   => $u->direction?->code ?? $u->direction?->name ?? $u->department?->name,
                 'avatar'       => $u->avatar,
                 'points_total' => $u->points_total,
             ]),

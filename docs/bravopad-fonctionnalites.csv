@@ -1,0 +1,50 @@
+Categorie,Fonctionnalite,Description
+Reconnaissance,Envoi de Bravo,Reconnaissance d un collegue avec message et valeurs d entreprise
+Reconnaissance,Calcul automatique des points,Points calcules automatiquement selon les valeurs selectionnees
+Reconnaissance,Regles anti-abus,Validation serveur pour limiter les abus et les envois non conformes
+Social,Feed des Bravos,Fil des reconnaissances recentes publiees
+Social,Likes sur Bravo,Reaction positive avec compteur mis a jour
+Social,Commentaires sur Bravo,Ajout et suppression de commentaires sur les posts Bravo
+Social,Historique personnel,Consultation des Bravos envoyes et recus par utilisateur
+Gamification,Badges automatiques,Attribution des badges selon points et criteres metier
+Gamification,Badges evolutifs,Niveaux et progression des badges par utilisateur
+Gamification,Rarete des badges,Classification des badges (common rare epic legendary)
+Gamification,Badges lies aux valeurs,Badges bases sur les valeurs reconnues (leader team player innovateur)
+Gamification,Statut interne par visibilite,Score de visibilite badges pour definir un statut interne
+Engagement,Employe du mois (peer voting),Nomination et vote entre pairs sur periode mensuelle
+Engagement,Vote semi-anonyme,Option de vote discret pour limiter les biais sociaux
+Engagement,Ponderation intelligente,Votes ponderes selon signaux de merite et comportement reel
+Engagement,Score merite hybride,Score combine votes ponderes et points Bravo du mois
+Sondages RH,Creation de sondage RH,Creation rapide de sondages par RH
+Sondages RH,Reponse one-tap,Participation simple et rapide aux sondages
+Sondages RH,Resultats agreges,Comptage automatique des reponses et pourcentages
+Challenges,Creation de challenge,Creation de defis avec dates et bonus de points
+Challenges,Activation et cloture,Activation et fin de challenge avec suivi de progression
+Challenges,Leaderboard challenge,Classement des participants en fin de challenge
+Recompenses,Boutique de recompenses,Catalogue des recompenses echangeables avec points
+Recompenses,Demande d echange,Soumission d une demande redemption
+Recompenses,Workflow RH,Validation des demandes (pending approved rejected delivered)
+Recompenses,Gestion stock,Verification du stock disponible avant echange
+Notifications,Centre de notifications,Liste paginee des notifications utilisateur
+Notifications,Marquer comme lu,Marquage individuel d une notification comme lue
+Notifications,Tout marquer comme lu,Marquage global de toutes les notifications non lues
+Pilotage RH,Dashboard RH,KPI engagement et usage de la reconnaissance
+Pilotage RH,Top donneurs et receveurs,Classements des collaborateurs les plus actifs
+Pilotage RH,Tendance hebdomadaire,Suivi temporel des Bravos par semaine
+Pilotage RH,Distribution des valeurs,Analyse des valeurs d entreprise les plus utilisees
+Pilotage RH,Analyse par departement,Comparaison de l activite de reconnaissance par direction
+Pilotage RH,Export CSV,Export des donnees RH pour reporting
+Administration,Configuration plateforme,Edition des parametres applicatifs
+Administration,Gestion des valeurs Bravo,Creation edition activation des valeurs Bravo
+Administration,Gestion utilisateurs CRUD,Creation lecture mise a jour suppression des utilisateurs
+Administration,Gestion roles et permissions,Edition des permissions par role Spatie
+Administration,Gestion notifications admin,Pilotage des actions de notification
+Audit et conformite,Journal d audit central,Traçabilite de toutes les actions critiques
+Audit et conformite,Audit auth login/logout,Enregistrement des connexions deconnexions et echecs
+Audit et conformite,Audit interactions Bravo,Logs des likes commentaires et publication de Bravo
+Audit et conformite,Audit administration,Logs des actions admin (users roles settings rewards)
+Audit et conformite,Gravite coloree + icones,Visualisation claire du niveau de criticite
+Securite,Authentification Laravel Fortify,Connexion securisee avec gestion des sessions
+Securite,2FA,TWO factor authentication pour renforcer la securite compte
+Securite,Gates et policies,Controle d acces par roles et permissions
+Securite,Mise a jour mot de passe,Flux securise de changement mot de passe

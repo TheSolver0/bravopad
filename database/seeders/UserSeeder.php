@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Models\Department;
 use App\Models\Direction;
 use App\Models\User;
 use Illuminate\Database\Seeder;
@@ -96,7 +95,7 @@ private static array $avatarsWomen = [
 
         $directions = Direction::query()
             ->orderBy('code')
-            ->get(['code', 'name']);
+            ->get(['id', 'code', 'name']);
 
         if ($directions->isEmpty()) {
             return;
@@ -144,11 +143,7 @@ private static array $avatarsWomen = [
             }
         }
 
-        $departmentIdByCode = [];
-        foreach ($directions as $direction) {
-            $dept = Department::firstOrCreate(['name' => $direction->name]);
-            $departmentIdByCode[$direction->code] = $dept->id;
-        }
+        $directionIdByCode = $directions->pluck('id', 'code')->all();
 
         foreach ($users as [$data, $spatieRole, $firstName, $idx]) {
             $directionCode = $data['direction_code'] ?? null;
@@ -157,7 +152,7 @@ private static array $avatarsWomen = [
             $attributes = array_merge(
                 $data,
                 [
-                    'department_id' => $departmentIdByCode[$directionCode] ?? null,
+                    'direction_id' => $directionIdByCode[$directionCode] ?? null,
                     'password' => Hash::make('password'),
                 ]
             );

@@ -95,10 +95,14 @@ export default function AppSidebarLayout({ breadcrumbs = [], children }: AppSide
           )}
         </AnimatePresence>
 
-        <main className={`flex-1 overflow-y-auto pb-28 ${isDashboard ? '' : 'p-6 md:p-8'}`}>{children}</main>
+        <main className={`flex-1 overflow-y-auto pb-40 md:pb-24 ${isDashboard ? '' : 'p-6 md:p-8'}`}>{children}</main>
 
-        <footer className="border-t border-surface-container-high bg-surface-container-lowest px-6 py-4 text-center text-xs text-muted-foreground md:px-8">
-          Powered by ORBIT SARL
+        <footer
+          className={`fixed z-30 border-t border-surface-container-high bg-surface-container-lowest/95 px-6 py-4 text-center text-xs text-muted-foreground backdrop-blur-sm bottom-16 left-0 right-0 md:bottom-0 md:px-8 ${
+            collapsed ? 'md:left-[calc(72px+2rem)]' : 'md:left-[calc(256px+2rem)]'
+          }`}
+        >
+          Powered by Kenny LOMIE
         </footer>
       </div>
 

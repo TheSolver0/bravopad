@@ -204,7 +204,7 @@ class ChallengeSeeder extends Seeder
                 'updated_at'  => '2026-04-27 14:16:20',
             ],
 
-    DB::statement('SET FOREIGN_KEY_CHECKS=1;');
         ]);
+    DB::statement('SET FOREIGN_KEY_CHECKS=1;');
     }
 }

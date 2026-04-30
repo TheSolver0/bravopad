@@ -108,6 +108,7 @@ export default function Challenges({ challenges }: ChallengesProps) {
     const res = await fetch(`/challenges/${challengeId}/media`, {
       headers: { Accept: 'application/json' },
     });
+    if (!res.ok) return;
     setBlogMedia(await res.json());
   };
 
@@ -118,6 +119,8 @@ export default function Challenges({ challenges }: ChallengesProps) {
     setLoadingMedia(true);
     try {
       await loadBlogMedia(challenge.id);
+    } catch {
+      // server error — leave media list empty
     } finally {
       setLoadingMedia(false);
     }

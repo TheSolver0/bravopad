@@ -123,7 +123,7 @@ class ChallengeController extends Controller
 
     public function participate(Request $request, $id)
     {
-        $challenge = Challenge::where('status', 'active')->findOrFail($id);
+        $challenge = Challenge::where('status', '=', 'active')->findOrFail($id);
         $user = $request->user();
 
         $already = $challenge->participants()->where('users.id', $user->id)->exists();

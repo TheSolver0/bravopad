@@ -29,7 +29,7 @@ const STATUS_CONFIG = {
   delivered: { label: 'Livré',       icon: Truck,         color: 'text-blue-500'   },
 } as const;
 
-export default function Shop({ rewards, redemptions, userPoints }: ShopProps) {
+export default function Shop({ rewards = [], redemptions = [], userPoints = 0 }: ShopProps) {
   const [searchTerm, setSearchTerm]         = useState('');
   const [activeCategory, setActiveCategory] = useState('Tous');
   const [redeeming, setRedeeming]           = useState<number | null>(null);
@@ -39,7 +39,7 @@ export default function Shop({ rewards, redemptions, userPoints }: ShopProps) {
 
   const filtered = useMemo(() => {
     setPage(1);
-    return rewards.filter(r => {
+    return (rewards || []).filter(r => {
       const matchSearch = r.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (r.description ?? '').toLowerCase().includes(searchTerm.toLowerCase());
       const matchCat = activeCategory === 'Tous' || r.category === activeCategory;

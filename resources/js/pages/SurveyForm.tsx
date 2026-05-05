@@ -4,6 +4,8 @@ import {
   Calendar,
   CheckCircle2,
   ClipboardList,
+  ChevronLeft,
+  ChevronRight,
   Star,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -19,6 +21,7 @@ type SurveyQuestion = {
   type: QuestionType;
   options?: string[];
   required: boolean;
+  multiline?: boolean;
 };
 
 type SurveyData = {
@@ -57,18 +60,93 @@ function groupBySection(questions: SurveyQuestion[]): { section: string | null; 
   return groups;
 }
 
+// ── Star Rating ───────────────────────────────────────────────────────────────
+
+const RATING_LABELS: Record<number, { label: string; color: string }> = {
+  1: { label: 'Mauvais',   color: '#EF4444' },
+  2: { label: 'Passable',  color: '#F97316' },
+  3: { label: 'Bien',      color: '#EAB308' },
+  4: { label: 'Très bien', color: '#84CC16' },
+  5: { label: 'Excellent', color: '#10B981' },
+};
+
+function StarRating({ value, onChange }: { value: string | undefined; onChange: (val: string) => void }) {
+  const [hovered, setHovered] = useState(0);
+  const current = Number(value) || 0;
+  const display = hovered || current;
+  const meta = display > 0 ? RATING_LABELS[display] : null;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-1" onMouseLeave={() => setHovered(0)}>
+        {[1, 2, 3, 4, 5].map((n) => {
+          const filled = n <= display;
+          return (
+            <button
+              key={n}
+              type="button"
+              onClick={() => onChange(String(n))}
+              onMouseEnter={() => setHovered(n)}
+              className="focus:outline-none transition-transform duration-100"
+              style={{ transform: filled ? 'scale(1.18)' : 'scale(1)' }}
+            >
+              <Star
+                size={36}
+                strokeWidth={1.5}
+                style={{
+                  color:  filled ? '#F59E0B' : '#D1D5DB',
+                  fill:   filled ? '#FBBF24' : 'transparent',
+                  filter: filled ? 'drop-shadow(0 0 5px rgba(251,191,36,0.55))' : 'none',
+                  transition: 'color 0.12s, fill 0.12s, filter 0.12s',
+                }}
+              />
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="h-6 flex items-center">
+        {meta ? (
+          <div
+            className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-200"
+          >
+            {/* mini bar */}
+            <div className="flex gap-0.5">
+              {[1, 2, 3, 4, 5].map((n) => (
+                <div
+                  key={n}
+                  className="h-1.5 w-5 rounded-full transition-colors duration-150"
+                  style={{ backgroundColor: n <= display ? meta.color : '#E5E7EB' }}
+                />
+              ))}
+            </div>
+            <span className="text-sm font-bold" style={{ color: meta.color }}>
+              {display}/5 — {meta.label}
+            </span>
+          </div>
+        ) : (
+          <span className="text-xs text-on-surface-variant/50 italic">Cliquez sur une étoile pour noter</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function SurveyForm({ survey, has_answered, is_preview = false }: SurveyFormProps) {
   const { props } = usePage<{ flash?: { success?: string; error?: string } }>();
   const flash = props.flash ?? {};
 
-  const [answers, setAnswers] = useState<Answers>({});
-  const [errors, setErrors]   = useState<Record<string, string>>({});
+  const [answers, setAnswers]     = useState<Answers>({});
+  const [errors, setErrors]       = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted]   = useState(has_answered);
+  const [currentPage, setCurrentPage] = useState(0);
 
-  const sections = groupBySection(survey.questions);
+  const sections   = groupBySection(survey.questions);
+  const totalPages = sections.length;
+  const isLastPage = currentPage === totalPages - 1;
 
   const setAnswer = (id: string, value: string | string[]) => {
     setAnswers((a) => ({ ...a, [id]: value }));
@@ -83,9 +161,9 @@ export default function SurveyForm({ survey, has_answered, is_preview = false }:
     setAnswer(id, next);
   };
 
-  const validate = (): boolean => {
+  const validatePage = (pageIndex: number): boolean => {
     const errs: Record<string, string> = {};
-    for (const q of survey.questions) {
+    for (const q of sections[pageIndex].questions) {
       if (!q.required) continue;
       const val = answers[q.id];
       const empty = val === undefined || val === '' || (Array.isArray(val) && val.length === 0);
@@ -95,13 +173,25 @@ export default function SurveyForm({ survey, has_answered, is_preview = false }:
     return Object.keys(errs).length === 0;
   };
 
-  const submit = () => {
-    if (!validate()) {
-      const firstErr = document.querySelector('[data-error="true"]');
-      firstErr?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  const goNext = () => {
+    if (!validatePage(currentPage)) {
+      document.querySelector('[data-error="true"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
+    setCurrentPage((p) => Math.min(p + 1, totalPages - 1));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
+  const goPrev = () => {
+    setCurrentPage((p) => Math.max(p - 1, 0));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const submit = () => {
+    if (!validatePage(currentPage)) {
+      document.querySelector('[data-error="true"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
     setSubmitting(true);
     router.post(
       `/surveys/${survey.token}/respond`,
@@ -109,13 +199,13 @@ export default function SurveyForm({ survey, has_answered, is_preview = false }:
       {
         preserveScroll: true,
         onSuccess: () => setSubmitted(true),
-        onError: () => setSubmitting(false),
-        onFinish: () => setSubmitting(false),
+        onError:   () => setSubmitting(false),
+        onFinish:  () => setSubmitting(false),
       },
     );
   };
 
-  // Thank-you screen (skip if preview)
+  // ── Thank-you screen ────────────────────────────────────────────────────────
   if (submitted && !is_preview) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary/5 via-white to-primary/3 flex items-center justify-center px-4">
@@ -147,13 +237,15 @@ export default function SurveyForm({ survey, has_answered, is_preview = false }:
     );
   }
 
+  const currentSection = sections[currentPage];
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-white to-primary/3 px-4 py-10">
-      <div className="max-w-2xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="max-w-2xl mx-auto space-y-6">
 
         {/* Preview banner */}
         {is_preview && (
-          <div className="bg-amber-50 border border-amber-300 rounded-xl px-4 py-3 flex items-center gap-3 text-sm font-semibold text-amber-800">
+          <div className="bg-amber-50 border border-amber-300 rounded-xl px-4 py-3 flex items-center gap-3 text-sm font-semibold text-amber-800 animate-in fade-in duration-300">
             <span className="shrink-0 bg-amber-200 text-amber-800 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full">
               Aperçu
             </span>
@@ -163,20 +255,16 @@ export default function SurveyForm({ survey, has_answered, is_preview = false }:
 
         {/* Flash error */}
         {flash.error && (
-          <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700 font-medium">
+          <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700 font-medium animate-in fade-in duration-300">
             {flash.error}
           </div>
         )}
 
         {/* Survey header card */}
-        <div className="bg-primary rounded-2xl overflow-hidden text-white shadow-lg shadow-primary/20">
+        <div className="bg-primary rounded-2xl overflow-hidden text-white shadow-lg shadow-primary/20 animate-in fade-in slide-in-from-bottom-4 duration-500">
           {survey.cover_image && (
             <div className="relative h-48 w-full">
-              <img
-                src={survey.cover_image}
-                alt=""
-                className="w-full h-full object-cover"
-              />
+              <img src={survey.cover_image} alt="" className="w-full h-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-primary/80 to-transparent" />
             </div>
           )}
@@ -200,48 +288,97 @@ export default function SurveyForm({ survey, has_answered, is_preview = false }:
           </div>
         </div>
 
-        {/* Questions by section */}
-        {sections.map((group, gi) => (
-          <div key={gi} className="space-y-4">
-            {group.section && (
-              <div className="flex items-center gap-3">
-                <div className="h-px flex-1 bg-surface-container-high" />
-                <h2 className="text-xs font-black uppercase tracking-widest text-primary/70 px-2 whitespace-nowrap">
-                  {group.section}
-                </h2>
-                <div className="h-px flex-1 bg-surface-container-high" />
-              </div>
-            )}
-
-            {group.questions.map((q) => (
-              <QuestionCard
-                key={q.id}
-                question={q}
-                answer={answers[q.id]}
-                error={errors[q.id]}
-                onChangeRadio={(val) => setAnswer(q.id, val)}
-                onToggleCheckbox={(val) => toggleCheckbox(q.id, val)}
-                onChangeText={(val) => setAnswer(q.id, val)}
-                onChangeRating={(val) => setAnswer(q.id, val)}
+        {/* Progress indicator */}
+        <div className="space-y-2 animate-in fade-in duration-500">
+          <div className="flex items-center justify-between text-xs font-semibold text-on-surface-variant">
+            <span className="truncate max-w-[70%]">{currentSection.section ?? `Étape ${currentPage + 1}`}</span>
+            <span className="shrink-0 tabular-nums">{currentPage + 1} / {totalPages}</span>
+          </div>
+          <div className="h-1.5 bg-surface-container-high rounded-full overflow-hidden">
+            <div
+              className="h-full bg-primary rounded-full transition-all duration-500 ease-out"
+              style={{ width: `${((currentPage + 1) / totalPages) * 100}%` }}
+            />
+          </div>
+          <div className="flex justify-center items-center gap-1.5 pt-0.5">
+            {sections.map((_, i) => (
+              <div
+                key={i}
+                className="rounded-full transition-all duration-300"
+                style={{
+                  width:           i === currentPage ? 24 : 8,
+                  height:          8,
+                  backgroundColor: i < currentPage  ? 'var(--color-primary)' :
+                                   i === currentPage ? 'var(--color-primary)' :
+                                   'var(--color-surface-container-high)',
+                  opacity: i < currentPage ? 0.45 : 1,
+                }}
               />
             ))}
           </div>
-        ))}
+        </div>
 
-        {/* Submit */}
+        {/* Current section questions */}
+        <div className="space-y-4 animate-in fade-in duration-300" key={currentPage}>
+          {currentSection.section && (
+            <div className="flex items-center gap-3">
+              <div className="h-px flex-1 bg-surface-container-high" />
+              <h2 className="text-xs font-black uppercase tracking-widest text-primary/70 px-2 whitespace-nowrap">
+                {currentSection.section}
+              </h2>
+              <div className="h-px flex-1 bg-surface-container-high" />
+            </div>
+          )}
+
+          {currentSection.questions.map((q) => (
+            <QuestionCard
+              key={q.id}
+              question={q}
+              answer={answers[q.id]}
+              error={errors[q.id]}
+              onChangeRadio={(val) => setAnswer(q.id, val)}
+              onToggleCheckbox={(val) => toggleCheckbox(q.id, val)}
+              onChangeText={(val) => setAnswer(q.id, val)}
+              onChangeRating={(val) => setAnswer(q.id, val)}
+            />
+          ))}
+        </div>
+
+        {/* Navigation */}
         <div className="bg-white rounded-2xl border border-surface-container-high p-5 flex items-center justify-between gap-4">
-          <p className="text-xs text-on-surface-variant">
-            Les champs marqués <span className="text-red-500 font-bold">*</span> sont obligatoires.
-          </p>
-          <Button
-            variant="primary"
-            size="lg"
-            disabled={submitting || is_preview}
-            onClick={submit}
-            title={is_preview ? 'Désactivé en mode aperçu' : undefined}
-          >
-            {submitting ? 'Envoi en cours…' : 'Soumettre mes réponses'}
-          </Button>
+          <div className="min-w-[100px]">
+            {currentPage > 0 && (
+              <Button variant="ghost" size="md" onClick={goPrev} className="gap-1.5">
+                <ChevronLeft size={16} />
+                Précédent
+              </Button>
+            )}
+          </div>
+
+          {isLastPage && (
+            <p className="text-xs text-on-surface-variant hidden sm:block text-center">
+              Les champs <span className="text-red-500 font-bold">*</span> sont obligatoires.
+            </p>
+          )}
+
+          <div className="min-w-[100px] flex justify-end">
+            {isLastPage ? (
+              <Button
+                variant="primary"
+                size="lg"
+                disabled={submitting || is_preview}
+                onClick={submit}
+                title={is_preview ? 'Désactivé en mode aperçu' : undefined}
+              >
+                {submitting ? 'Envoi…' : 'Soumettre'}
+              </Button>
+            ) : (
+              <Button variant="primary" size="md" onClick={goNext} className="gap-1.5">
+                Suivant
+                <ChevronRight size={16} />
+              </Button>
+            )}
+          </div>
         </div>
 
       </div>
@@ -280,9 +417,7 @@ function QuestionCard({
           {question.label}
           {question.required && <span className="text-red-500 ml-1">*</span>}
         </p>
-        {error && (
-          <p className="text-xs text-red-500 font-medium">{error}</p>
-        )}
+        {error && <p className="text-xs text-red-500 font-medium">{error}</p>}
       </div>
 
       {question.type === 'radio' && (
@@ -297,9 +432,7 @@ function QuestionCard({
               <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
                 answer === opt ? 'border-primary' : 'border-on-surface-variant/30'
               }`}>
-                {answer === opt && (
-                  <span className="w-2 h-2 rounded-full bg-primary" />
-                )}
+                {answer === opt && <span className="w-2 h-2 rounded-full bg-primary" />}
               </span>
               <span className={`text-sm font-medium ${answer === opt ? 'text-primary font-semibold' : 'text-on-surface'}`}>
                 {opt}
@@ -337,39 +470,27 @@ function QuestionCard({
       )}
 
       {question.type === 'text' && (
-        <textarea
-          value={(answer as string) ?? ''}
-          onChange={(e) => onChangeText(e.target.value)}
-          rows={3}
-          placeholder="Votre réponse…"
-          className="w-full border border-surface-container-high rounded-xl px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
-        />
+        question.multiline === false ? (
+          <input
+            type="text"
+            value={(answer as string) ?? ''}
+            onChange={(e) => onChangeText(e.target.value)}
+            placeholder="Votre réponse…"
+            className="w-full border border-surface-container-high rounded-xl px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/30"
+          />
+        ) : (
+          <textarea
+            value={(answer as string) ?? ''}
+            onChange={(e) => onChangeText(e.target.value)}
+            rows={3}
+            placeholder="Votre réponse…"
+            className="w-full border border-surface-container-high rounded-xl px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
+          />
+        )
       )}
 
       {question.type === 'rating' && (
-        <div className="flex items-center gap-2">
-          {[1, 2, 3, 4, 5].map((n) => {
-            const active = Number(answer) >= n;
-            return (
-              <button
-                key={n}
-                type="button"
-                onClick={() => onChangeRating(String(n))}
-                className="transition-transform hover:scale-110"
-              >
-                <Star
-                  size={32}
-                  className={`transition-colors ${active ? 'text-amber-400 fill-amber-400' : 'text-on-surface-variant/20'}`}
-                />
-              </button>
-            );
-          })}
-          {answer && (
-            <span className="ml-2 text-sm font-bold text-on-surface-variant">
-              {answer} / 5
-            </span>
-          )}
-        </div>
+        <StarRating value={answer as string | undefined} onChange={onChangeRating} />
       )}
     </div>
   );

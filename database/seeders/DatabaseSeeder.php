@@ -27,6 +27,7 @@ class DatabaseSeeder extends Seeder
             BadgeSeeder::class,
             HrSurveySeeder::class,
             BravoSeeder::class,
+            FeteDuTravailSurveySeeder::class,
         ]);
 
         $superAdmin = User::firstOrNew(['email' => 'superadmin@bravo.test']);
@@ -71,6 +72,28 @@ class DatabaseSeeder extends Seeder
         $automation->save();
         $automation->syncRoles(['employee']);
 
+        // ── Comptes nominatifs PAD ────────────────────────────────────────────
+        $dg = User::firstOrNew(['email' => 'mezimes@pad.cm']);
+        $dg->fill([
+            'name'         => 'Mezimes',
+            'role'         => 'Directeur General',
+            'points_total' => 0,
+            'password'     => Hash::make('PAD2026!'),
+        ]);
+        $dg->save();
+        $dg->syncRoles(['admin']);
+
+        $drh = User::firstOrNew(['email' => 'minya@pad.cm']);
+        $drh->fill([
+            'name'         => 'Minya',
+            'role'         => 'DRH',
+            'points_total' => 0,
+            'password'     => Hash::make('PAD2026!'),
+        ]);
+        $drh->save();
+        $drh->syncRoles(['hr']);
+        // ─────────────────────────────────────────────────────────────────────
+
         User::query()
             ->where('is_automation', false)
             ->whereNotIn('email', [
@@ -78,6 +101,8 @@ class DatabaseSeeder extends Seeder
                 'admin@bravo.test',
                 'rh@bravo.test',
                 'automations@bravo.internal',
+                'mezimes@pad.cm',
+                'minya@pad.cm',
             ])
             ->inRandomOrder()
             ->limit(50)

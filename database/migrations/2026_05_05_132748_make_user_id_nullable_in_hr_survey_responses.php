@@ -9,15 +9,19 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('hr_survey_responses', function (Blueprint $table) {
-            // Drop unique index before altering the column
-            $table->dropUnique(['survey_id', 'user_id']);
-            // Drop old foreign key
+            // 1. Supprimer d'abord la FK (elle s'appuie sur l'index unique)
             $table->dropForeign(['user_id']);
-            // Make nullable (anonymous responses)
+
+            // 2. Maintenant on peut supprimer l'index unique
+            $table->dropUnique(['survey_id', 'user_id']);
+
+            // 3. Rendre nullable
             $table->unsignedBigInteger('user_id')->nullable()->change();
-            // Re-add foreign key without constraint enforcement for nulls
-            $table->foreign('user_id')->references('id')->on('users')->cascadeOnDelete()->nullOnDelete();
-            // Add session_id column to deduplicate anonymous responses
+
+            // 4. Re-ajouter la FK
+            $table->foreign('user_id')->references('id')->on('users')->nullOnDelete();
+
+            // 5. Ajouter session_id
             $table->string('session_id', 128)->nullable()->after('user_id');
         });
     }

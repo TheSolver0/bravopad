@@ -1,5 +1,6 @@
 import { Link, router, usePage } from '@inertiajs/react';
 import { Bell, Menu, Trophy } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { BreadcrumbItem } from '@/types';
 import { Breadcrumbs } from '@/components/breadcrumbs';
 import { UserMenuContent } from '@/components/user-menu-content';
@@ -15,6 +16,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import NotificationPanel from '@/components/NotificationPanel';
+import LanguageToggle from '@/components/LanguageToggle';
 
 interface HeaderProps {
   breadcrumbs?: BreadcrumbItem[];
@@ -28,16 +30,19 @@ interface RecentNotification {
   data: Record<string, unknown>;
 }
 
-function previewTitle(data: Record<string, unknown>): string {
-  if (typeof data.title === 'string') return data.title;
-  if (data.type === 'bravo_received') return 'Bravo reçu';
-  if (data.type === 'reward_redemption_submitted') return 'Échange de points';
-  if (data.type === 'reward_redemption_outcome') return 'Échange mis à jour';
-  if (data.type === 'bravo_anomaly_spike') return 'Alerte Bravo';
-  return 'Notification';
+function PreviewTitle({ data }: { data: Record<string, unknown> }) {
+  const { t } = useTranslation();
+  if (typeof data.title === 'string') return <>{data.title}</>;
+  if (data.type === 'bravo_received') return <>{t('notifications.bravoReceived')}</>;
+  if (data.type === 'reward_redemption_submitted') return <>{t('notifications.pointsExchange')}</>;
+  if (data.type === 'reward_redemption_outcome') return <>{t('notifications.exchangeUpdated')}</>;
+  if (data.type === 'bravo_anomaly_spike') return <>{t('notifications.bravoAlert')}</>;
+  return <>{t('notifications.notification')}</>;
 }
 
 export default function Header({ breadcrumbs = [], onMenuOpen }: HeaderProps) {
+  const { t, i18n } = useTranslation();
+  const locale = i18n.language?.startsWith('fr') ? 'fr-FR' : 'en-US';
   const { auth, unreadCount } = usePage<{
     auth: {
       user?: { id: number; name: string; email: string; avatar?: string; role?: string; points_total?: number };
@@ -69,6 +74,7 @@ export default function Header({ breadcrumbs = [], onMenuOpen }: HeaderProps) {
       <div className="flex-1" />
 
       <div className="flex items-center gap-2">
+        <LanguageToggle />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="relative text-on-surface-variant">
@@ -82,11 +88,11 @@ export default function Header({ breadcrumbs = [], onMenuOpen }: HeaderProps) {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-80 max-h-[70vh] overflow-y-auto">
             <DropdownMenuLabel className="text-xs font-black uppercase tracking-widest text-on-surface-variant">
-              Récentes
+              {t('notifications.recent')}
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             {recent.length === 0 ? (
-              <div className="px-2 py-4 text-sm text-on-surface-variant text-center">Aucune notification.</div>
+              <div className="px-2 py-4 text-sm text-on-surface-variant text-center">{t('notifications.none')}</div>
             ) : (
               recent.map((n) => (
                 <DropdownMenuItem
@@ -98,12 +104,12 @@ export default function Header({ breadcrumbs = [], onMenuOpen }: HeaderProps) {
                     }
                   }}
                 >
-                  <span className="text-xs font-bold text-on-surface">{previewTitle(n.data)}</span>
+                  <span className="text-xs font-bold text-on-surface"><PreviewTitle data={n.data} /></span>
                   {typeof n.data.body === 'string' && (
                     <span className="text-[11px] text-on-surface-variant line-clamp-2">{n.data.body}</span>
                   )}
                   <span className="text-[10px] text-on-surface-variant/70">
-                    {new Date(n.created_at).toLocaleString('fr-FR')}
+                    {new Date(n.created_at).toLocaleString(locale)}
                   </span>
                 </DropdownMenuItem>
               ))
@@ -111,7 +117,7 @@ export default function Header({ breadcrumbs = [], onMenuOpen }: HeaderProps) {
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
               <Link href="/notifications" className="w-full cursor-pointer text-primary font-bold text-xs">
-                Voir tout
+                {t('notifications.viewAll')}
               </Link>
             </DropdownMenuItem>
             {unread > 0 && (
@@ -121,7 +127,7 @@ export default function Header({ breadcrumbs = [], onMenuOpen }: HeaderProps) {
                   method="post"
                   className="w-full cursor-pointer text-xs font-semibold"
                 >
-                  Tout marquer lu
+                  {t('notifications.markAllRead')}
                 </Link>
               </DropdownMenuItem>
             )}

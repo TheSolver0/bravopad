@@ -1,11 +1,12 @@
 import { router, usePage } from '@inertiajs/react';
 import { Home, Trophy, History, ShoppingBag, PlusCircle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 const navItems = [
-  { href: '/dashboard',  label: 'Accueil',   icon: Home },
-  { href: '/history',    label: 'Bravos',    icon: History },
-  { href: '/challenges', label: 'Défis',     icon: Trophy },
-  { href: '/shop',       label: 'Boutique',  icon: ShoppingBag },
+  { href: '/dashboard',  labelKey: 'nav.home',       icon: Home },
+  { href: '/history',    labelKey: 'nav.myBravos',   icon: History },
+  { href: '/challenges', labelKey: 'nav.challenges', icon: Trophy },
+  { href: '/shop',       labelKey: 'nav.shop',       icon: ShoppingBag },
 ];
 
 interface MobileNavProps {
@@ -13,6 +14,7 @@ interface MobileNavProps {
 }
 
 export default function MobileNav({ onCreateBravo }: MobileNavProps) {
+  const { t } = useTranslation();
   const page = usePage();
   const currentUrl = page.url;
 
@@ -37,7 +39,7 @@ export default function MobileNav({ onCreateBravo }: MobileNavProps) {
               <div className={`p-1.5 rounded-xl transition-all ${active ? 'bg-primary/10' : ''}`}>
                 <item.icon size={20} strokeWidth={active ? 2.5 : 1.75} />
               </div>
-              <span className={`text-[9px] font-black uppercase tracking-widest ${active ? 'text-primary' : ''}`}>{item.label}</span>
+              <span className={`text-[9px] font-black uppercase tracking-widest ${active ? 'text-primary' : ''}`}>{t(item.labelKey)}</span>
             </button>
           );
         })}
@@ -46,12 +48,12 @@ export default function MobileNav({ onCreateBravo }: MobileNavProps) {
         <button
           onClick={onCreateBravo}
           className="flex-none flex flex-col items-center mx-1 -mt-6 cursor-pointer"
-          aria-label="Envoyer un Bravo"
+          aria-label={t('nav.sendBravo')}
         >
           <div className="w-14 h-14 bg-primary rounded-2xl flex items-center justify-center text-white shadow-xl shadow-primary/40 border-4 border-white active:scale-90 transition-transform">
             <PlusCircle size={26} />
           </div>
-          <span className="text-[9px] font-black uppercase tracking-widest text-primary mt-1">Bravo</span>
+          <span className="text-[9px] font-black uppercase tracking-widest text-primary mt-1">{t('nav.bravo')}</span>
         </button>
 
         {/* Items droite */}
@@ -66,7 +68,7 @@ export default function MobileNav({ onCreateBravo }: MobileNavProps) {
               <div className={`p-1.5 rounded-xl transition-all ${active ? 'bg-primary/10' : ''}`}>
                 <item.icon size={20} strokeWidth={active ? 2.5 : 1.75} />
               </div>
-              <span className={`text-[9px] font-black uppercase tracking-widest ${active ? 'text-primary' : ''}`}>{item.label}</span>
+              <span className={`text-[9px] font-black uppercase tracking-widest ${active ? 'text-primary' : ''}`}>{t(item.labelKey)}</span>
             </button>
           );
         })}

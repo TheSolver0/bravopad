@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Link, usePage, router } from '@inertiajs/react';
 import { motion } from 'motion/react';
+import { useTranslation } from 'react-i18next';
 import {
   Trophy,
   History,
@@ -32,19 +33,19 @@ const PERM_RANK: Record<string, number> = {
 
 interface NavItem {
   href: string;
-  label: string;
+  labelKey: string;
   icon: React.ElementType;
   minPermission?: Permission;
 }
 
 export const navItems: NavItem[] = [
-  { href: '/dashboard', label: 'Accueil', icon: Home },
-  { href: '/history', label: 'Mes Bravos', icon: History },
-  { href: '/challenges', label: 'Défis', icon: Trophy },
-  { href: '/engagement', label: 'Sondages', icon: ClipboardList },
-  { href: '/team', label: 'Personnel', icon: Users },
-  // { href: '/stats', label: 'Stats', icon: BarChart3 },
-  { href: '/shop', label: 'Boutique', icon: ShoppingBag },
+  { href: '/dashboard', labelKey: 'nav.home', icon: Home },
+  { href: '/history', labelKey: 'nav.myBravos', icon: History },
+  { href: '/challenges', labelKey: 'nav.challenges', icon: Trophy },
+  { href: '/engagement', labelKey: 'nav.surveys', icon: ClipboardList },
+  { href: '/team', labelKey: 'nav.team', icon: Users },
+  // { href: '/stats', labelKey: 'nav.stats', icon: BarChart3 },
+  { href: '/shop', labelKey: 'nav.shop', icon: ShoppingBag },
 ];
 
 type AuthNav = {
@@ -68,7 +69,7 @@ interface SidebarProps {
   onCreateBravo?: () => void;
 }
 
-type NavEntry = { href: string; label: string; icon: React.ElementType };
+type NavEntry = { href: string; labelKey: string; icon: React.ElementType };
 
 function pathWithoutQuery(url: string): string {
   const i = url.indexOf('?');
@@ -93,6 +94,7 @@ function NavLink({
   collapsed: boolean;
   onClose?: () => void;
 }) {
+  const { t } = useTranslation();
   const path = pathWithoutQuery(currentUrl);
   const active = isLinkActive(path, item.href);
 
@@ -108,7 +110,7 @@ function NavLink({
       }`}
     >
       <item.icon size={20} className={active ? 'text-white' : 'group-hover:text-primary transition-colors'} />
-      {!collapsed && <span className="font-bold text-[13px] tracking-normal">{item.label}</span>}
+      {!collapsed && <span className="font-bold text-[13px] tracking-normal">{t(item.labelKey)}</span>}
       {active && (
         <motion.div layoutId="activeSidebarNav" className="absolute left-0 w-1.5 h-6 bg-secondary rounded-r-full" />
       )}
@@ -117,6 +119,7 @@ function NavLink({
 }
 
 export default function Sidebar({ collapsed = false, onCollapseToggle, onClose, onCreateBravo }: SidebarProps) {
+  const { t } = useTranslation();
   const page = usePage<{ auth?: AuthShared & { user?: { id: number; name: string; email: string; avatar?: string } } }>();
   const currentUrl = page.url;
   const nav = page.props.auth?.nav ?? {};
@@ -124,31 +127,31 @@ export default function Sidebar({ collapsed = false, onCollapseToggle, onClose, 
   const adminLinks = useMemo((): NavEntry[] => {
     const links: NavEntry[] = [];
     if (nav.hr_dashboard) {
-      links.push({ href: '/hr/dashboard', label: 'Tableau de board', icon: BarChart3 });
+      links.push({ href: '/hr/dashboard', labelKey: 'nav.hrDashboard', icon: BarChart3 });
     }
     if (nav.admin_surveys) {
-      links.push({ href: '/admin/surveys', label: 'Gérer les sondages', icon: ClipboardCheck });
+      links.push({ href: '/admin/surveys', labelKey: 'nav.manageSurveys', icon: ClipboardCheck });
     }
     if (nav.admin_challenges) {
-      links.push({ href: '/admin/challenges', label: 'Gérer les défis', icon: Trophy });
+      links.push({ href: '/admin/challenges', labelKey: 'nav.manageChallenges', icon: Trophy });
     }
     if (nav.admin_config) {
-      links.push({ href: '/admin/config', label: 'Configuration', icon: Settings });
+      links.push({ href: '/admin/config', labelKey: 'nav.config', icon: Settings });
     }
     if (nav.admin_users) {
-      links.push({ href: '/admin/users', label: 'Utilisateurs', icon: UserCog });
+      links.push({ href: '/admin/users', labelKey: 'nav.users', icon: UserCog });
     }
     if (nav.admin_roles) {
-      links.push({ href: '/admin/roles', label: 'Rôles & permissions', icon: KeyRound });
+      links.push({ href: '/admin/roles', labelKey: 'nav.rolesPermissions', icon: KeyRound });
     }
     if (nav.audit) {
-      links.push({ href: '/audit', label: 'Audit', icon: Shield });
+      links.push({ href: '/audit', labelKey: 'nav.audit', icon: Shield });
     }
     return links;
   }, [nav.hr_dashboard, nav.admin_config, nav.admin_users, nav.admin_roles, nav.audit, nav.admin_surveys, nav.admin_challenges]);
 
   const mainLinks: NavEntry[] = useMemo(
-    () => [...navItems, { href: '/notifications', label: 'Notifications', icon: Bell }],
+    () => [...navItems, { href: '/notifications', labelKey: 'nav.notifications', icon: Bell }],
     [],
   );
   const user = page.props.auth?.user;
@@ -186,7 +189,7 @@ export default function Sidebar({ collapsed = false, onCollapseToggle, onClose, 
           style={{ cursor: 'pointer' }}
         >
           <PlusCircle size={18} />
-          {!collapsed && <span>Envoyer un Bravo</span>}
+          {!collapsed && <span>{t('nav.sendBravo')}</span>}
         </Button>
       </div>
 
@@ -199,7 +202,7 @@ export default function Sidebar({ collapsed = false, onCollapseToggle, onClose, 
           <>
             {!collapsed && (
               <p className="pt-4 pb-1 px-3 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/80">
-                Administration
+                {t('nav.administration')}
               </p>
             )}
             {adminLinks.map((item) => (
@@ -228,7 +231,7 @@ export default function Sidebar({ collapsed = false, onCollapseToggle, onClose, 
           <button
             onClick={() => router.post('/logout')}
             className="p-1.5 rounded-lg hover:bg-red-50 text-on-surface-variant hover:text-red-500 transition-colors shrink-0"
-            title="Déconnexion"
+            title={t('nav.logout')}
           >
             <LogOut size={16} />
           </button>

@@ -43,6 +43,16 @@ type Survey = {
   stats: Record<string, number>;
   my_response: string | null;
 };
+type MultiSurvey = {
+  id: number;
+  title: string;
+  description?: string | null;
+  cover_image?: string | null;
+  token: string;
+  ends_at?: string | null;
+  has_answered: boolean;
+  questions_count: number;
+};
 
 interface EngagementProps {
   period: string;
@@ -50,6 +60,7 @@ interface EngagementProps {
   my_vote: { nominee_id: number; is_anonymous: boolean; comment?: string | null } | null;
   employee_of_month_ranking: RankingRow[];
   surveys: Survey[];
+  multi_surveys: MultiSurvey[];
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -504,7 +515,7 @@ export default function Engagement(props: EngagementProps) {
       {activeTab === 'surveys' && (
         <div className="flex gap-5 items-start">
 
-          {props.surveys.length === 0 ? (
+          {props.surveys.length === 0 && props.multi_surveys.length === 0 ? (
             <div className="flex-1">
               <Card className="flex flex-col items-center justify-center py-14 gap-3 text-center bg-white border-none shadow-sm">
                 <ClipboardList size={32} className="text-on-surface-variant/25" />
@@ -513,22 +524,90 @@ export default function Engagement(props: EngagementProps) {
               </Card>
             </div>
           ) : (
-            <>
-              {/* Col 1 — Liste inbox */}
-              <SurveyInbox
-                surveys={props.surveys}
-                selectedId={selectedSurveyId}
-                onSelect={setSelectedSurveyId}
-              />
+            <div className="flex flex-1 gap-5 items-start min-w-0">
+              {/* Col 1 — Inbox sondages simples + bannières multi-questions */}
+              <div className="flex flex-col gap-4 w-56 shrink-0 self-start sticky top-6">
+                {/* Sondages multi-questions */}
+                {props.multi_surveys.length > 0 && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between px-1">
+                      <h3 className="text-sm font-black tracking-tight flex items-center gap-2">
+                        <ClipboardList size={14} className="text-primary" />
+                        Formulaires RH
+                      </h3>
+                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                        {props.multi_surveys.filter((s) => s.has_answered).length}/{props.multi_surveys.length}
+                      </span>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      {props.multi_surveys.map((s) => {
+                        const daysLeft = s.ends_at
+                          ? Math.max(0, Math.ceil((new Date(s.ends_at).getTime() - Date.now()) / 86_400_000))
+                          : null;
+                        return (
+                          <a
+                            key={s.id}
+                            href={`/surveys/${s.token}`}
+                            className="block rounded-2xl overflow-hidden border border-surface-container-high shadow-sm hover:shadow-md transition-shadow bg-white"
+                          >
+                            {s.cover_image && (
+                              <div className="h-24 w-full overflow-hidden">
+                                <img src={s.cover_image} alt="" className="w-full h-full object-cover" />
+                              </div>
+                            )}
+                            <div className="p-3 space-y-1.5">
+                              <p className="text-xs font-black leading-snug line-clamp-2 text-on-surface">{s.title}</p>
+                              {s.description && (
+                                <p className="text-[10px] text-on-surface-variant line-clamp-2 leading-relaxed">{s.description}</p>
+                              )}
+                              <div className="flex items-center justify-between gap-1 pt-0.5">
+                                {s.has_answered ? (
+                                  <span className="inline-flex items-center gap-0.5 text-[9px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full">
+                                    <Check size={8} /> Répondu
+                                  </span>
+                                ) : (
+                                  <span className="text-[9px] font-bold text-primary bg-primary/5 px-1.5 py-0.5 rounded-full">
+                                    {s.questions_count} question{s.questions_count > 1 ? 's' : ''}
+                                  </span>
+                                )}
+                                {daysLeft !== null && (
+                                  <span className={`text-[9px] font-bold ${daysLeft <= 3 ? 'text-orange-500' : 'text-on-surface-variant/50'}`}>
+                                    {daysLeft === 0 ? '⚠ Auj.' : `J-${daysLeft}`}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </a>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
-              {/* Col 2 — Panel de vote */}
-              <div className="flex-1 min-w-0">
-                {selectedSurvey
-                  ? <SurveyVotePanel survey={selectedSurvey} onAnswer={answerSurvey} />
-                  : <SurveyEmptyState />
-                }
+                {/* Sondages simples (vote inline) */}
+                {props.surveys.length > 0 && (
+                  <SurveyInbox
+                    surveys={props.surveys}
+                    selectedId={selectedSurveyId}
+                    onSelect={setSelectedSurveyId}
+                  />
+                )}
               </div>
-            </>
+
+              {/* Col 2 — Panel de vote pour sondages simples */}
+              <div className="flex-1 min-w-0">
+                {props.surveys.length > 0 ? (
+                  selectedSurvey
+                    ? <SurveyVotePanel survey={selectedSurvey} onAnswer={answerSurvey} />
+                    : <SurveyEmptyState />
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-20 gap-3 text-center">
+                    <ClipboardList size={36} className="text-on-surface-variant/20" />
+                    <p className="font-semibold text-on-surface-variant">Cliquez sur un formulaire pour y répondre.</p>
+                  </div>
+                )}
+              </div>
+            </div>
           )}
 
           {/* Col 3 — Classement */}

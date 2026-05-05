@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { router } from '@inertiajs/react';
+import { useTranslation } from 'react-i18next';
 import {
   Clock,
   ArrowRight,
@@ -56,6 +57,8 @@ function getCsrf(): string {
 }
 
 export default function Dashboard({ bravos, users, activeChallenge, currentUser, bravoValues, celebrations = [] }: DashboardProps) {
+  const { t, i18n } = useTranslation();
+  const locale = i18n.language?.startsWith('fr') ? 'fr-FR' : 'en-US';
   const safeUsers = Array.isArray(users) ? users : [];
   const sortedUsers = [...safeUsers].sort((a, b) => b.points_total - a.points_total);
   const topUsers = [...safeUsers].sort((a, b) => b.points_total - a.points_total);
@@ -182,13 +185,13 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
           <Anchor size={11} /> PAD
         </span>
       ),
-      title: 'Bienvenue sur Bravo ',
-      subtitle: 'Reconnaissez l\'excellence de vos collègues et valorisez les talents qui font la force de PAD.',
-      cta: { label: 'Envoyer un Bravo', action: () => setShowCreateModal(true) },
+      title: t('dashboard.welcome'),
+      subtitle: t('dashboard.welcomeSub'),
+      cta: { label: t('dashboard.sendBravo'), action: () => setShowCreateModal(true) },
       badge: (
         <div className="flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md rounded-xl border border-white/10">
           <Ship size={18} className="text-white/80" />
-          <span className="font-bold text-sm text-white">{bravos.length} Bravos partagés</span>
+          <span className="font-bold text-sm text-white">{t('dashboard.bravosShared', { count: bravos.length })}</span>
         </div>
       ),
       visual: (
@@ -207,16 +210,16 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
       bg: 'from-[#1a1a2e] via-[#16213e] to-[#0f3460]',
       tag: (
         <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-secondary/90">
-          <Star size={11} className="fill-current" /> Employé du moment
+          <Star size={11} className="fill-current" /> {t('dashboard.employeeOfMonth')}
         </span>
       ),
       title: sortedUsers[0].name,
-      subtitle: `${sortedUsers[0].role} · ${sortedUsers[0].department} — ${sortedUsers[0].points_total.toLocaleString()} pts accumulés.`,
-      cta: { label: 'Voir le classement', action: () => router.visit('/stats') },
+      subtitle: `${sortedUsers[0].role} · ${sortedUsers[0].department} — ${sortedUsers[0].points_total.toLocaleString(locale)} ${t('dashboard.ptsAccumulated')}`,
+      cta: { label: t('dashboard.viewLeaderboardBtn'), action: () => router.visit('/stats') },
       badge: (
         <div className="flex items-center gap-2 px-4 py-2 bg-secondary/20 backdrop-blur-md rounded-xl border border-secondary/30">
           <Trophy size={18} className="text-secondary" />
-          <span className="font-bold text-sm text-white">#1 du classement</span>
+          <span className="font-bold text-sm text-white">{t('dashboard.rankOf')}</span>
         </div>
       ),
       visual: (
@@ -238,15 +241,15 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
       bg: 'from-primary via-primary/90 to-primary/70',
       tag: (
         <div className="flex items-center gap-3">
-          <Badge variant="warning" className="bg-secondary text-white border-none px-3 py-1 text-[10px]">NOUVEAU DÉFI</Badge>
+          <Badge variant="warning" className="bg-secondary text-white border-none px-3 py-1 text-[10px]">{t('dashboard.newChallenge')}</Badge>
           <span className="flex items-center gap-1.5 text-white/70 text-xs font-bold">
-            <Clock size={12} /> Plus que {activeChallenge.days_left} jours
+            <Clock size={12} /> {t('dashboard.daysLeft', { count: activeChallenge.days_left })}
           </span>
         </div>
       ),
       title: activeChallenge.name,
       subtitle: activeChallenge.description,
-      cta: { label: 'Participer maintenant', action: () => router.visit('/challenges') },
+      cta: { label: t('dashboard.joinNow'), action: () => router.visit('/challenges') },
       badge: (
         <div className="flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md rounded-xl border border-white/10">
           <Award size={18} className="text-secondary" />
@@ -291,8 +294,8 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
                 {celebrations.map((c, i) => (
                   <span key={i} className="text-sm font-semibold flex items-center gap-1.5">
                     {c.type === 'birthday'
-                      ? <><Cake size={14} /> Bon anniversaire <strong>{c.name}</strong> ! 🎂</>
-                      : <><Briefcase size={14} /> <strong>{c.name}</strong> fête ses <strong>{c.years} an{(c.years ?? 0) > 1 ? 's' : ''}</strong> dans l'équipe ! 🎉</>
+                      ? <><Cake size={14} /> {t('dashboard.happyBirthday', { name: c.name })} 🎂</>
+                      : <><Briefcase size={14} /> {t('dashboard.workAnniversary', { name: c.name, count: c.years ?? 1 })} 🎉</>
                     }
                   </span>
                 ))}
@@ -358,15 +361,15 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
             <div className="flex items-center justify-between px-1">
               <h2 className="text-lg font-extrabold tracking-tight flex items-center gap-2">
                 <MessageSquare className="text-primary" size={20} />
-                Les Bravos
+                {t('dashboard.title')}
               </h2>
               <div className="flex items-center gap-4">
                 <div className="hidden sm:flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl shadow-sm border border-surface-container-high">
                   <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-                  <span className="text-[9px] font-bold text-on-surface-variant uppercase tracking-widest">{displayedBravos.length} récents</span>
+                  <span className="text-[9px] font-bold text-on-surface-variant uppercase tracking-widest">{displayedBravos.length} {t('dashboard.recent')}</span>
                 </div>
                 <Button variant="primary" className="shadow-md shadow-primary/20 px-4 py-2 text-xs" style={{ cursor: 'pointer' }} onClick={() => setShowCreateModal(true)}>
-                  <PlusCircle size={20} /> <span className="hidden sm:inline">Envoyer un Bravo</span>
+                  <PlusCircle size={20} /> <span className="hidden sm:inline">{t('dashboard.sendBravo')}</span>
                 </Button>
               </div>
             </div>
@@ -374,9 +377,9 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
             {displayedBravos.length === 0 ? (
               <Card className="p-10 text-center border-none bg-white/80">
                 <MessageSquare className="mx-auto mb-3 text-primary/30" size={40} />
-                <p className="font-bold text-on-surface-variant">Aucun bravo pour l'instant.</p>
-                <p className="text-sm text-on-surface-variant mt-1">Soyez le premier à féliciter un collègue !</p>
-                <Button variant="primary" className="mt-4" onClick={() => setShowCreateModal(true)}>Envoyer le premier Bravo</Button>
+                <p className="font-bold text-on-surface-variant">{t('dashboard.noBravos')}</p>
+                <p className="text-sm text-on-surface-variant mt-1">{t('dashboard.beFirst')}</p>
+                <Button variant="primary" className="mt-4" onClick={() => setShowCreateModal(true)}>{t('dashboard.sendFirst')}</Button>
               </Card>
             ) : (
               <div className="space-y-4">
@@ -500,7 +503,7 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
 
                           {/* Footer: date + sender */}
                           <div className="flex items-center justify-between pt-2 border-t border-gray-50">
-                            <span className="text-xs text-gray-400">{new Date(bravo.created_at).toLocaleDateString('fr-FR')}</span>
+                            <span className="text-xs text-gray-400">{new Date(bravo.created_at).toLocaleDateString(locale)}</span>
                             <div className="flex items-center gap-2">
                               <span className="text-xs text-gray-500">
                                 From <span className="font-medium text-gray-700">{bravo.sender?.name ?? '—'}</span>
@@ -528,7 +531,7 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
                               onClick={() => setShowComments(prev => ({ ...prev, [bravo.id]: !commentsVisible }))}
                             >
                               <MessageSquare size={13} />
-                              <span>{commentCount > 0 ? `${commentCount} commentaire${commentCount > 1 ? 's' : ''}` : 'Commenter'}</span>
+                              <span>{commentCount > 0 ? t('dashboard.comment', { count: commentCount }) : t('dashboard.commentAction')}</span>
                             </button>
                           </div>
 
@@ -583,7 +586,7 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
                             />
                             <div className="flex-1 flex items-center bg-white rounded-full px-3 py-1.5 border border-gray-200 gap-2 focus-within:border-primary/40 transition-colors">
                               <input
-                                placeholder="Écrire un commentaire…"
+                                placeholder={t('dashboard.commentPlaceholder')}
                                 value={commentTexts[bravo.id] ?? ''}
                                 onChange={e => setCommentTexts(prev => ({ ...prev, [bravo.id]: e.target.value }))}
                                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitComment(bravo.id); } }}
@@ -624,7 +627,7 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
                   <span className="w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: '#3B82F6' }}>
                     <Star size={12} className="text-white fill-white" />
                   </span>
-                  Mes Points
+                  {t('dashboard.myPoints')}
                 </h3>
                 <ChevronUp size={16} className="text-gray-400" />
               </div>
@@ -633,21 +636,21 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
                   <p className={`text-xl font-black ${(currentUser.monthly_points_remaining ?? 0) === 0 ? 'text-red-400' : 'text-primary'}`}>
                     {(currentUser.monthly_points_remaining ?? 0).toLocaleString()}
                   </p>
-                  <p className="text-[10px] text-gray-400 font-medium mt-0.5">À donner</p>
+                  <p className="text-[10px] text-gray-400 font-medium mt-0.5">{t('dashboard.toGive')}</p>
                 </div>
                 <div>
-                  <p className="text-xl font-black text-primary">{currentUser.points_total.toLocaleString()}</p>
-                  <p className="text-[10px] text-gray-400 font-medium mt-0.5">Redeemable</p>
+                  <p className="text-xl font-black text-primary">{currentUser.points_total.toLocaleString(locale)}</p>
+                  <p className="text-[10px] text-gray-400 font-medium mt-0.5">{t('dashboard.redeemable')}</p>
                 </div>
                 <div>
-                  <p className="text-xl font-black text-primary">{(currentUser.monthly_points_allowance ?? 100).toLocaleString()}</p>
-                  <p className="text-[10px] text-gray-400 font-medium mt-0.5">Quota/mois</p>
+                  <p className="text-xl font-black text-primary">{(currentUser.monthly_points_allowance ?? 100).toLocaleString(locale)}</p>
+                  <p className="text-[10px] text-gray-400 font-medium mt-0.5">{t('dashboard.monthlyQuota')}</p>
                 </div>
               </div>
 
               <div className="mt-3">
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[10px] font-semibold text-gray-400 uppercase">Quota mensuel utilisé</span>
+                  <span className="text-[10px] font-semibold text-gray-400 uppercase">{t('dashboard.monthlyUsed')}</span>
                   <span className="text-[10px] font-black text-primary">
                     {((currentUser.monthly_points_allowance ?? 100) - (currentUser.monthly_points_remaining ?? 0)).toLocaleString()} / {(currentUser.monthly_points_allowance ?? 100).toLocaleString()} pts
                   </span>
@@ -663,7 +666,7 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
 
               <div className="mt-3">
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[10px] font-semibold text-gray-400 uppercase">Prochain palier</span>
+                  <span className="text-[10px] font-semibold text-gray-400 uppercase">{t('dashboard.nextMilestone')}</span>
                   <span className="text-[10px] font-black text-primary">{nextMilestone.toLocaleString()} pts</span>
                 </div>
                 <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
@@ -680,16 +683,16 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
             <div className="flex items-center justify-between px-1">
               <h2 className="text-lg font-extrabold tracking-tight flex items-center gap-2">
                 <Trophy className="text-secondary" size={20} />
-                Classement
+                {t('dashboard.leaderboard')}
               </h2>
-              <button onClick={() => router.visit('/stats')} className="text-primary text-xs font-black hover:underline uppercase tracking-widest cursor-pointer">Voir tout</button>
+              <button onClick={() => router.visit('/stats')} className="text-primary text-xs font-black hover:underline uppercase tracking-widest cursor-pointer">{t('common.viewAll')}</button>
             </div>
 
             {topUsers.length >= 3 && (
               <Card className="p-0 overflow-hidden border-none shadow-md bg-white">
                 <div className="p-5 bg-gradient-to-br from-primary to-primary-container text-white">
                   <div className="flex items-center justify-between mb-3">
-                    <span className="text-xs font-bold uppercase tracking-wide opacity-70">Top Performeurs</span>
+                    <span className="text-xs font-bold uppercase tracking-wide opacity-70">{t('dashboard.topPerformers')}</span>
                     <TrendingUp size={16} className="text-secondary" />
                   </div>
                   <div className="flex items-end justify-around pb-2">
@@ -747,17 +750,17 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
                       className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-600 disabled:text-gray-300 disabled:cursor-default hover:bg-white transition-colors cursor-pointer disabled:hover:bg-transparent"
                     >
                       <ChevronLeft size={14} />
-                      <span className="hidden sm:inline">Précédent</span>
+                      <span className="hidden sm:inline">{t('common.previous')}</span>
                     </button>
                     <span className="text-xs font-semibold text-gray-500">
-                      Page {leaderboardPage + 1} sur {totalLeaderboardPages}
+                      {t('common.page', { current: leaderboardPage + 1, total: totalLeaderboardPages })}
                     </span>
                     <button
                       onClick={() => setLeaderboardPage(p => Math.min(totalLeaderboardPages - 1, p + 1))}
                       disabled={leaderboardPage === totalLeaderboardPages - 1}
                       className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-600 disabled:text-gray-300 disabled:cursor-default hover:bg-white transition-colors cursor-pointer disabled:hover:bg-transparent"
                     >
-                      <span className="hidden sm:inline">Suivant</span>
+                      <span className="hidden sm:inline">{t('common.next')}</span>
                       <ChevronRight size={14} />
                     </button>
                   </div>
@@ -765,7 +768,7 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
                 
                 <div className="p-4 bg-gray-50/50">
                   <Button variant="ghost" className="w-full text-xs font-extrabold tracking-wide py-3" onClick={() => router.visit('/stats')}>
-                    VOIR TOUT LE CLASSEMENT
+                    {t('dashboard.viewLeaderboard')}
                   </Button>
                 </div>
               </Card>
@@ -822,6 +825,7 @@ interface RecognitionCardProps {
 }
 
 function RecognitionCard({ counts }: RecognitionCardProps) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(true);
 
   const items = [
@@ -840,7 +844,7 @@ function RecognitionCard({ counts }: RecognitionCardProps) {
           <div className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
             <Star size={14} className="text-white fill-white" />
           </div>
-          <span className="font-bold text-sm text-gray-700">Mes Reconnaissances</span>
+          <span className="font-bold text-sm text-gray-700">{t('dashboard.myRecognitions')}</span>
         </div>
         {open ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
       </button>

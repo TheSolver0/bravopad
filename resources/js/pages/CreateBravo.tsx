@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useForm, router, usePage } from '@inertiajs/react';
+import { useTranslation } from 'react-i18next';
 import {
   Search, X, Star, Smile, Paperclip, HelpCircle,
   Sparkles, Loader2, Lightbulb, CheckCircle, RotateCcw, Mic, MicOff,
@@ -42,6 +43,7 @@ const emptyInsights: BravoInsights = {
 };
 
 export default function CreateBravo({ users, bravoValues, bravoInsights = emptyInsights, onSuccess, isModal }: CreateBravoProps) {
+  const { t, i18n } = useTranslation();
   const [selectedRecipients, setSelectedRecipients] = useState<User[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
@@ -120,10 +122,10 @@ export default function CreateBravo({ users, bravoValues, bravoInsights = emptyI
 
   const handleVoice = useCallback(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) { alert("La dictée vocale n'est pas supportée par votre navigateur."); return; }
+    if (!SpeechRecognition) { alert(t('bravo.voiceNotSupported')); return; }
     if (isListening) { recognitionRef.current?.stop(); setIsListening(false); return; }
     const recognition = new SpeechRecognition();
-    recognition.lang = 'fr-FR';
+    recognition.lang = i18n.language?.startsWith('en') ? 'en-US' : 'fr-FR';
     recognition.continuous = false;
     recognition.interimResults = false;
     recognitionRef.current = recognition;
@@ -189,10 +191,10 @@ export default function CreateBravo({ users, bravoValues, bravoInsights = emptyI
           <CheckCircle size={40} className="text-green-600" />
         </div>
         <h2 className="text-2xl font-extrabold text-center">
-          {count > 1 ? `${count} Bravos envoyés !` : 'Bravo envoyé !'}
+          {count > 1 ? t('bravo.sentMultiple', { count }) : t('bravo.sentSingle')}
         </h2>
         <p className="text-gray-500 text-center">
-          {count > 1 ? 'Vos collègues ont été notifiés.' : 'Votre collègue a été notifié.'} Redirection…
+          {count > 1 ? t('bravo.colleaguesNotified') : t('bravo.colleagueNotified')} {t('bravo.redirecting')}
         </p>
       </div>
     );
@@ -210,8 +212,8 @@ export default function CreateBravo({ users, bravoValues, bravoInsights = emptyI
 
       {/* Titre */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Reconnaître un collègue</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Envoyez un message de reconnaissance</p>
+        <h1 className="text-2xl font-bold text-gray-900">{t('bravo.title')}</h1>
+        <p className="text-sm text-gray-500 mt-0.5">{t('bravo.subtitle')}</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -234,7 +236,7 @@ export default function CreateBravo({ users, bravoValues, bravoInsights = emptyI
               </div>
             ))}
             <input
-              placeholder={selectedRecipients.length === 0 ? 'Rechercher un collègue...' : 'Ajouter un autre...'}
+              placeholder={selectedRecipients.length === 0 ? t('bravo.searchPlaceholder') : t('bravo.addAnother')}
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               className="flex-1 min-w-[140px] outline-none text-sm text-gray-700 placeholder-gray-400"
@@ -263,7 +265,7 @@ export default function CreateBravo({ users, bravoValues, bravoInsights = emptyI
 
         {/* Sélection du niveau */}
         <div className="space-y-2">
-          <h3 className="font-semibold text-gray-800 text-sm">Choisir un niveau</h3>
+          <h3 className="font-semibold text-gray-800 text-sm">{t('bravo.chooseLevel')}</h3>
           <div className="flex flex-wrap gap-2">
             {BADGES.map(badge => {
               const isSelected = data.badge === badge.key;
@@ -293,11 +295,11 @@ export default function CreateBravo({ users, bravoValues, bravoInsights = emptyI
           {selectedBadge && (
             <div className={`text-xs px-3 py-2 rounded-lg leading-relaxed ${pointsAfter < 0 ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700'}`}>
               {recipientCount > 1
-                ? <><span className="font-semibold">{selectedBadge.label}</span> = {totalPoints} pts × {recipientCount} = <span className="font-semibold">{totalPointsAll} pts</span>. </>
-                : <><span className="font-semibold">{selectedBadge.label}</span> = {totalPoints} pts. </>
+                ? <>{t('bravo.pointsInfoMulti', { label: selectedBadge.label, pts: totalPoints, count: recipientCount, total: totalPointsAll })}</>
+                : <>{t('bravo.pointsInfo', { label: selectedBadge.label, total: totalPoints, count: totalPoints })}</>
               }
-              Reste: <span className={`font-semibold ${pointsAfter < 0 ? 'text-red-600' : ''}`}>{pointsAfter < 0 ? '0' : pointsAfter} pt{pointsAfter !== 1 ? 's' : ''}</span>.
-              {pointsAfter < 0 && <span className="block mt-0.5 text-[10px] font-medium">⚠ Quota insuffisant</span>}
+              {t('bravo.quotaLeft', { count: Math.max(0, pointsAfter) })}
+              {pointsAfter < 0 && <span className="block mt-0.5 text-[10px] font-medium">{t('bravo.quotaInsufficient')}</span>}
             </div>
           )}
           {errors.badge && <p className="text-xs text-red-500">{errors.badge}</p>}
@@ -305,10 +307,10 @@ export default function CreateBravo({ users, bravoValues, bravoInsights = emptyI
 
         {/* Message */}
         <div className="space-y-2">
-          <h3 className="font-semibold text-gray-800 text-sm">Écrire un message</h3>
+          <h3 className="font-semibold text-gray-800 text-sm">{t('bravo.writeMessage')}</h3>
           <div className="border border-gray-300 rounded-xl overflow-hidden focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/10 transition-all">
             <textarea
-              placeholder="Merci pour ton soutien !"
+              placeholder={t('bravo.messagePlaceholder')}
               className="w-full px-4 pt-3 pb-2 h-20 outline-none text-sm text-gray-700 resize-none placeholder-gray-400"
               value={data.message}
               onChange={e => setData('message', e.target.value)}
@@ -323,7 +325,7 @@ export default function CreateBravo({ users, bravoValues, bravoInsights = emptyI
                 <button
                   type="button"
                   onClick={handleVoice}
-                  title={isListening ? 'Arrêter' : 'Dicter'}
+                  title={isListening ? t('bravo.stop') : t('bravo.dictate')}
                   className={`transition-colors ${isListening ? 'text-red-500 animate-pulse' : 'text-gray-400 hover:text-gray-600'}`}
                 >
                   {isListening ? <MicOff size={17} /> : <Mic size={17} />}
@@ -342,7 +344,7 @@ export default function CreateBravo({ users, bravoValues, bravoInsights = emptyI
                 className="flex items-center gap-2 px-4 py-2 rounded-full border border-gray-300 text-sm font-medium text-gray-700 hover:border-primary hover:text-primary transition-all disabled:opacity-40 disabled:cursor-not-allowed bg-white"
               >
                 {isRephrasing ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-                Améliorer avec l'IA
+                {t('bravo.improveAI')}
               </button>
               {originalMessage !== null && (
                 <button
@@ -351,7 +353,7 @@ export default function CreateBravo({ users, bravoValues, bravoInsights = emptyI
                   className="flex items-center gap-1.5 text-sm text-primary hover:underline font-medium"
                 >
                   <RotateCcw size={13} />
-                  Restaurer le message original
+                  {t('bravo.restoreOriginal')}
                 </button>
               )}
             </div>
@@ -361,7 +363,7 @@ export default function CreateBravo({ users, bravoValues, bravoInsights = emptyI
           {isListening && (
             <p className="text-xs text-red-500 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse inline-block" />
-              Écoute en cours — parlez maintenant.
+              {t('bravo.listening')}
             </p>
           )}
           {errors.message && <p className="text-xs text-red-500">{errors.message}</p>}
@@ -369,7 +371,7 @@ export default function CreateBravo({ users, bravoValues, bravoInsights = emptyI
 
         {/* Qualités */}
         <div className="space-y-2">
-          <h3 className="font-semibold text-gray-800 text-sm">Choisir des qualités</h3>
+          <h3 className="font-semibold text-gray-800 text-sm">{t('bravo.chooseQualities')}</h3>
           <div className="flex flex-wrap gap-1.5">
             {bravoValues.map(val => {
               const isSelected = data.value_ids.includes(val.id);
@@ -400,17 +402,14 @@ export default function CreateBravo({ users, bravoValues, bravoInsights = emptyI
           disabled={processing || data.receiver_ids.length === 0 || !data.badge || pointsAfter < 0}
         >
           {processing
-            ? 'Envoi en cours…'
+            ? t('bravo.sending')
             : selectedRecipients.length > 1
-              ? `Envoyer ${selectedRecipients.length} Bravos`
-              : 'Envoyer le Bravo'
+              ? t('bravo.sendMultiple', { count: selectedRecipients.length })
+              : t('bravo.send')
           }
         </Button>
         <p className="text-center text-[10px] text-gray-400 uppercase tracking-widest">
-          {selectedRecipients.length > 1
-            ? 'Les personnes remerciées recevront une notification immédiate.'
-            : 'La personne remerciée recevra une notification immédiate.'
-          }
+          {selectedRecipients.length > 1 ? t('bravo.notifiedMultiple') : t('bravo.notifiedSingle')}
         </p>
       </form>
     </div>

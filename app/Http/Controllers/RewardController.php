@@ -25,15 +25,15 @@ class RewardController extends Controller
             ->orderBy('cost_points')
             ->get()
             ->map(fn ($r) => [
-                'id'          => $r->id,
-                'name'        => $r->name,
+                'id' => $r->id,
+                'name' => $r->name,
                 'description' => $r->description,
-                'category'    => $r->category,
+                'category' => $r->category,
                 'cost_points' => $r->cost_points,
-                'image_url'   => $r->image_url,
-                'stock'       => $r->stock,
-                'has_stock'   => $r->hasStock(),
-                'affordable'  => $user->points_total >= $r->cost_points,
+                'image_url' => $r->image_url,
+                'stock' => $r->stock,
+                'has_stock' => $r->hasStock(),
+                'affordable' => $user->points_total >= $r->cost_points,
             ]);
 
         $redemptions = Redemption::with('reward')
@@ -42,17 +42,17 @@ class RewardController extends Controller
             ->take(5)
             ->get()
             ->map(fn ($rd) => [
-                'id'           => $rd->id,
-                'reward_name'  => $rd->reward->name,
+                'id' => $rd->id,
+                'reward_name' => $rd->reward->name,
                 'points_spent' => $rd->points_spent,
-                'status'       => $rd->status,
-                'created_at'   => $rd->created_at->format('d/m/Y'),
+                'status' => $rd->status,
+                'created_at' => $rd->created_at->format('d/m/Y'),
             ]);
 
         return Inertia::render('Shop', [
-            'rewards'     => $rewards,
+            'rewards' => $rewards,
             'redemptions' => $redemptions,
-            'userPoints'  => (int) $user->points_total,
+            'userPoints' => (int) $user->points_total,
         ]);
     }
 
@@ -63,8 +63,9 @@ class RewardController extends Controller
     {
         $user = $request->user();
 
+        // Vérifications rapides avant d'entrer en transaction (optimisation)
         if (! $reward->is_active) {
-            return response()->json(['message' => 'Cette récompense n\'est plus disponible.'], 422);
+            return response()->json(['message' => "Cette récompense n'est plus disponible."], 422);
         }
 
         if (! $reward->hasStock()) {
@@ -77,21 +78,40 @@ class RewardController extends Controller
             ], 422);
         }
 
-        $redemption = DB::transaction(function () use ($user, $reward) {
-            // Débit atomique des points
-            User::where('id', $user->id)
-                ->where('points_total', '>=', $reward->cost_points) // guard contre race condition
-                ->decrement('points_total', $reward->cost_points);
+        try {
+            $redemption = DB::transaction(function () use ($user, $reward) {
+                // Verrouillage de la récompense pour éviter la race condition sur le stock
+                $lockedReward = Reward::lockForUpdate()->findOrFail($reward->id);
 
-            $user->refresh();
+                if (! $lockedReward->is_active) {
+                    throw new \RuntimeException("Cette récompense n'est plus disponible.");
+                }
 
-            return Redemption::create([
-                'user_id'      => $user->id,
-                'reward_id'    => $reward->id,
-                'points_spent' => $reward->cost_points,
-                'status'       => 'pending',
-            ]);
-        });
+                if (! $lockedReward->hasStock()) {
+                    throw new \RuntimeException('Cette récompense est épuisée.');
+                }
+
+                // Débit atomique des points — on vérifie que la ligne a bien été mise à jour
+                $affected = User::where('id', $user->id)
+                    ->where('points_total', '>=', $reward->cost_points)
+                    ->decrement('points_total', $reward->cost_points);
+
+                if (! $affected) {
+                    throw new \RuntimeException('Points insuffisants.');
+                }
+
+                $user->refresh();
+
+                return Redemption::create([
+                    'user_id' => $user->id,
+                    'reward_id' => $reward->id,
+                    'points_spent' => $reward->cost_points,
+                    'status' => 'pending',
+                ]);
+            });
+        } catch (\RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
 
         $redemption->load('reward');
         $user->notify(new RewardRedemptionSubmitted($redemption));
@@ -103,17 +123,17 @@ class RewardController extends Controller
             Redemption::class,
             $redemption->id,
             'info',
-            'Demande d’échange de récompense.',
+            "Demande d'échange de récompense.",
         );
 
         if ($request->hasHeader('X-Inertia')) {
-            return redirect()->route('shop')->with('success', "Échange demandé ! Votre demande est en cours de traitement.");
+            return redirect()->route('shop')->with('success', 'Échange demandé ! Votre demande est en cours de traitement.');
         }
 
         return response()->json([
-            'message'    => 'Échange effectué avec succès.',
+            'message' => 'Échange effectué avec succès.',
             'redemption' => $redemption,
-            'new_balance'=> $user->fresh()->points_total,
+            'new_balance' => $user->points_total,
         ], 201);
     }
 
@@ -126,13 +146,13 @@ class RewardController extends Controller
         $this->authorize('create', Reward::class);
 
         $validated = $request->validate([
-            'name'        => 'required|string|max:255',
+            'name' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'category'    => 'required|in:vouchers,tickets,experiences,equipment',
+            'category' => 'required|in:vouchers,tickets,experiences,equipment',
             'cost_points' => 'required|integer|min:1',
-            'image_url'   => 'nullable|url',
-            'stock'       => 'nullable|integer|min:1',
-            'is_active'   => 'boolean',
+            'image_url' => 'nullable|url',
+            'stock' => 'nullable|integer|min:1',
+            'is_active' => 'boolean',
         ]);
 
         $reward = Reward::create($validated);
@@ -144,7 +164,7 @@ class RewardController extends Controller
             Reward::class,
             $reward->id,
             'info',
-            'Creation d une recompense.',
+            "Creation d'une recompense.",
         );
 
         return response()->json(['message' => 'Récompense créée.', 'data' => $reward], 201);
@@ -155,13 +175,13 @@ class RewardController extends Controller
         $this->authorize('update', $reward);
 
         $validated = $request->validate([
-            'name'        => 'sometimes|string|max:255',
+            'name' => 'sometimes|string|max:255',
             'description' => 'nullable|string',
-            'category'    => 'sometimes|in:vouchers,tickets,experiences,equipment',
+            'category' => 'sometimes|in:vouchers,tickets,experiences,equipment',
             'cost_points' => 'sometimes|integer|min:1',
-            'image_url'   => 'nullable|url',
-            'stock'       => 'nullable|integer|min:1',
-            'is_active'   => 'boolean',
+            'image_url' => 'nullable|url',
+            'stock' => 'nullable|integer|min:1',
+            'is_active' => 'boolean',
         ]);
 
         $reward->update($validated);
@@ -173,7 +193,7 @@ class RewardController extends Controller
             Reward::class,
             $reward->id,
             'info',
-            'Mise a jour d une recompense.',
+            "Mise a jour d'une recompense.",
         );
 
         return response()->json(['message' => 'Récompense mise à jour.', 'data' => $reward]);
@@ -240,21 +260,23 @@ class RewardController extends Controller
 
         $validated = $request->validate([
             'status' => 'required|in:approved,rejected,delivered',
-            'notes'  => 'nullable|string',
+            'notes' => 'nullable|string',
         ]);
 
-        if ($validated['status'] === 'rejected' && $redemption->status === 'pending') {
-            // Remboursement des points si rejet
-            User::where('id', $redemption->user_id)
-                ->increment('points_total', $redemption->points_spent);
-        }
+        // Remboursement des points et changement de statut dans la même transaction
+        DB::transaction(function () use ($redemption, $validated, $request) {
+            if ($validated['status'] === 'rejected' && $redemption->status === 'pending') {
+                User::where('id', $redemption->user_id)
+                    ->increment('points_total', $redemption->points_spent);
+            }
 
-        $redemption->update([
-            'status'      => $validated['status'],
-            'notes'       => $validated['notes'] ?? null,
-            'approved_by' => $request->user()->id,
-            'approved_at' => now(),
-        ]);
+            $redemption->update([
+                'status' => $validated['status'],
+                'notes' => $validated['notes'] ?? null,
+                'approved_by' => $request->user()->id,
+                'approved_at' => now(),
+            ]);
+        });
 
         $redemption->loadMissing(['user', 'reward']);
         $redemption->user?->notify(new RewardRedemptionOutcome($redemption->fresh(), $validated['status']));
@@ -263,13 +285,13 @@ class RewardController extends Controller
             'redemption_processed',
             [
                 'status' => $validated['status'],
-                'notes'  => $validated['notes'] ?? null,
+                'notes' => $validated['notes'] ?? null,
             ],
             $request->user(),
             Redemption::class,
             $redemption->id,
             $validated['status'] === 'rejected' ? 'warning' : 'info',
-            'Traitement RH d’une demande d’échange.',
+            "Traitement RH d'une demande d'échange.",
         );
 
         return response()->json(['message' => 'Demande mise à jour.', 'data' => $redemption]);

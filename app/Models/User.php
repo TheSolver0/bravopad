@@ -5,7 +5,9 @@ namespace App\Models;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
@@ -16,17 +18,17 @@ use Spatie\Permission\Traits\HasRoles;
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable, TwoFactorAuthenticatable, HasRoles;
+    use HasFactory, HasRoles, Notifiable, TwoFactorAuthenticatable;
 
     protected function casts(): array
     {
         return [
-            'email_verified_at'       => 'datetime',
-            'password'                => 'hashed',
+            'email_verified_at' => 'datetime',
+            'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
-            'birth_date'              => 'date',
-            'hired_at'                => 'date',
-            'is_automation'           => 'boolean',
+            'birth_date' => 'date',
+            'hired_at' => 'date',
+            'is_automation' => 'boolean',
         ];
     }
 
@@ -34,14 +36,14 @@ class User extends Authenticatable
     // Relations
     // -------------------------------------------------------------------------
 
-    public function department(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    public function department(): BelongsTo
     {
-        return $this->belongsTo(\App\Models\Department::class);
+        return $this->belongsTo(Department::class);
     }
 
-    public function direction(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    public function direction(): BelongsTo
     {
-        return $this->belongsTo(\App\Models\Direction::class);
+        return $this->belongsTo(Direction::class);
     }
 
     public function sentBravos()
@@ -83,5 +85,12 @@ class User extends Authenticatable
     public function isSuperAdmin(): bool
     {
         return $this->hasRole('super_admin');
+    }
+
+    protected function monthlyPointsRemaining(): Attribute
+    {
+        return Attribute::make(
+            get: fn () => max(0, ($this->monthly_points_allowance ?? 100) - ($this->monthly_points_given ?? 0)),
+        );
     }
 }

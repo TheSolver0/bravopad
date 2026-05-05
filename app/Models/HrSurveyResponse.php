@@ -13,6 +13,11 @@ class HrSurveyResponse extends Model
         'survey_id',
         'user_id',
         'option_key',
+        'answers',
+    ];
+
+    protected $casts = [
+        'answers' => 'array',
     ];
 
     public function survey()

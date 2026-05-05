@@ -77,10 +77,19 @@ Route::middleware(['auth'])->group(function () {
 
     // Admin — gestion des sondages RH (HR uniquement)
     Route::get('/admin/surveys', [EngagementController::class, 'adminSurveys'])->name('admin.surveys.index');
+    Route::get('/admin/surveys/create', [EngagementController::class, 'surveyCreatePage'])->name('admin.surveys.create.page');
     Route::post('/admin/surveys', [EngagementController::class, 'createSurvey'])->name('admin.surveys.create');
+    Route::get('/admin/surveys/{survey}/edit', [EngagementController::class, 'surveyEditPage'])->name('admin.surveys.edit.page');
+    Route::put('/admin/surveys/{survey}', [EngagementController::class, 'updateSurvey'])->name('admin.surveys.update');
+    Route::get('/admin/surveys/{survey}/preview', [EngagementController::class, 'surveyPreview'])->name('admin.surveys.preview');
     Route::patch('/admin/surveys/{survey}/toggle', [EngagementController::class, 'toggleSurvey'])->name('admin.surveys.toggle');
     Route::delete('/admin/surveys/{survey}', [EngagementController::class, 'destroySurvey'])->name('admin.surveys.destroy');
     Route::get('/admin/surveys/{survey}/export', [EngagementController::class, 'exportSurvey'])->name('admin.surveys.export');
+    Route::get('/admin/surveys/{survey}/report', [EngagementController::class, 'surveyReport'])->name('admin.surveys.report');
+
+    // Employee survey form (multi-question, token-based)
+    Route::get('/surveys/{token}', [EngagementController::class, 'showSurvey'])->name('surveys.show');
+    Route::post('/surveys/{token}/respond', [EngagementController::class, 'respondSurveyByToken'])->name('surveys.respond');
 
     Route::get('/audit', [AuditLogController::class, 'index'])->name('audit.index');
 

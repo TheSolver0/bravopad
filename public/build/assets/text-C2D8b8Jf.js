@@ -1,0 +1,1 @@
+import{t as e}from"./createLucideIcon-DjdWctSY.js";var t=e(`ArrowLeft`,[[`path`,{d:`m12 19-7-7 7-7`,key:`1l729n`}],[`path`,{d:`M19 12H5`,key:`x3x0zl`}]]),n=e(`Text`,[[`path`,{d:`M17 6.1H3`,key:`wptmhv`}],[`path`,{d:`M21 12.1H3`,key:`1j38uz`}],[`path`,{d:`M15.1 18H3`,key:`1nb16a`}]]);export{t as n,n as t};

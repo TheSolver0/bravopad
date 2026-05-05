@@ -31,8 +31,8 @@ class FeteDuTravailSurveySeeder extends Seeder
                 'id'       => 'q2',
                 'section'  => 'Section 1 : Organisation Générale',
                 'label'    => 'Comment évaluez-vous la communication déployée autour de l\'organisation des cérémonies ?',
-                'type'     => 'rating',
-                'options'  => [],
+                'type'     => 'radio',
+                'options'  => ['Très satisfaisante', 'Satisfaisante', 'Peu satisfaisante', 'Insatisfaisante'],
                 'required' => true,
             ],
             [
@@ -48,8 +48,8 @@ class FeteDuTravailSurveySeeder extends Seeder
                 'id'       => 'q3',
                 'section'  => 'Section 2 : Accueil au Club PAD',
                 'label'    => 'Quelle appréciation faites-vous de l\'accueil des participants à la cérémonie ?',
-                'type'     => 'rating',
-                'options'  => [],
+                'type'     => 'radio',
+                'options'  => ['Excellent', 'Bien', 'Passable', 'Insuffisant'],
                 'required' => true,
             ],
             [
@@ -73,8 +73,8 @@ class FeteDuTravailSurveySeeder extends Seeder
                 'id'       => 'q4b',
                 'section'  => 'Section 3 : Les Conditions d\'Installations',
                 'label'    => 'L\'accès aux places assises',
-                'type'     => 'rating',
-                'options'  => [],
+                'type'     => 'radio',
+                'options'  => ['Très fluide', 'Fluide', 'Difficile', 'Très difficile'],
                 'required' => true,
             ],
             [
@@ -106,8 +106,8 @@ class FeteDuTravailSurveySeeder extends Seeder
                 'id'       => 'q5b',
                 'section'  => 'Section 4 : Restauration',
                 'label'    => 'La nature des boissons',
-                'type'     => 'rating',
-                'options'  => [],
+                'type'     => 'radio',
+                'options'  => ['Très satisfaisante', 'Satisfaisante', 'Peu satisfaisante', 'Insatisfaisante'],
                 'required' => true,
             ],
             [
@@ -138,10 +138,10 @@ class FeteDuTravailSurveySeeder extends Seeder
             [
                 'id'       => 'q6',
                 'section'  => 'Section 5 : Animation',
-                'label'    => 'Comment évaluez-vous l\'ambiance et les animations (Sonorisation, jeux, match, etc.) ?',
-                'type'     => 'rating',
-                'options'  => [],
-                'required' => true,
+                'label'    => 'Quelles animations avez-vous particulièrement appréciées ?',
+                'type'     => 'checkbox',
+                'options'  => ['La sonorisation / musique', 'Les jeux', 'Le match sportif', 'Les discours officiels', 'L\'ambiance générale'],
+                'required' => false,
             ],
             [
                 'id'       => 'q6_comment',

@@ -3,7 +3,6 @@ import { router, usePage } from '@inertiajs/react';
 import {
   Calendar,
   CheckCircle2,
-  ChevronRight,
   ClipboardList,
   Star,
 } from 'lucide-react';
@@ -35,6 +34,7 @@ type SurveyData = {
 interface SurveyFormProps {
   survey: SurveyData;
   has_answered: boolean;
+  is_preview?: boolean;
 }
 
 type Answers = Record<string, string | string[]>;
@@ -59,7 +59,7 @@ function groupBySection(questions: SurveyQuestion[]): { section: string | null; 
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
-export default function SurveyForm({ survey, has_answered }: SurveyFormProps) {
+export default function SurveyForm({ survey, has_answered, is_preview = false }: SurveyFormProps) {
   const { props } = usePage<{ flash?: { success?: string; error?: string } }>();
   const flash = props.flash ?? {};
 
@@ -115,8 +115,8 @@ export default function SurveyForm({ survey, has_answered }: SurveyFormProps) {
     );
   };
 
-  // Thank-you screen
-  if (submitted) {
+  // Thank-you screen (skip if preview)
+  if (submitted && !is_preview) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary/5 via-white to-primary/3 flex items-center justify-center px-4">
         <div className="max-w-lg w-full text-center space-y-6 animate-in fade-in zoom-in-95 duration-500">
@@ -135,10 +135,13 @@ export default function SurveyForm({ survey, has_answered }: SurveyFormProps) {
             <p className="text-[11px] font-black uppercase tracking-widest text-on-surface-variant">Sondage complété</p>
             <p className="font-bold text-on-surface">{survey.title}</p>
           </div>
-          <a href="/dashboard"
-            className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-xl font-semibold text-sm hover:bg-primary/90 transition-colors">
-            Retour au tableau de bord <ChevronRight size={16} />
-          </a>
+          <button
+            type="button"
+            onClick={() => window.close()}
+            className="inline-flex items-center gap-2 px-6 py-3 bg-surface-container-high text-on-surface rounded-xl font-semibold text-sm hover:bg-surface-container-highest transition-colors"
+          >
+            Fermer
+          </button>
         </div>
       </div>
     );
@@ -147,6 +150,16 @@ export default function SurveyForm({ survey, has_answered }: SurveyFormProps) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-white to-primary/3 px-4 py-10">
       <div className="max-w-2xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+
+        {/* Preview banner */}
+        {is_preview && (
+          <div className="bg-amber-50 border border-amber-300 rounded-xl px-4 py-3 flex items-center gap-3 text-sm font-semibold text-amber-800">
+            <span className="shrink-0 bg-amber-200 text-amber-800 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full">
+              Aperçu
+            </span>
+            Vous visualisez ce sondage en mode prévisualisation — les réponses ne seront pas enregistrées.
+          </div>
+        )}
 
         {/* Flash error */}
         {flash.error && (
@@ -223,8 +236,9 @@ export default function SurveyForm({ survey, has_answered }: SurveyFormProps) {
           <Button
             variant="primary"
             size="lg"
-            disabled={submitting}
+            disabled={submitting || is_preview}
             onClick={submit}
+            title={is_preview ? 'Désactivé en mode aperçu' : undefined}
           >
             {submitting ? 'Envoi en cours…' : 'Soumettre mes réponses'}
           </Button>

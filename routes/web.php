@@ -87,10 +87,6 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/admin/surveys/{survey}/export', [EngagementController::class, 'exportSurvey'])->name('admin.surveys.export');
     Route::get('/admin/surveys/{survey}/report', [EngagementController::class, 'surveyReport'])->name('admin.surveys.report');
 
-    // Employee survey form (multi-question, token-based)
-    Route::get('/surveys/{token}', [EngagementController::class, 'showSurvey'])->name('surveys.show');
-    Route::post('/surveys/{token}/respond', [EngagementController::class, 'respondSurveyByToken'])->name('surveys.respond');
-
     Route::get('/audit', [AuditLogController::class, 'index'])->name('audit.index');
 
     Route::get('/team', function () {
@@ -122,6 +118,10 @@ Route::middleware(['auth'])->group(function () {
         ]);
     })->name('team');
 });
+
+// Sondages RH — accessibles sans compte (réponse libre)
+Route::get('/surveys/{token}', [EngagementController::class, 'showSurvey'])->name('surveys.show');
+Route::post('/surveys/{token}/respond', [EngagementController::class, 'respondSurveyByToken'])->name('surveys.respond');
 
 Route::get('/challenges', [ChallengeController::class, 'page'])->middleware(['auth']);
 Route::post('/challenges', [ChallengeController::class, 'store'])->middleware(['auth']);

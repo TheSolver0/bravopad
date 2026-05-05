@@ -7,13 +7,14 @@ import AuthLayout from '@/layouts/auth-layout';
 import SettingsLayout from '@/layouts/settings/layout';
 import './i18n';
 
-const appName = import.meta.env.VITE_APP_NAME || 'Bravo';
+const appName = import.meta.env.VITE_APP_NAME || 'KudosPAD';
 
 createInertiaApp({
     title: (title) => (title ? `${title} - ${appName}` : appName),
     layout: (name) => {
         switch (true) {
             case name === 'welcome':
+            case name === 'SurveyForm':
                 return null;
             case name.startsWith('auth/'):
                 return AuthLayout;

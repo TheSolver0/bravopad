@@ -7,8 +7,10 @@ import {
   ClipboardCheck,
   Copy,
   Download,
+  Eye,
   Link2,
   MessageSquare,
+  Pencil,
   Plus,
   ToggleLeft,
   ToggleRight,
@@ -34,6 +36,7 @@ type Survey = {
   id: number;
   title: string;
   description?: string | null;
+  cover_image?: string | null;
   question?: string | null;
   options?: { key: string; label: string }[] | null;
   questions?: SurveyQuestion[] | null;
@@ -251,6 +254,16 @@ function SurveyRow({
 
           {isMulti && (
             <>
+              <a href={`/admin/surveys/${survey.id}/preview`}
+                className="p-2 rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors"
+                title="Aperçu">
+                <Eye size={15} />
+              </a>
+              <a href={`/admin/surveys/${survey.id}/edit`}
+                className="p-2 rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors"
+                title="Modifier">
+                <Pencil size={15} />
+              </a>
               <a href={`/admin/surveys/${survey.id}/report`}
                 className="p-2 rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors"
                 title="Voir le rapport">
@@ -294,6 +307,18 @@ function SurveyRow({
           )}
         </div>
       </div>
+
+      {/* Cover image thumbnail */}
+      {expanded && survey.cover_image && (
+        <div className="px-5 pb-0 pt-3 border-t border-surface-container-high animate-in fade-in duration-200">
+          <p className="text-[11px] font-black uppercase tracking-widest text-on-surface-variant mb-2">Photo de couverture</p>
+          <img
+            src={survey.cover_image}
+            alt="Couverture"
+            className="w-full h-32 object-cover rounded-xl border border-surface-container-high"
+          />
+        </div>
+      )}
 
       {/* Share link banner */}
       {expanded && isMulti && survey.token && (

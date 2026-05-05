@@ -12,6 +12,7 @@ class HrSurveyResponse extends Model
     protected $fillable = [
         'survey_id',
         'user_id',
+        'session_id',
         'option_key',
         'answers',
     ];

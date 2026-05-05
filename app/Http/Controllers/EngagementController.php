@@ -400,9 +400,15 @@ class EngagementController extends Controller
         }
 
         $user = $request->user();
-        $hasAnswered = HrSurveyResponse::where('survey_id', $survey->id)
-            ->where('user_id', $user->id)
-            ->exists();
+        $sessionKey = "survey_responded_{$survey->id}";
+
+        if ($user) {
+            $hasAnswered = HrSurveyResponse::where('survey_id', $survey->id)
+                ->where('user_id', $user->id)
+                ->exists();
+        } else {
+            $hasAnswered = $request->session()->has($sessionKey);
+        }
 
         return Inertia::render('SurveyForm', [
             'survey' => [
@@ -431,6 +437,21 @@ class EngagementController extends Controller
         ]);
 
         $answers = $validated['answers'];
+        $user = $request->user();
+        $sessionKey = "survey_responded_{$survey->id}";
+
+        // Check duplicate by user_id (authenticated) or session (anonymous)
+        if ($user) {
+            $alreadyAnswered = HrSurveyResponse::where('survey_id', $survey->id)
+                ->where('user_id', $user->id)
+                ->exists();
+        } else {
+            $alreadyAnswered = $request->session()->has($sessionKey);
+        }
+
+        if ($alreadyAnswered) {
+            return back()->with('error', 'Vous avez déjà répondu à ce sondage.');
+        }
 
         // Validate required questions are answered
         foreach (($survey->questions ?? []) as $q) {
@@ -439,20 +460,32 @@ class EngagementController extends Controller
             }
         }
 
-        HrSurveyResponse::query()->updateOrCreate(
-            ['survey_id' => $survey->id, 'user_id' => $request->user()->id],
-            ['answers' => $answers, 'option_key' => null]
-        );
+        $sessionId = $user ? null : $request->session()->getId();
 
-        AuditLogger::log(
-            'hr_survey_answered',
-            ['survey_id' => $survey->id, 'token' => $token],
-            $request->user(),
-            HrSurvey::class,
-            $survey->id,
-            'info',
-            'Réponse à un sondage multi-questions.',
-        );
+        HrSurveyResponse::create([
+            'survey_id'  => $survey->id,
+            'user_id'    => $user?->id,
+            'session_id' => $sessionId,
+            'answers'    => $answers,
+            'option_key' => null,
+        ]);
+
+        // Mark in session for anonymous users
+        if (! $user) {
+            $request->session()->put($sessionKey, true);
+        }
+
+        if ($user) {
+            AuditLogger::log(
+                'hr_survey_answered',
+                ['survey_id' => $survey->id, 'token' => $token],
+                $user,
+                HrSurvey::class,
+                $survey->id,
+                'info',
+                'Réponse à un sondage multi-questions.',
+            );
+        }
 
         return back()->with('success', 'Merci pour votre participation !');
     }

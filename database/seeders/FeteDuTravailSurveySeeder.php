@@ -11,28 +11,45 @@ class FeteDuTravailSurveySeeder extends Seeder
     {
         $questions = [
             // ── Identification ────────────────────────────────────────────────
+            // [
+            //     'id'        => 'nom',
+            //     'section'   => 'Vos Informations',
+            //     'label'     => 'Votre nom',
+            //     'type'      => 'text',
+            //     'options'   => [],
+            //     'required'  => true,
+            //     'multiline' => false,
+            // ],
+            // [
+            //     'id'        => 'prenom',
+            //     'section'   => 'Vos Informations',
+            //     'label'     => 'Votre prénom',
+            //     'type'      => 'text',
+            //     'options'   => [],
+            //     'required'  => true,
+            //     'multiline' => false,
+            // ],
+            // [
+            //     'id'        => 'matricule',
+            //     'section'   => 'Vos Informations',
+            //     'label'     => 'Votre matricule (facultatif)',
+            //     'type'      => 'text',
+            //     'options'   => [],
+            //     'required'  => false,
+            //     'multiline' => false,
+            // ],
             [
-                'id'        => 'nom',
-                'section'   => 'Vos Informations',
-                'label'     => 'Votre nom',
-                'type'      => 'text',
-                'options'   => [],
-                'required'  => true,
-                'multiline' => false,
+                'id'       => 'sexe',
+                'section'  => 'Vos Informations',
+                'label'    => 'Quel est votre sexe ? (facultatif)',
+                'type'     => 'radio',
+                'options'  => ['Masculin', 'Féminin','Préfère ne pas répondre'],
+                'required' => false,
             ],
             [
-                'id'        => 'prenom',
+                'id'        => 'experience',
                 'section'   => 'Vos Informations',
-                'label'     => 'Votre prénom',
-                'type'      => 'text',
-                'options'   => [],
-                'required'  => true,
-                'multiline' => false,
-            ],
-            [
-                'id'        => 'matricule',
-                'section'   => 'Vos Informations',
-                'label'     => 'Votre matricule (facultatif)',
+                'label'     => 'Votre expérience professionnelle (facultatif)',
                 'type'      => 'text',
                 'options'   => [],
                 'required'  => false,
@@ -212,7 +229,7 @@ class FeteDuTravailSurveySeeder extends Seeder
         HrSurvey::where('title', 'like', '%140e Fête du Travail%')->delete();
 
         HrSurvey::create([
-            'title'       => 'Perception de l\'organisation de la 140e Fête du Travail (1er Mai 2026)',
+            'title'       => 'Perception de l\'organisation de la 140e Fête du Travail (1er Mai 2026) - Sondage Anonyme',
             'description' => 'Dans le cadre de l\'organisation des évènements par le groupe PAD. Vous êtes priés de bien vouloir renseigner ce questionnaire relatif à la célébration de la fête du travail édition 2026.',
             'question'    => 'Questionnaire 140e Fête du Travail',
             'cover_image' => '/assets/images/surveys/fete_travail.jpeg',

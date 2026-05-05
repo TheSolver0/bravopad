@@ -11,50 +11,23 @@ class FeteDuTravailSurveySeeder extends Seeder
     {
         $questions = [
             // ── Identification ────────────────────────────────────────────────
-            // [
-            //     'id'        => 'nom',
-            //     'section'   => 'Vos Informations',
-            //     'label'     => 'Votre nom',
-            //     'type'      => 'text',
-            //     'options'   => [],
-            //     'required'  => true,
-            //     'multiline' => false,
-            // ],
-            // [
-            //     'id'        => 'prenom',
-            //     'section'   => 'Vos Informations',
-            //     'label'     => 'Votre prénom',
-            //     'type'      => 'text',
-            //     'options'   => [],
-            //     'required'  => true,
-            //     'multiline' => false,
-            // ],
-            // [
-            //     'id'        => 'matricule',
-            //     'section'   => 'Vos Informations',
-            //     'label'     => 'Votre matricule (facultatif)',
-            //     'type'      => 'text',
-            //     'options'   => [],
-            //     'required'  => false,
-            //     'multiline' => false,
-            // ],
             [
                 'id'       => 'sexe',
                 'section'  => 'Vos Informations',
                 'label'    => 'Quel est votre sexe ? (facultatif)',
                 'type'     => 'radio',
-                'options'  => ['Masculin', 'Féminin','Préfère ne pas répondre'],
+                'options'  => ['Masculin', 'Féminin', 'Préfère ne pas répondre'],
                 'required' => false,
             ],
             [
-                'id'        => 'experience',
-                'section'   => 'Vos Informations',
-                'label'     => 'Votre expérience professionnelle (facultatif)',
-                'type'      => 'text',
-                'options'   => [],
-                'required'  => false,
-                'multiline' => false,
+                'id'       => 'experience',
+                'section'  => 'Vos Informations',
+                'label'    => 'Votre expérience professionnelle (facultatif)',
+                'type'     => 'radio',
+                'options'  => ['Moins d\'un an', 'De 1 à 5 ans', 'De 5 à 10 ans', 'Plus de 10 ans'],
+                'required' => false,
             ],
+
             // ── Section 1 : Organisation Générale ────────────────────────────
             [
                 'id'       => 'q1',
@@ -76,8 +49,10 @@ class FeteDuTravailSurveySeeder extends Seeder
                 'id'       => 'q2',
                 'section'  => 'Section 1 : Organisation Générale',
                 'label'    => 'Les informations communiquées avant l\'événement (date, programme, lieu…) étaient-elles suffisantes ?',
-                'type'     => 'radio',
-                'options'  => ['Tout à fait suffisantes', 'Suffisantes', 'Insuffisantes', 'Je n\'ai reçu aucune information'],
+                // Tout à fait suffisantes → Suffisantes → Insuffisantes → Aucune info
+                // Remplacé par étoiles (1 = Aucune info reçue … 5 = Tout à fait suffisantes)
+                'type'     => 'rating',
+                'options'  => [],
                 'required' => true,
             ],
             [
@@ -88,13 +63,15 @@ class FeteDuTravailSurveySeeder extends Seeder
                 'options'  => [],
                 'required' => false,
             ],
+
             // ── Section 2 : Accueil au Club PAD ──────────────────────────────
             [
                 'id'       => 'q3',
                 'section'  => 'Section 2 : Accueil au Club PAD',
                 'label'    => 'Comment évaluez-vous l\'accueil qui vous a été réservé à votre arrivée au Club PAD ?',
-                'type'     => 'radio',
-                'options'  => ['Excellent', 'Bien', 'Passable', 'Insuffisant'],
+                // Excellent → Bien → Passable → Insuffisant  →  étoiles
+                'type'     => 'rating',
+                'options'  => [],
                 'required' => true,
             ],
             [
@@ -105,7 +82,8 @@ class FeteDuTravailSurveySeeder extends Seeder
                 'options'  => [],
                 'required' => false,
             ],
-            // ── Section 3 : Les Conditions d'Installations ───────────────────
+
+            // ── Section 3 : Les Conditions d'Installation ───────────────────
             [
                 'id'       => 'q4a',
                 'section'  => 'Section 3 : Les Conditions d\'Installation',
@@ -118,8 +96,9 @@ class FeteDuTravailSurveySeeder extends Seeder
                 'id'       => 'q4b',
                 'section'  => 'Section 3 : Les Conditions d\'Installation',
                 'label'    => 'Avez-vous pu trouver une place assise facilement ?',
-                'type'     => 'radio',
-                'options'  => ['Très facilement', 'Facilement', 'Difficilement', 'Je n\'ai pas trouvé de place'],
+                // Très facilement → Facilement → Difficilement → Pas trouvé  →  étoiles
+                'type'     => 'rating',
+                'options'  => [],
                 'required' => true,
             ],
             [
@@ -138,6 +117,7 @@ class FeteDuTravailSurveySeeder extends Seeder
                 'options'  => [],
                 'required' => false,
             ],
+
             // ── Section 4 : Restauration ─────────────────────────────────────
             [
                 'id'       => 'q5a',
@@ -151,8 +131,9 @@ class FeteDuTravailSurveySeeder extends Seeder
                 'id'       => 'q5b',
                 'section'  => 'Section 4 : Restauration',
                 'label'    => 'Les boissons proposées correspondaient-elles à vos attentes ?',
-                'type'     => 'radio',
-                'options'  => ['Tout à fait', 'Plutôt oui', 'Plutôt non', 'Pas du tout'],
+                // Tout à fait → Plutôt oui → Plutôt non → Pas du tout  →  étoiles
+                'type'     => 'rating',
+                'options'  => [],
                 'required' => true,
             ],
             [
@@ -179,13 +160,20 @@ class FeteDuTravailSurveySeeder extends Seeder
                 'options'  => [],
                 'required' => false,
             ],
+
             // ── Section 5 : Animation ────────────────────────────────────────
             [
                 'id'       => 'q6',
                 'section'  => 'Section 5 : Animation',
                 'label'    => 'Parmi les activités et animations proposées, lesquelles avez-vous le plus appréciées ? (Plusieurs réponses possibles)',
                 'type'     => 'checkbox',
-                'options'  => ['La sonorisation et la musique', 'Les jeux et activités ludiques', 'Le match sportif', 'Les discours et allocutions', 'L\'ambiance générale'],
+                'options'  => [
+                    'La sonorisation et la musique',
+                    'Les jeux et activités ludiques',
+                    'Le match sportif',
+                    'Les discours et allocutions',
+                    'L\'ambiance générale',
+                ],
                 'required' => false,
             ],
             [
@@ -204,7 +192,8 @@ class FeteDuTravailSurveySeeder extends Seeder
                 'options'  => [],
                 'required' => false,
             ],
-            // ── Section 6 : Appréciation Globale ────────────────────────────
+
+            // ── Section 6 : Appréciation Globale ─────────────────────────────
             [
                 'id'       => 'q7_rating',
                 'section'  => 'Section 6 : Appréciation Globale',

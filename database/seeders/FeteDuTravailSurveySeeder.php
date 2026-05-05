@@ -342,8 +342,9 @@ class FeteDuTravailSurveySeeder extends Seeder
         HrSurvey::where('title', 'like', '%140e Fête du Travail%')->delete();
 
         HrSurvey::create([
-            'title'       => 'Perception de l\'organisation de la 140e Fête du Travail (1er Mai 2026) - Sondage Anonyme',
-            'description' => 'La Division de la Qualité et du Développement Durable (DQDD), vous invite à renseigner le questionnaire ci-après, dans le cadre de l\'évaluation de l\'organisation des célébrations du 1er Mai 2026 par le PAD',
+            'title'       => 'La Division de la Qualité et du Développement Durable (DQDD), vous invite à renseigner le questionnaire ci-après, dans le cadre de l\'évaluation de l\'organisation des célébrations du 1er Mai 2026 par le PAD - Sondage Anonyme',
+            'description' => '',
+            // 'description' => 'La Division de la Qualité et du Développement Durable (DQDD), vous invite à renseigner le questionnaire ci-après, dans le cadre de l\'évaluation de l\'organisation des célébrations du 1er Mai 2026 par le PAD',
             'question'    => 'Questionnaire 140e Fête du Travail',
             'cover_image' => '/assets/images/surveys/fete_travail.jpeg',
             'options'     => [
@@ -354,8 +355,10 @@ class FeteDuTravailSurveySeeder extends Seeder
                         'Perception of the organization of the 140th Labor Day celebration (May 1st, 2026) - Anonymous Survey'
                     ),
                     'description' => $tr(
-                        'La Division de la Qualité et du Développement Durable (DQDD), vous invite à renseigner le questionnaire ci-après, dans le cadre de l\'évaluation de l\'organisation des célébrations du 1er Mai 2026 par le PAD',
-                        'The Quality and Sustainable Development Division (DQDD) invites you to complete the questionnaire below, as part of the evaluation of the organization of the May 1st, 2026 celebrations by the PAD'
+                        '',
+                        // 'La Division de la Qualité et du Développement Durable (DQDD), vous invite à renseigner le questionnaire ci-après, dans le cadre de l\'évaluation de l\'organisation des célébrations du 1er Mai 2026 par le PAD',
+                        ''
+                        // 'The Quality and Sustainable Development Division (DQDD) invites you to complete the questionnaire below, as part of the evaluation of the organization of the May 1st, 2026 celebrations by the PAD'
                     ),
                     'question' => $tr('Questionnaire 140e Fête du Travail', '140th Labor Day Questionnaire'),
                     'initiative_by' => $tr(

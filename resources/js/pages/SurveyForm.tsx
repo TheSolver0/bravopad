@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { router, usePage } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
 import {
   Calendar,
   CheckCircle2,
@@ -7,6 +7,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Star,
+  Building2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -30,6 +31,7 @@ type SurveyData = {
   description?: string | null;
   cover_image?: string | null;
   questions: SurveyQuestion[];
+  options?: Record<string, string> | null;
   token: string;
   ends_at?: string | null;
 };
@@ -221,6 +223,11 @@ export default function SurveyForm({ survey, has_answered, is_preview = false }:
               Vos réponses ont bien été enregistrées. Le Groupe PAD vous remercie de votre retour.
             </p>
           </div>
+          <img
+            src="/assets/images/surveys/fin_survey.jpeg"
+            alt="Fin du sondage"
+            className="w-full rounded-2xl object-cover shadow-md"
+          />
           <div className="bg-white rounded-2xl border border-surface-container-high p-5 text-left space-y-1">
             <p className="text-[11px] font-black uppercase tracking-widest text-on-surface-variant">Sondage complété</p>
             <p className="font-bold text-on-surface">{survey.title}</p>
@@ -240,6 +247,19 @@ export default function SurveyForm({ survey, has_answered, is_preview = false }:
   const currentSection = sections[currentPage];
 
   return (
+    <>
+    <Head>
+      <title>{survey.title}</title>
+      <meta name="description" content={survey.description ?? ''} />
+      <meta property="og:type" content="website" />
+      <meta property="og:title" content={survey.title} />
+      <meta property="og:description" content={survey.description ?? ''} />
+      {survey.cover_image && <meta property="og:image" content={survey.cover_image} />}
+      <meta name="twitter:card" content="summary_large_image" />
+      <meta name="twitter:title" content={survey.title} />
+      <meta name="twitter:description" content={survey.description ?? ''} />
+      {survey.cover_image && <meta name="twitter:image" content={survey.cover_image} />}
+    </Head>
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-white to-primary/3 px-4 py-10">
       <div className="max-w-2xl mx-auto space-y-6">
 
@@ -283,6 +303,12 @@ export default function SurveyForm({ survey, has_answered, is_preview = false }:
                 Clôture le {new Date(survey.ends_at).toLocaleDateString('fr-FR', {
                   day: 'numeric', month: 'long', year: 'numeric',
                 })}
+              </div>
+            )}
+            {survey.options?.initiative_by && (
+              <div className="flex items-center gap-1.5 mt-4 pt-4 border-t border-white/20 text-white/90 text-xs font-semibold">
+                <Building2 size={13} className="shrink-0 opacity-80" />
+                <span>Une initiative de la <span className="font-black">{survey.options.initiative_by}</span></span>
               </div>
             )}
           </div>
@@ -383,6 +409,7 @@ export default function SurveyForm({ survey, has_answered, is_preview = false }:
 
       </div>
     </div>
+    </>
   );
 }
 

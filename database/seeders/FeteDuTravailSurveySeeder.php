@@ -216,7 +216,7 @@ class FeteDuTravailSurveySeeder extends Seeder
             'description' => 'Dans le cadre de l\'organisation des évènements par le groupe PAD. Vous êtes priés de bien vouloir renseigner ce questionnaire relatif à la célébration de la fête du travail édition 2026.',
             'question'    => 'Questionnaire 140e Fête du Travail',
             'cover_image' => '/assets/images/surveys/fete_travail.jpeg',
-            'options'     => [],
+            'options'     => ['initiative_by' => 'Division de la Qualité et du Développement Durable'],
             'questions'   => $questions,
             'is_active'   => true,
             'starts_at'   => now(),

@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('hr_surveys', function (Blueprint $table) {
             $table->id();
-            $table->string('title');
+            $table->text('title');
             $table->text('question');
             $table->json('options');
             $table->boolean('is_active')->default(true);

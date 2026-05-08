@@ -95,7 +95,7 @@ export default function AdminSurveyReport({
   nps,
 }: AdminSurveyReportProps) {
   const shareUrl = survey.token
-    ? `${window.location.origin}/surveys/${survey.token}`
+    ? (typeof window !== 'undefined' ? `${window.location.origin}/surveys/${survey.token}` : `/surveys/${survey.token}`)
     : null;
 
   const engagementRate = total_users > 0

@@ -26,10 +26,10 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
 
         @if($surveyOg)
-            <title>{{ $surveyOg['title'] }} — {{ config('app.name', 'KudosPAD') }}</title>
+            <title>{{ $surveyOg['title'] }} — {{ config('app.name', 'BravoPAD') }}</title>
             <meta name="description" content="{{ $surveyOg['description'] }}">
             <meta property="og:type"        content="website">
-            <meta property="og:site_name"   content="{{ config('app.name', 'KudosPAD') }}">
+            <meta property="og:site_name"   content="{{ config('app.name', 'BravoPAD') }}">
             <meta property="og:url"         content="{{ $surveyOg['url'] }}">
             <meta property="og:title"       content="{{ $surveyOg['title'] }}">
             <meta property="og:description" content="{{ $surveyOg['description'] }}">
@@ -81,7 +81,7 @@
         @viteReactRefresh
         @vite(['resources/css/app.css', 'resources/js/app.tsx'])
         <x-inertia::head>
-            <title>KudosPAD</title>
+            <title>BravoPAD</title>
             {{-- <title>{{ config('app.name', 'Laravel') }}</title> --}}
         </x-inertia::head>
     </head>

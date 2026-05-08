@@ -13,6 +13,7 @@ import {
   CartesianGrid,
 } from 'recharts';
 import {
+  AlertCircle,
   ArrowLeft,
   BarChart3,
   Calendar,
@@ -32,13 +33,17 @@ import { Card } from '@/components/ui/card';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+type Chi2 = { chi_square: number; df: number; p_value: number; significant: boolean } | null;
+
 type RadioReport = {
   id: string; label: string; type: 'radio'; section: string | null;
   options: string[]; counts: Record<string, number>; answered: number;
+  chi2?: Chi2;
 };
 type CheckboxReport = {
   id: string; label: string; type: 'checkbox'; section: string | null;
   options: string[]; counts: Record<string, number>; answered: number;
+  chi2?: Chi2;
 };
 type TextReport = {
   id: string; label: string; type: 'text'; section: string | null;
@@ -46,9 +51,16 @@ type TextReport = {
 };
 type RatingReport = {
   id: string; label: string; type: 'rating'; section: string | null;
-  average: number | null; distribution: Record<string, number>; answered: number;
+  average: number | null; median: number | null; std_dev: number | null;
+  mode: number | null; ci95: { lower: number; upper: number } | null;
+  distribution: Record<string, number>; answered: number;
 };
 type QuestionReport = RadioReport | CheckboxReport | TextReport | RatingReport;
+
+type NpsData = {
+  score: number; promoters: number; passives: number;
+  detractors: number; total: number; label: string;
+} | null;
 
 interface SurveyInfo {
   id: number; title: string; description?: string | null;
@@ -62,6 +74,7 @@ interface AdminSurveyReportProps {
   total_users: number;
   questions_report: QuestionReport[];
   responses_over_time: { date: string; count: number }[];
+  nps: NpsData;
 }
 
 // ── Colours ───────────────────────────────────────────────────────────────────
@@ -79,6 +92,7 @@ export default function AdminSurveyReport({
   total_users,
   questions_report,
   responses_over_time,
+  nps,
 }: AdminSurveyReportProps) {
   const shareUrl = survey.token
     ? `${window.location.origin}/surveys/${survey.token}`
@@ -96,6 +110,11 @@ export default function AdminSurveyReport({
         answeredQuestions.reduce((sum, q) => sum + (q.answered / total_responses) * 100, 0) /
         answeredQuestions.length,
       )
+    : null;
+
+  const ratingQuestions = questions_report.filter((q): q is RatingReport => q.type === 'rating');
+  const avgRating = ratingQuestions.length > 0
+    ? (ratingQuestions.reduce((s, q) => s + (q.average ?? 0), 0) / ratingQuestions.filter((q) => q.average !== null).length)
     : null;
 
   const formattedTimeline = responses_over_time.map((r) => ({
@@ -127,7 +146,7 @@ export default function AdminSurveyReport({
         </a>
       </div>
 
-      {/* ── Hero header ── */}
+      {/* Hero header */}
       <div className="bg-primary rounded-2xl px-6 py-6 text-white shadow-lg shadow-primary/20 space-y-4">
         <div className="flex items-center gap-2 text-white/70 text-xs font-bold uppercase tracking-wider">
           <BarChart3 size={14} /> Rapport de sondage
@@ -138,8 +157,6 @@ export default function AdminSurveyReport({
             <p className="text-white/80 text-sm mt-1">{survey.description}</p>
           )}
         </div>
-
-        {/* KPI pills */}
         <div className="flex flex-wrap gap-3 pt-1">
           <StatPill icon={<CheckCircle2 size={14} />}
             value={survey.is_active ? 'Actif' : 'Clôturé'}
@@ -155,14 +172,9 @@ export default function AdminSurveyReport({
         </div>
       </div>
 
-      {/* ── KPI cards ── */}
+      {/* KPI cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <KpiCard
-          icon={<Users size={20} />}
-          value={total_responses}
-          label="Participants"
-          color="blue"
-        />
+        <KpiCard icon={<Users size={20} />} value={total_responses} label="Participants" color="blue" />
         <KpiCard
           icon={<TrendingUp size={20} />}
           value={`${engagementRate}%`}
@@ -178,16 +190,31 @@ export default function AdminSurveyReport({
           sub="des questions répondues"
           color="violet"
         />
-        <KpiCard
-          icon={<MessageSquare size={20} />}
-          value={questions_report.length}
-          label="Questions"
-          sub={`${answeredQuestions.length} avec résultats`}
-          color="amber"
-        />
+        {avgRating !== null ? (
+          <KpiCard
+            icon={<Star size={20} />}
+            value={`${avgRating.toFixed(1)} / 5`}
+            label="Note moyenne"
+            sub={`sur ${ratingQuestions.length} question${ratingQuestions.length !== 1 ? 's' : ''} notées`}
+            color="amber"
+          />
+        ) : (
+          <KpiCard
+            icon={<MessageSquare size={20} />}
+            value={questions_report.length}
+            label="Questions"
+            sub={`${answeredQuestions.length} avec résultats`}
+            color="amber"
+          />
+        )}
       </div>
 
-      {/* ── Response timeline ── */}
+      {/* NPS widget */}
+      {nps && total_responses >= 3 && (
+        <NpsWidget nps={nps} />
+      )}
+
+      {/* Timeline */}
       {formattedTimeline.length > 0 && (
         <Card className="bg-white border-none shadow-md p-6 space-y-4">
           <div className="flex items-center gap-2">
@@ -206,43 +233,26 @@ export default function AdminSurveyReport({
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                <XAxis
-                  dataKey="date"
-                  tick={{ fontSize: 11, fill: '#94a3b8' }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <YAxis
-                  allowDecimals={false}
-                  tick={{ fontSize: 11, fill: '#94a3b8' }}
-                  axisLine={false}
-                  tickLine={false}
-                />
+                <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                 <Tooltip
                   contentStyle={{ borderRadius: 12, fontSize: 12, border: 'none', boxShadow: '0 4px 24px rgba(0,0,0,.10)' }}
                   formatter={(v) => { const n = Number(v ?? 0); return [`${n} réponse${n !== 1 ? 's' : ''}`, '']; }}
                 />
-                <Area
-                  type="monotone"
-                  dataKey="Réponses"
-                  stroke="#4f46e5"
-                  strokeWidth={2.5}
-                  fill="url(#repGradient)"
-                  dot={{ r: 3, fill: '#4f46e5', strokeWidth: 0 }}
-                  activeDot={{ r: 5 }}
-                />
+                <Area type="monotone" dataKey="Réponses" stroke="#4f46e5" strokeWidth={2.5}
+                  fill="url(#repGradient)" dot={{ r: 3, fill: '#4f46e5', strokeWidth: 0 }} activeDot={{ r: 5 }} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </Card>
       )}
 
-      {/* ── Completion rates summary ── */}
+      {/* Completion rates summary */}
       {total_responses > 0 && answeredQuestions.length > 0 && (
         <SummarySection questions={answeredQuestions} total={total_responses} />
       )}
 
-      {/* ── Per-question cards ── */}
+      {/* Per-question cards */}
       {questions_report.map((q, idx) => (
         <QuestionReportCard key={q.id} question={q} index={idx + 1} totalRespondents={total_responses} />
       ))}
@@ -262,6 +272,66 @@ export default function AdminSurveyReport({
   );
 }
 
+// ── NPS widget ────────────────────────────────────────────────────────────────
+
+function NpsWidget({ nps }: { nps: NonNullable<NpsData> }) {
+  const scoreColor = nps.score >= 50 ? 'text-emerald-600' : nps.score >= 20 ? 'text-blue-600' : nps.score >= 0 ? 'text-amber-600' : 'text-red-600';
+  const scoreBg    = nps.score >= 50 ? 'bg-emerald-50 border-emerald-200' : nps.score >= 20 ? 'bg-blue-50 border-blue-200' : nps.score >= 0 ? 'bg-amber-50 border-amber-200' : 'bg-red-50 border-red-200';
+
+  const pPct = nps.total > 0 ? Math.round((nps.promoters  / nps.total) * 100) : 0;
+  const dPct = nps.total > 0 ? Math.round((nps.detractors / nps.total) * 100) : 0;
+  const aPct = 100 - pPct - dPct;
+
+  return (
+    <Card className="bg-white border-none shadow-md p-6 space-y-5">
+      <div className="flex items-center gap-2">
+        <Star size={16} className="text-primary" />
+        <h2 className="text-sm font-black uppercase tracking-widest text-on-surface-variant">
+          eNPS — Score d'ambassadeur employé
+        </h2>
+      </div>
+
+      <div className="flex flex-col md:flex-row gap-6 items-center">
+        <div className={`flex flex-col items-center justify-center w-32 h-32 rounded-2xl border-2 shrink-0 ${scoreBg}`}>
+          <p className={`text-4xl font-extrabold ${scoreColor}`}>{nps.score > 0 ? '+' : ''}{nps.score}</p>
+          <p className={`text-xs font-bold ${scoreColor} mt-1`}>{nps.label}</p>
+        </div>
+
+        <div className="flex-1 space-y-3 w-full">
+          <div className="flex rounded-full overflow-hidden h-4 w-full">
+            <div className="bg-emerald-400 transition-all" style={{ width: `${pPct}%` }} title={`Promoteurs: ${pPct}%`} />
+            <div className="bg-slate-300 transition-all" style={{ width: `${aPct}%` }} title={`Passifs: ${aPct}%`} />
+            <div className="bg-red-400 transition-all" style={{ width: `${dPct}%` }} title={`Détracteurs: ${dPct}%`} />
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <NpsGroup label="Promoteurs (5★)" count={nps.promoters} pct={pPct} color="emerald" />
+            <NpsGroup label="Passifs (4★)"    count={nps.passives}  pct={aPct} color="slate" />
+            <NpsGroup label="Détracteurs (1-3★)" count={nps.detractors} pct={dPct} color="red" />
+          </div>
+          <p className="text-[11px] text-on-surface-variant/60">
+            eNPS = % Promoteurs − % Détracteurs · Basé sur {nps.total} réponses à la question de notation
+          </p>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function NpsGroup({ label, count, pct, color }: { label: string; count: number; pct: number; color: string }) {
+  const cls: Record<string, string> = {
+    emerald: 'text-emerald-700 bg-emerald-50',
+    slate:   'text-slate-600 bg-slate-50',
+    red:     'text-red-700 bg-red-50',
+  };
+  return (
+    <div className={`rounded-xl px-3 py-2 text-center ${cls[color] ?? cls.slate}`}>
+      <p className="text-lg font-extrabold">{count}</p>
+      <p className="text-[10px] font-bold">{pct}%</p>
+      <p className="text-[9px] font-medium opacity-70 leading-tight mt-0.5">{label}</p>
+    </div>
+  );
+}
+
 // ── Stat pill ─────────────────────────────────────────────────────────────────
 
 function StatPill({ icon, value, highlight }: { icon: React.ReactNode; value: string; highlight?: boolean }) {
@@ -275,10 +345,10 @@ function StatPill({ icon, value, highlight }: { icon: React.ReactNode; value: st
 // ── KPI card ──────────────────────────────────────────────────────────────────
 
 const kpiColors: Record<string, string> = {
-  blue:   'bg-blue-50 text-blue-600',
+  blue:    'bg-blue-50 text-blue-600',
   emerald: 'bg-emerald-50 text-emerald-600',
-  violet: 'bg-violet-50 text-violet-600',
-  amber:  'bg-amber-50 text-amber-600',
+  violet:  'bg-violet-50 text-violet-600',
+  amber:   'bg-amber-50 text-amber-600',
 };
 
 function KpiCard({
@@ -315,8 +385,8 @@ function SummarySection({
   total: number;
 }) {
   const items = questions.map((q) => ({
-    label: q.label.length > 50 ? q.label.slice(0, 50) + '…' : q.label,
-    rate:  total > 0 ? Math.round((q.answered / total) * 100) : 0,
+    label:   q.label.length > 55 ? q.label.slice(0, 55) + '…' : q.label,
+    rate:    total > 0 ? Math.round((q.answered / total) * 100) : 0,
     answered: q.answered,
   }));
 
@@ -338,10 +408,7 @@ function SummarySection({
               </span>
             </div>
             <div className="h-2 rounded-full bg-surface-container-high overflow-hidden">
-              <div
-                className="h-full rounded-full bg-primary transition-all duration-700"
-                style={{ width: `${item.rate}%` }}
-              />
+              <div className="h-full rounded-full bg-primary transition-all duration-700" style={{ width: `${item.rate}%` }} />
             </div>
           </div>
         ))}
@@ -353,9 +420,7 @@ function SummarySection({
 // ── Per-question card ─────────────────────────────────────────────────────────
 
 function QuestionReportCard({
-  question,
-  index,
-  totalRespondents,
+  question, index, totalRespondents,
 }: {
   question: QuestionReport;
   index: number;
@@ -381,12 +446,8 @@ function QuestionReportCard({
         {(question.type === 'radio' || question.type === 'checkbox') && (
           <RadioCheckboxReport question={question} totalRespondents={totalRespondents} />
         )}
-        {question.type === 'text' && (
-          <TextResponseReport question={question} />
-        )}
-        {question.type === 'rating' && (
-          <RatingResponseReport question={question} totalRespondents={totalRespondents} />
-        )}
+        {question.type === 'text' && <TextResponseReport question={question} />}
+        {question.type === 'rating' && <RatingResponseReport question={question} totalRespondents={totalRespondents} />}
       </div>
     </Card>
   );
@@ -395,8 +456,7 @@ function QuestionReportCard({
 // ── Radio / Checkbox report ───────────────────────────────────────────────────
 
 function RadioCheckboxReport({
-  question,
-  totalRespondents,
+  question, totalRespondents,
 }: {
   question: RadioReport | CheckboxReport;
   totalRespondents: number;
@@ -412,26 +472,23 @@ function RadioCheckboxReport({
 
   return (
     <div className="space-y-5">
-      <p className="text-xs text-on-surface-variant font-medium">
-        {answered} réponse{answered !== 1 ? 's' : ''}
-        {totalRespondents > 0 && ` · ${Math.round((answered / totalRespondents) * 100)}% de participation`}
-      </p>
+      <div className="flex items-center gap-3 flex-wrap">
+        <p className="text-xs text-on-surface-variant font-medium">
+          {answered} réponse{answered !== 1 ? 's' : ''}
+          {totalRespondents > 0 && ` · ${Math.round((answered / totalRespondents) * 100)}% de participation`}
+        </p>
+        {question.chi2 && (
+          <Chi2Badge chi2={question.chi2} />
+        )}
+      </div>
 
       {hasData ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
           <div className="h-52">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie
-                  data={data}
-                  cx="50%" cy="50%"
-                  innerRadius={55} outerRadius={85}
-                  paddingAngle={2}
-                  dataKey="value"
-                >
-                  {data.map((entry, i) => (
-                    <Cell key={i} fill={entry.color} />
-                  ))}
+                <Pie data={data} cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={2} dataKey="value">
+                  {data.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                 </Pie>
                 <Tooltip
                   contentStyle={{ borderRadius: 12, fontSize: 12, border: 'none', boxShadow: '0 4px 24px rgba(0,0,0,.10)' }}
@@ -456,8 +513,7 @@ function RadioCheckboxReport({
                     <span className="text-on-surface-variant/60 text-xs shrink-0 w-9 text-right">{pct}%</span>
                   </div>
                   <div className="h-1.5 rounded-full bg-surface-container-high ml-5 overflow-hidden">
-                    <div className="h-full rounded-full transition-all duration-700"
-                      style={{ width: `${pct}%`, background: item.color }} />
+                    <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, background: item.color }} />
                   </div>
                 </div>
               );
@@ -499,8 +555,7 @@ function TextResponseReport({ question }: { question: TextReport }) {
 // ── Rating report ─────────────────────────────────────────────────────────────
 
 function RatingResponseReport({
-  question,
-  totalRespondents,
+  question, totalRespondents,
 }: {
   question: RatingReport;
   totalRespondents: number;
@@ -512,7 +567,8 @@ function RatingResponseReport({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-4 flex-wrap">
+      {/* Primary metrics row */}
+      <div className="flex items-center gap-3 flex-wrap">
         <p className="text-xs text-on-surface-variant font-medium">
           {question.answered} réponse{question.answered !== 1 ? 's' : ''}
           {totalRespondents > 0 && ` · ${Math.round((question.answered / totalRespondents) * 100)}% de participation`}
@@ -525,14 +581,30 @@ function RatingResponseReport({
         )}
       </div>
 
+      {/* Advanced stats row */}
+      {question.answered > 0 && (
+        <div className="flex flex-wrap gap-3">
+          {question.median !== null && (
+            <StatChip label="Médiane" value={`${question.median} / 5`} />
+          )}
+          {question.std_dev !== null && (
+            <StatChip label="Écart-type" value={`σ = ${question.std_dev}`} />
+          )}
+          {question.mode !== null && (
+            <StatChip label="Mode" value={`${question.mode} ★`} />
+          )}
+          {question.ci95 && (
+            <StatChip label="IC 95%" value={`[${question.ci95.lower} – ${question.ci95.upper}]`} highlight />
+          )}
+        </div>
+      )}
+
       {question.answered > 0 ? (
         <div className="h-40">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
               <Bar dataKey="value" radius={[6, 6, 0, 0]}>
-                {data.map((_, i) => (
-                  <Cell key={i} fill={PALETTE[i % PALETTE.length]} />
-                ))}
+                {data.map((_, i) => <Cell key={i} fill={PALETTE[i % PALETTE.length]} />)}
               </Bar>
               <Tooltip
                 contentStyle={{ borderRadius: 12, fontSize: 12, border: 'none', boxShadow: '0 4px 24px rgba(0,0,0,.10)' }}
@@ -544,6 +616,36 @@ function RatingResponseReport({
       ) : (
         <p className="text-sm text-on-surface-variant/60 italic">Aucune note pour le moment.</p>
       )}
+    </div>
+  );
+}
+
+// ── Chi² significance badge ───────────────────────────────────────────────────
+
+function Chi2Badge({ chi2 }: { chi2: NonNullable<Chi2> }) {
+  if (chi2.significant) {
+    return (
+      <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+        <CheckCircle2 size={10} /> Différence significative (p={chi2.p_value})
+      </span>
+    );
+  }
+  return (
+    <span className="flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-full bg-slate-50 text-slate-500 border border-slate-200">
+      <AlertCircle size={10} /> Distribution uniforme (p={chi2.p_value})
+    </span>
+  );
+}
+
+// ── Stat chip ─────────────────────────────────────────────────────────────────
+
+function StatChip({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+  return (
+    <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border ${
+      highlight ? 'bg-primary/5 border-primary/20 text-primary' : 'bg-surface-container-low border-surface-container-high text-on-surface-variant'
+    }`}>
+      <span className="font-black text-on-surface-variant/60">{label}</span>
+      <span className="font-bold">{value}</span>
     </div>
   );
 }

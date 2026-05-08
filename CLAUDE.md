@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**BravoPAD** — a team recognition/feedback web app where users give "Bravos" (kudos) to colleagues, earn points, participate in challenges, and view leaderboards.
+**BravoPAD** — a team recognition/feedback web app where users give "Bravos" (Bravo) to colleagues, earn points, participate in challenges, and view leaderboards.
 
 Tech stack: **Laravel 13** (PHP 8.3+) + **React 19 + TypeScript 5.7** via **Inertia.js v3**.
 

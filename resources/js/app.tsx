@@ -7,7 +7,7 @@ import AuthLayout from '@/layouts/auth-layout';
 import SettingsLayout from '@/layouts/settings/layout';
 import './i18n';
 
-const appName = import.meta.env.VITE_APP_NAME || 'KudosPAD';
+const appName = import.meta.env.VITE_APP_NAME || 'BravoPAD';
 
 createInertiaApp({
     title: (title) => (title ? `${title} - ${appName}` : appName),

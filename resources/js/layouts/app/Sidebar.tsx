@@ -170,7 +170,7 @@ export default function Sidebar({ collapsed = false, onCollapseToggle, onClose, 
         </div>
         {!collapsed && (
           <div className="animate-in fade-in slide-in-from-left-4 duration-300">
-            <h2 className="font-extrabold text-lg leading-none tracking-tight text-primary">Kudos PAD</h2>
+            <h2 className="font-extrabold text-lg leading-none tracking-tight text-primary">Bravo PAD</h2>
           </div>
         )}
         {onClose && (

@@ -10,11 +10,16 @@ use App\Models\PeerVote;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
 use App\Services\Engagement\BadgeProgressService;
+use App\Services\Survey\SamplingService;
+use App\Services\Survey\SurveyStatsService;
+use App\Services\Survey\SurveyTemplateService;
 use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -222,8 +227,6 @@ class EngagementController extends Controller
             $coverPath = $request->file('cover_image')->store('surveys/covers', 'public');
         }
 
-        HrSurvey::query()->where('is_active', true)->update(['is_active' => false]);
-
         $survey = HrSurvey::query()->create([
             'title'       => $validated['title'],
             'description' => $validated['description'] ?? null,
@@ -390,6 +393,126 @@ class EngagementController extends Controller
         return back()->with('success', 'Sondage supprimé.');
     }
 
+    // ── Templates & AI generation ────────────────────────────────────────────
+
+    public function getTemplates(Request $request): JsonResponse
+    {
+        if (! $request->user()->isHr()) {
+            abort(403);
+        }
+
+        return response()->json(app(SurveyTemplateService::class)->all());
+    }
+
+    public function generateSurvey(Request $request): JsonResponse
+    {
+        if (! $request->user()->isHr()) {
+            abort(403);
+        }
+
+        $request->validate(['purpose' => ['required', 'string', 'max:1000']]);
+
+        $apiKey = config('services.groq.key');
+        if (! $apiKey) {
+            return response()->json(['error' => 'Clé API Groq non configurée dans .env (GROQ_API_KEY).'], 503);
+        }
+
+        $systemPrompt = 'Tu es un expert RH. Tu génères UNIQUEMENT du JSON valide, sans texte ni markdown autour.';
+
+        $userPrompt = <<<PROMPT
+Génère un sondage RH professionnel en français pour : {$request->purpose}
+
+Réponds UNIQUEMENT avec ce JSON (sans code block, sans texte autour) :
+{
+  "title": "...",
+  "description": "...",
+  "questions": [
+    {
+      "id": "q_ai_1",
+      "section": "Nom de section",
+      "label": "Question ?",
+      "type": "radio",
+      "options": ["Option A", "Option B", "Option C"],
+      "required": true
+    }
+  ]
+}
+
+Contraintes :
+- Entre 6 et 12 questions
+- Mix de types : rating, radio, checkbox, text
+- options = [] pour rating et text
+- IDs : q_ai_1, q_ai_2, …
+- Questions neutres, professionnelles, en français
+- Sections logiques regroupant les questions
+PROMPT;
+
+        $resp = Http::withHeaders([
+            'Authorization' => "Bearer {$apiKey}",
+            'Content-Type'  => 'application/json',
+        ])->timeout(30)->post('https://api.groq.com/openai/v1/chat/completions', [
+            'model'       => 'llama-3.1-70b-versatile',
+            'max_tokens'  => 2500,
+            'temperature' => 0.6,
+            'messages'    => [
+                ['role' => 'system', 'content' => $systemPrompt],
+                ['role' => 'user',   'content' => $userPrompt],
+            ],
+        ]);
+
+        if ($resp->failed()) {
+            return response()->json(['error' => 'Erreur lors de la génération IA.'], 502);
+        }
+
+        $content = trim($resp->json('choices.0.message.content') ?? '');
+
+        // Strip optional markdown code block
+        if (preg_match('/```(?:json)?\s*(\{.*\})\s*```/s', $content, $m)) {
+            $content = $m[1];
+        }
+
+        $survey = json_decode($content, true);
+
+        if (! $survey || ! isset($survey['questions']) || ! is_array($survey['questions'])) {
+            return response()->json(['error' => 'La réponse IA n\'a pas pu être analysée. Réessayez.'], 500);
+        }
+
+        return response()->json($survey);
+    }
+
+    public function calculateSample(Request $request): JsonResponse
+    {
+        if (! $request->user()->isHr()) {
+            abort(403);
+        }
+
+        $validated = $request->validate([
+            'confidence_level' => ['required', 'integer', 'in:90,95,99'],
+            'margin_of_error'  => ['required', 'numeric', 'in:1,2,3,5'],
+            'stratify_by'      => ['nullable', 'string', 'in:none,department,seniority'],
+        ]);
+
+        $service    = app(SamplingService::class);
+        $population = User::where('is_automation', false)->count();
+
+        $result = $service->calculateSampleSize(
+            $population,
+            (float) $validated['margin_of_error'],
+            (int) $validated['confidence_level'],
+        );
+
+        $stratifyBy = $validated['stratify_by'] ?? 'none';
+        $sample     = $stratifyBy !== 'none'
+            ? $service->getStratifiedSample($result['sample_size'], $stratifyBy)
+            : [];
+
+        return response()->json([
+            ...$result,
+            'sample'      => $sample,
+            'stratify_by' => $stratifyBy,
+        ]);
+    }
+
     // ── Survey form (employee-facing) ─────────────────────────────────────────
 
     public function showSurvey(Request $request, string $token): Response
@@ -500,6 +623,8 @@ class EngagementController extends Controller
             abort(403);
         }
 
+        $statsService = app(SurveyStatsService::class);
+
         $responses = HrSurveyResponse::where('survey_id', $survey->id)
             ->with('user:id,name,avatar')
             ->get();
@@ -516,6 +641,8 @@ class EngagementController extends Controller
             ->values();
 
         $questionsReport = [];
+        $npsData         = null;
+
         foreach (($survey->questions ?? []) as $q) {
             $qId   = $q['id'];
             $type  = $q['type'];
@@ -533,6 +660,7 @@ class EngagementController extends Controller
                     ->values()
                     ->all();
                 $entry['responses'] = $texts;
+
             } elseif ($type === 'radio') {
                 $options = $q['options'] ?? [];
                 $counts  = array_fill_keys($options, 0);
@@ -542,9 +670,12 @@ class EngagementController extends Controller
                         $counts[$val]++;
                     }
                 }
+                $answered          = array_sum($counts);
                 $entry['options']  = $options;
                 $entry['counts']   = $counts;
-                $entry['answered'] = array_sum($counts);
+                $entry['answered'] = $answered;
+                $entry['chi2']     = $statsService->chiSquareTest(array_values($counts), $answered);
+
             } elseif ($type === 'checkbox') {
                 $options = $q['options'] ?? [];
                 $counts  = array_fill_keys($options, 0);
@@ -558,21 +689,38 @@ class EngagementController extends Controller
                         }
                     }
                 }
+                $answered          = $responses->filter(fn ($r) => ! empty($r->answers[$qId]))->count();
                 $entry['options']  = $options;
                 $entry['counts']   = $counts;
-                $entry['answered'] = $responses->filter(fn ($r) => ! empty($r->answers[$qId]))->count();
+                $entry['answered'] = $answered;
+                $entry['chi2']     = $statsService->chiSquareTest(array_values($counts), (int) array_sum($counts));
+
             } elseif ($type === 'rating') {
                 $vals = $responses
                     ->map(fn ($r) => isset($r->answers[$qId]) ? (int) $r->answers[$qId] : null)
                     ->filter()
-                    ->values();
+                    ->values()
+                    ->all();
+
                 $distribution = [];
                 for ($i = 1; $i <= 5; $i++) {
-                    $distribution[$i] = $vals->filter(fn ($v) => $v === $i)->count();
+                    $distribution[$i] = count(array_filter($vals, fn ($v) => $v === $i));
                 }
-                $entry['average']      = $vals->count() > 0 ? round($vals->avg(), 1) : null;
+
+                $stats            = $statsService->ratingStats($vals, $totalResponses);
+                $entry['average']      = $stats['average'];
+                $entry['median']       = $stats['median'];
+                $entry['std_dev']      = $stats['std_dev'];
+                $entry['mode']         = $stats['mode'];
+                $entry['ci95']         = $stats['confidence_interval'];
                 $entry['distribution'] = $distribution;
-                $entry['answered']     = $vals->count();
+                $entry['answered']     = $stats['answered'];
+
+                // Use the last (or most complete) rating question for global NPS
+                $enps = $statsService->computeEnps($vals);
+                if ($enps && ($npsData === null || $stats['answered'] > ($npsData['total'] ?? 0))) {
+                    $npsData = $enps;
+                }
             }
 
             $questionsReport[] = $entry;
@@ -592,6 +740,7 @@ class EngagementController extends Controller
             'total_users'         => $totalUsers,
             'questions_report'    => $questionsReport,
             'responses_over_time' => $responsesOverTime,
+            'nps'                 => $npsData,
         ]);
     }
 

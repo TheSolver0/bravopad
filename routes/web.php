@@ -77,6 +77,9 @@ Route::middleware(['auth'])->group(function () {
 
     // Admin — gestion des sondages RH (HR uniquement)
     Route::get('/admin/surveys', [EngagementController::class, 'adminSurveys'])->name('admin.surveys.index');
+    Route::get('/admin/surveys/templates', [EngagementController::class, 'getTemplates'])->name('admin.surveys.templates');
+    Route::post('/admin/surveys/generate', [EngagementController::class, 'generateSurvey'])->name('admin.surveys.generate');
+    Route::post('/admin/surveys/sample', [EngagementController::class, 'calculateSample'])->name('admin.surveys.sample');
     Route::get('/admin/surveys/create', [EngagementController::class, 'surveyCreatePage'])->name('admin.surveys.create.page');
     Route::post('/admin/surveys', [EngagementController::class, 'createSurvey'])->name('admin.surveys.create');
     Route::get('/admin/surveys/{survey}/edit', [EngagementController::class, 'surveyEditPage'])->name('admin.surveys.edit.page');

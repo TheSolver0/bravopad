@@ -42,7 +42,7 @@ export default function AuthSplitLayout({
                     </Link>
 
                     <div className="max-w-xs text-center">
-                        <h2 className="text-2xl font-bold text-white">KudosPAD</h2>
+                        <h2 className="text-2xl font-bold text-white">BravoPAD</h2>
                         <p className="mt-3 text-sm leading-relaxed text-blue-200/80">
                             Plateforme de Reconnaissance entre employés de PAD
                         </p>

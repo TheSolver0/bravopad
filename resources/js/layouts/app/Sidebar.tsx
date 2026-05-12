@@ -20,6 +20,8 @@ import {
   UserCog,
   KeyRound,
   LogOut,
+  User,
+  Award,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -39,8 +41,9 @@ interface NavItem {
 }
 
 export const navItems: NavItem[] = [
-  { href: '/dashboard', labelKey: 'nav.home', icon: Home },
-  { href: '/history', labelKey: 'nav.myBravos', icon: History },
+  { href: '/feed', labelKey: 'nav.feed', icon: Home },
+  { href: '/dashboard', labelKey: 'nav.home', icon: Award },
+  { href: '/history', labelKey: 'nav.myBravos', icon: User },
   { href: '/challenges', labelKey: 'nav.challenges', icon: Trophy },
   { href: '/engagement', labelKey: 'nav.surveys', icon: ClipboardList },
   { href: '/team', labelKey: 'nav.team', icon: Users },
@@ -77,9 +80,6 @@ function pathWithoutQuery(url: string): string {
 }
 
 function isLinkActive(path: string, href: string): boolean {
-  if (href === '/dashboard') {
-    return path === '/dashboard' || path === '/' || path === '';
-  }
   return path === href || path.startsWith(`${href}/`);
 }
 
@@ -166,11 +166,11 @@ export default function Sidebar({ collapsed = false, onCollapseToggle, onClose, 
     <div className="flex flex-col h-full relative">
       <div className="p-3 flex items-center gap-3 border-b border-surface-container-high">
         <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0">
-          <img src="/assets/images/pad-logo.png" alt="Logo" className="w-10 h-10 object-contain" />
+          <img src="/assets/images/logo.png" alt="Logo" className="w-50 h-40 object-contain" />
         </div>
         {!collapsed && (
           <div className="animate-in fade-in slide-in-from-left-4 duration-300">
-            <h2 className="font-extrabold text-lg leading-none tracking-tight text-primary">Bravo PAD</h2>
+            <h2 className="font-extrabold text-lg leading-none tracking-tight text-primary">OnePAD</h2>
           </div>
         )}
         {onClose && (

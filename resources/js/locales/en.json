@@ -26,7 +26,7 @@
     "switchTo": "Passer en Français"
   },
   "nav": {
-    "home": "Home",
+    "home": "Bravo Wall",
     "myBravos": "My Bravos",
     "challenges": "Challenges",
     "surveys": "Surveys",
@@ -43,7 +43,8 @@
     "audit": "Audit",
     "sendBravo": "Send a Bravo",
     "logout": "Logout",
-    "bravo": "Bravo"
+    "bravo": "Bravo",
+    "feed": "Feed"
   },
   "notifications": {
     "recent": "Recent",
@@ -260,5 +261,17 @@
     "bien_etre": "Wellness",
     "cohesion": "Team Spirit",
     "autre": "Event"
+  },
+  "feed": {
+    "compose": "What's on your mind?",
+    "announcement": "Announcement",
+    "announcementLabel": "Official announcement",
+    "media": "Photo",
+    "publish": "Publish",
+    "empty": "No posts yet",
+    "beFirst": "Be the first to share something!",
+    "edit": "Edit",
+    "delete": "Delete",
+    "confirmDelete": "Delete this post?"
   }
 }

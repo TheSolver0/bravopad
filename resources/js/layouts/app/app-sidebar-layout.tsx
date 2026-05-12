@@ -30,6 +30,7 @@ export default function AppSidebarLayout({ breadcrumbs = [], children }: AppSide
   }>();
   const { flash } = page.props;
   const isDashboard = page.component === 'dashboard';
+  const isFeed = page.component === 'Feed';
   const users: User[] =
     (page.props.users as User[] | undefined) ?? (page.props.team?.data as User[] | undefined) ?? [];
   const bravoValues: BravoValue[] = (page.props.bravoValues as BravoValue[]) ?? [];
@@ -66,7 +67,7 @@ export default function AppSidebarLayout({ breadcrumbs = [], children }: AppSide
           collapsed ? 'md:ml-[calc(72px+2rem)]' : 'md:ml-[calc(256px+2rem)]'
         }`}
       >
-        {!isDashboard && <Header breadcrumbs={breadcrumbs} />}
+        {!isDashboard && !isFeed && <Header breadcrumbs={breadcrumbs} />}
 
         {/* Bottom nav mobile — visible sur toutes les pages */}
         <MobileNav onCreateBravo={() => setShowCreateModal(true)} />
@@ -95,7 +96,7 @@ export default function AppSidebarLayout({ breadcrumbs = [], children }: AppSide
           )}
         </AnimatePresence>
 
-        <main className={`flex-1 overflow-y-auto pb-40 md:pb-24 ${isDashboard ? '' : 'p-6 md:p-8'}`}>{children}</main>
+        <main className={`flex-1 overflow-y-auto pb-40 md:pb-24 ${isDashboard || isFeed ? '' : 'p-6 md:p-8'}`}>{children}</main>
 
         <footer
           className={`fixed z-30 border-t border-surface-container-high bg-surface-container-lowest/95 px-6 py-4 text-center text-xs text-muted-foreground backdrop-blur-sm bottom-16 left-0 right-0 md:bottom-0 md:px-8 ${

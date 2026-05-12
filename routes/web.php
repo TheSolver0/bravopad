@@ -13,6 +13,7 @@ use App\Http\Controllers\HrDashboardController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\CommentController;
 use App\Http\Controllers\NotificationCenterController;
+use App\Http\Controllers\PostController;
 use App\Http\Controllers\RewardController;
 use App\Http\Controllers\StatsController;
 use App\Models\Direction;
@@ -24,8 +25,17 @@ use Inertia\Inertia;
 Route::middleware(['auth'])->group(function () {
 
     // Dashboard
-    Route::get('/', [DashboardController::class, 'index'])->name('home');
+    Route::get('/', fn () => redirect()->route('feed'))->name('home');
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
+    // Fil social — Posts & Actualités
+    Route::get('/feed', [PostController::class, 'index'])->name('feed');
+    Route::post('/posts', [PostController::class, 'store'])->name('posts.store');
+    Route::put('/posts/{post}', [PostController::class, 'update'])->name('posts.update');
+    Route::delete('/posts/{post}', [PostController::class, 'destroy'])->name('posts.destroy');
+    Route::post('/posts/{post}/like', [PostController::class, 'like'])->name('posts.like');
+    Route::post('/posts/{post}/comments', [PostController::class, 'storeComment'])->name('posts.comments.store');
+    Route::delete('/posts/{post}/comments/{comment}', [PostController::class, 'destroyComment'])->name('posts.comments.destroy');
 
     // Bravo creation
     Route::get('/create', [BravoController::class, 'create']);

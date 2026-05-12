@@ -26,7 +26,7 @@
     "switchTo": "Switch to English"
   },
   "nav": {
-    "home": "Accueil",
+    "home": "Mur des Bravos",
     "myBravos": "Mes Bravos",
     "challenges": "Défis",
     "surveys": "Sondages",
@@ -43,7 +43,8 @@
     "audit": "Audit",
     "sendBravo": "Envoyer un Bravo",
     "logout": "Déconnexion",
-    "bravo": "Bravo"
+    "bravo": "Bravo",
+    "feed": "Fil d'actualité"
   },
   "notifications": {
     "recent": "Récentes",
@@ -260,5 +261,17 @@
     "bien_etre": "Bien-être",
     "cohesion": "Cohésion",
     "autre": "Événement"
+  },
+  "feed": {
+    "compose": "Quoi de neuf ?",
+    "announcement": "Annonce",
+    "announcementLabel": "Annonce officielle",
+    "media": "Photo",
+    "publish": "Publier",
+    "empty": "Aucune publication pour l'instant",
+    "beFirst": "Soyez le premier à partager quelque chose !",
+    "edit": "Modifier",
+    "delete": "Supprimer",
+    "confirmDelete": "Supprimer cette publication ?"
   }
 }

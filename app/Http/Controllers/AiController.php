@@ -2,14 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 
 class AiController extends Controller
 {
-    /**
-     * Rephrase a bravo message using Groq (Llama 3, free tier).
-     */
     public function rephrase(Request $request)
     {
         $request->validate([
@@ -22,23 +20,33 @@ class AiController extends Controller
             return response()->json(['error' => 'Clé API Groq non configurée.'], 503);
         }
 
-        $response = Http::withHeaders([
+        $http = Http::withHeaders([
             'Authorization' => "Bearer {$apiKey}",
             'Content-Type'  => 'application/json',
-        ])->post('https://api.groq.com/openai/v1/chat/completions', [
-            'model'      => 'llama-3.1-8b-instant',
-            'max_tokens' => 512,
-            'messages'   => [
-                [
-                    'role'    => 'system',
-                    'content' => 'Tu es un assistant RH bienveillant. Reformule les messages de reconnaissance professionnelle pour les rendre plus chaleureux, précis et inspirants, tout en conservant le sens original. Réponds uniquement avec le message reformulé, sans introduction ni commentaire.',
-                ],
-                [
-                    'role'    => 'user',
-                    'content' => $request->message,
-                ],
-            ],
         ]);
+
+        if (app()->environment('local')) {
+            $http = $http->withoutVerifying();
+        }
+
+        try {
+            $response = $http->post('https://api.groq.com/openai/v1/chat/completions', [
+                'model'      => 'llama-3.1-8b-instant',
+                'max_tokens' => 512,
+                'messages'   => [
+                    [
+                        'role'    => 'system',
+                        'content' => 'Tu es un assistant RH bienveillant. Reformule les messages de reconnaissance professionnelle pour les rendre plus chaleureux, précis et inspirants, tout en conservant le sens original. Réponds uniquement avec le message reformulé, sans introduction ni commentaire.',
+                    ],
+                    [
+                        'role'    => 'user',
+                        'content' => $request->message,
+                    ],
+                ],
+            ]);
+        } catch (ConnectionException $e) {
+            return response()->json(['error' => 'Impossible de contacter l\'API Groq : ' . $e->getMessage()], 502);
+        }
 
         if ($response->failed()) {
             return response()->json(['error' => 'Erreur lors de la requête IA.'], 502);

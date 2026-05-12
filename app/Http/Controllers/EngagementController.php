@@ -14,6 +14,7 @@ use App\Services\Survey\SamplingService;
 use App\Services\Survey\SurveyStatsService;
 use App\Services\Survey\SurveyTemplateService;
 use Carbon\Carbon;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -447,18 +448,28 @@ Contraintes :
 - Sections logiques regroupant les questions
 PROMPT;
 
-        $resp = Http::withHeaders([
+        $groqHttp = Http::withHeaders([
             'Authorization' => "Bearer {$apiKey}",
             'Content-Type'  => 'application/json',
-        ])->timeout(30)->post('https://api.groq.com/openai/v1/chat/completions', [
-            'model'       => 'llama-3.1-70b-versatile',
-            'max_tokens'  => 2500,
-            'temperature' => 0.6,
-            'messages'    => [
-                ['role' => 'system', 'content' => $systemPrompt],
-                ['role' => 'user',   'content' => $userPrompt],
-            ],
-        ]);
+        ])->timeout(30);
+
+        if (app()->environment('local')) {
+            $groqHttp = $groqHttp->withoutVerifying();
+        }
+
+        try {
+            $resp = $groqHttp->post('https://api.groq.com/openai/v1/chat/completions', [
+                'model'       => 'llama-3.3-70b-versatile',
+                'max_tokens'  => 2500,
+                'temperature' => 0.6,
+                'messages'    => [
+                    ['role' => 'system', 'content' => $systemPrompt],
+                    ['role' => 'user',   'content' => $userPrompt],
+                ],
+            ]);
+        } catch (ConnectionException $e) {
+            return response()->json(['error' => 'Impossible de contacter l\'API Groq.'], 502);
+        }
 
         if ($resp->failed()) {
             return response()->json(['error' => 'Erreur lors de la génération IA.'], 502);

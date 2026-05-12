@@ -342,6 +342,11 @@ export default function AdminSurveyCreate() {
           </button>
         ))}
       </div>
+      <div className="flex justify-end pt-2">
+            <Button variant="outline" onClick={() => setActiveTab('builder')}>
+              <Plus size={14} /> Créer sans template
+            </Button>
+          </div>
 
       {/* ── TEMPLATES tab ── */}
       {activeTab === 'templates' && (
@@ -386,11 +391,7 @@ export default function AdminSurveyCreate() {
               })}
             </div>
           )}
-          <div className="flex justify-end pt-2">
-            <Button variant="outline" onClick={() => setActiveTab('builder')}>
-              <Plus size={14} /> Créer sans template
-            </Button>
-          </div>
+          
         </div>
       )}
 
@@ -634,9 +635,9 @@ export default function AdminSurveyCreate() {
               )}
             </Card>
 
-            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-800 leading-relaxed">
+            {/* <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-800 leading-relaxed">
               La création d'un nouveau sondage <strong>désactive automatiquement</strong> tous les sondages actifs existants.
-            </div>
+            </div> */}
 
             <div className="flex gap-3">
               <Button variant="outline" className="flex-1" onClick={() => router.visit('/admin/surveys')}>

@@ -1,15 +1,15 @@
-# Presentation BravoPAD
+# Presentation OnePAD
 
 ## Objectif de la presentation
 
-Montrer comment BravoPAD transforme la reconnaissance interne en systeme d'engagement mesurable, equitable et pilotable par les RH.
+Montrer comment OnePAD transforme la reconnaissance interne en systeme d'engagement mesurable, equitable et pilotable par les RH.
 
 ---
 
 ## 1) Message d'ouverture (1 min)
 
 - Problème: la reconnaissance est souvent informelle, peu tracee, difficile a piloter.
-- Promesse: BravoPAD convertit chaque interaction en signal utile pour l'engagement.
+- Promesse: OnePAD convertit chaque interaction en signal utile pour l'engagement.
 - Resultat attendu: une culture de reconnaissance visible, juste et orientee performance.
 
 ---
@@ -91,7 +91,7 @@ Message cle: chaque action critique est tracable et explicable.
 
 1. Vision et ambition
 2. Pain points actuels
-3. Comment BravoPAD fonctionne (vue d'ensemble)
+3. Comment OnePAD fonctionne (vue d'ensemble)
 4. Experience employe
 5. Engagement avance (badges, vote, sondages)
 6. Pilotage RH par les indicateurs
@@ -104,11 +104,11 @@ Message cle: chaque action critique est tracable et explicable.
 
 ## 6) Script orateur (version courte)
 
-- "Avec BravoPAD, chaque reconnaissance devient un signal actionnable."
+- "Avec OnePAD, chaque reconnaissance devient un signal actionnable."
 - "Nous valorisons les comportements alignes aux valeurs de l'entreprise."
 - "Les RH pilotent avec des donnees fiables, pas uniquement avec du ressenti."
 - "La plateforme garantit tracabilite, equite et transparence."
-- "BravoPAD est le moteur de la culture de reconnaissance."
+- "OnePAD est le moteur de la culture de reconnaissance."
 
 ---
 

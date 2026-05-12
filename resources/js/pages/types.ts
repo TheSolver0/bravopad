@@ -38,13 +38,6 @@ export interface Redemption {
   created_at: string;
 }
 
-export interface BravoComment {
-  id: number;
-  content: string;
-  created_at: string;
-  user: { id: number; name: string; avatar: string } | null;
-}
-
 export interface AppSetting {
   id: number;
   key: string;
@@ -183,4 +176,28 @@ export interface TopUser {
 export interface Department {
   id: number;
   name: string;
+}
+
+export interface PostComment {
+  id: number;
+  post_id: number;
+  content: string;
+  created_at: string;
+  user: { id: number; name: string; avatar?: string | null };
+}
+
+export interface Post {
+  id: number;
+  user_id: number;
+  content: string;
+  type: 'post' | 'announcement';
+  media_url: string | null;
+  is_pinned: boolean;
+  likes_count: number;
+  comments_count: number;
+  user_has_liked: boolean;
+  created_at: string;
+  updated_at: string;
+  user: { id: number; name: string; avatar?: string | null; role: string; department?: string | null };
+  comments?: PostComment[];
 }

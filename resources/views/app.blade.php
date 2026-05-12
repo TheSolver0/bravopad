@@ -26,10 +26,10 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
 
         @if($surveyOg)
-            <title>{{ $surveyOg['title'] }} — {{ config('app.name', 'BravoPAD') }}</title>
+            <title>{{ $surveyOg['title'] }} — {{ config('app.name', 'OnePAD') }}</title>
             <meta name="description" content="{{ $surveyOg['description'] }}">
             <meta property="og:type"        content="website">
-            <meta property="og:site_name"   content="{{ config('app.name', 'BravoPAD') }}">
+            <meta property="og:site_name"   content="{{ config('app.name', 'OnePAD') }}">
             <meta property="og:url"         content="{{ $surveyOg['url'] }}">
             <meta property="og:title"       content="{{ $surveyOg['title'] }}">
             <meta property="og:description" content="{{ $surveyOg['description'] }}">
@@ -72,8 +72,8 @@
             }
         </style>
 
-        <link rel="icon" href="/assets/images/pad-logo.png" type="image/png">
-        <link rel="apple-touch-icon" href="/assets/images/pad-logo.png">
+        <link rel="icon" href="/assets/images/logo.png" type="image/png">
+        <link rel="apple-touch-icon" href="/assets/images/logo.png">
 
         <link rel="preconnect" href="https://fonts.bunny.net">
         <link href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600" rel="stylesheet" />
@@ -81,7 +81,7 @@
         @viteReactRefresh
         @vite(['resources/css/app.css', 'resources/js/app.tsx'])
         <x-inertia::head>
-            <title>BravoPAD</title>
+            <title>OnePAD</title>
             {{-- <title>{{ config('app.name', 'Laravel') }}</title> --}}
         </x-inertia::head>
     </head>

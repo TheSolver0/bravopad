@@ -3,21 +3,16 @@ import { motion, AnimatePresence } from 'motion/react';
 import { router } from '@inertiajs/react';
 import { useTranslation } from 'react-i18next';
 import {
-  Clock,
   ArrowRight,
   MessageSquare,
-  Award,
   PlusCircle,
   Trophy,
   TrendingUp,
   ChevronLeft,
   ChevronRight,
-  Anchor,
-  Ship,
   Star,
   X,
   MoreHorizontal,
-  Smile,
   ChevronUp,
   ChevronDown,
   Heart,
@@ -26,7 +21,6 @@ import {
   Cake,
   Briefcase,
 } from 'lucide-react';
-import { Badge } from '../components/ui/badge';
 import { Card } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { User, Bravo, BravoComment, Challenge, BravoValue, Celebration } from './types';
@@ -164,117 +158,7 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
     }));
   }
 
-  // ── Slides du carrousel ────────────────────────────────────────────────────
-  interface Slide {
-    id: string;
-    bg: string;
-    tag?: React.ReactNode;
-    title: string;
-    subtitle: string;
-    cta?: { label: string; action: () => void };
-    badge?: React.ReactNode;
-    visual: React.ReactNode;
-  }
-
-  const slides: Slide[] = [
-    {
-      id: 'pad',
-      bg: 'from-[#003d7a] via-[#00529e] to-[#0066c2]',
-      tag: (
-        <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-white/70">
-          <Anchor size={11} /> PAD
-        </span>
-      ),
-      title: t('dashboard.welcome'),
-      subtitle: t('dashboard.welcomeSub'),
-      cta: { label: t('dashboard.sendBravo'), action: () => setShowCreateModal(true) },
-      badge: (
-        <div className="flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md rounded-xl border border-white/10">
-          <Ship size={18} className="text-white/80" />
-          <span className="font-bold text-sm text-white">{t('dashboard.bravosShared', { count: bravos.length })}</span>
-        </div>
-      ),
-      visual: (
-        <div className="absolute right-0 inset-y-0 w-1/2 hidden lg:flex items-center justify-center pointer-events-none">
-          <div className="relative w-full h-full overflow-hidden">
-            <div className="absolute inset-0 bg-gradient-to-l from-transparent to-[#003d7a]" />
-            <div className="absolute bottom-6 right-8 w-32 h-32 border-2 border-white/10 rounded-full" />
-            <div className="absolute bottom-16 right-20 w-16 h-16 border border-white/10 rounded-full" />
-            <Anchor size={64} className="absolute right-12 top-1/2 -translate-y-1/2 text-white/8" strokeWidth={1} />
-          </div>
-        </div>
-      ),
-    },
-    ...(sortedUsers.length > 0 ? [{
-      id: 'spotlight',
-      bg: 'from-[#1a1a2e] via-[#16213e] to-[#0f3460]',
-      tag: (
-        <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-secondary/90">
-          <Star size={11} className="fill-current" /> {t('dashboard.employeeOfMonth')}
-        </span>
-      ),
-      title: sortedUsers[0].name,
-      subtitle: `${sortedUsers[0].role} · ${sortedUsers[0].department} — ${sortedUsers[0].points_total.toLocaleString(locale)} ${t('dashboard.ptsAccumulated')}`,
-      cta: { label: t('dashboard.viewLeaderboardBtn'), action: () => router.visit('/stats') },
-      badge: (
-        <div className="flex items-center gap-2 px-4 py-2 bg-secondary/20 backdrop-blur-md rounded-xl border border-secondary/30">
-          <Trophy size={18} className="text-secondary" />
-          <span className="font-bold text-sm text-white">{t('dashboard.rankOf')}</span>
-        </div>
-      ),
-      visual: (
-        <div className="absolute right-0 inset-y-0 w-1/2 hidden lg:flex items-center justify-center pointer-events-none">
-          <div className="absolute inset-0 bg-gradient-to-l from-transparent to-[#1a1a2e]" />
-          <div className="relative z-10 flex flex-col items-center gap-3 mr-12">
-            <div className="relative">
-              <img src={getAvatar(sortedUsers[0])} alt="" className="w-28 h-28 rounded-3xl border-4 border-secondary/40 shadow-2xl opacity-80" referrerPolicy="no-referrer" />
-              <div className="absolute -top-3 -right-3 w-10 h-10 bg-secondary rounded-full flex items-center justify-center shadow-lg">
-                <Trophy size={18} className="text-white" />
-              </div>
-            </div>
-          </div>
-        </div>
-      ),
-    } as Slide] : []),
-    ...(activeChallenge ? [{
-      id: 'challenge',
-      bg: 'from-primary via-primary/90 to-primary/70',
-      tag: (
-        <div className="flex items-center gap-3">
-          <Badge variant="warning" className="bg-secondary text-white border-none px-3 py-1 text-[10px]">{t('dashboard.newChallenge')}</Badge>
-          <span className="flex items-center gap-1.5 text-white/70 text-xs font-bold">
-            <Clock size={12} /> {t('dashboard.daysLeft', { count: activeChallenge.days_left })}
-          </span>
-        </div>
-      ),
-      title: activeChallenge.name,
-      subtitle: activeChallenge.description,
-      cta: { label: t('dashboard.joinNow'), action: () => router.visit('/challenges') },
-      badge: (
-        <div className="flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md rounded-xl border border-white/10">
-          <Award size={18} className="text-secondary" />
-          <span className="font-extrabold text-base text-white">+{activeChallenge.points_bonus} pts</span>
-        </div>
-      ),
-      visual: (
-        <div className="absolute right-0 inset-y-0 w-1/2 hidden lg:block pointer-events-none">
-          <div className="absolute inset-0 bg-gradient-to-l from-transparent to-primary" />
-        </div>
-      ),
-    } as Slide] : []),
-  ];
-
-  const [current, setCurrent] = useState(0);
   const [showCreateModal, setShowCreateModal] = useState(false);
-
-  useEffect(() => {
-    const timer = setInterval(() => setCurrent(c => (c + 1) % slides.length), 5000);
-    return () => clearInterval(timer);
-  }, [slides.length]);
-
-  const prev = () => setCurrent(c => (c - 1 + slides.length) % slides.length);
-  const next = () => setCurrent(c => (c + 1) % slides.length);
-  const slide = slides[current];
 
   return (
     <div className="animate-in fade-in duration-500">
@@ -310,48 +194,6 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* ── Carrousel ──────────────────────────────────────────────────────── */}
-      <div className="relative overflow-hidden shadow-xl h-[100px]">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={slide.id}
-            initial={{ opacity: 0, x: 40 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -40 }}
-            transition={{ duration: 0.4, ease: 'easeInOut' }}
-            className={`bg-gradient-to-r ${slide.bg} px-5 text-white flex items-center gap-4 relative h-full`}
-          >
-            {slide.visual}
-            <div className="relative z-10 flex-1 min-w-0 space-y-0.5">
-              {slide.tag}
-              <h1 className="text-sm md:text-base font-extrabold tracking-tight leading-tight truncate">{slide.title}</h1>
-              <p className="text-white/70 text-[11px] font-medium leading-snug hidden md:block line-clamp-1">{slide.subtitle}</p>
-            </div>
-            {slide.badge && <div className="relative z-10 shrink-0 hidden sm:block">{slide.badge}</div>}
-            {slide.cta && (
-              <Button variant="secondary" className="relative z-10 px-3 py-1.5 text-xs shadow-md shadow-secondary/40 shrink-0 hidden lg:flex" onClick={slide.cta.action}>
-                {slide.cta.label}
-              </Button>
-            )}
-            <div className="relative z-20 flex items-center gap-2 shrink-0">
-              <button onClick={prev} className="w-6 h-6 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center transition-all cursor-pointer">
-                <ChevronLeft size={12} className="text-white" />
-              </button>
-              <div className="flex items-center gap-1">
-                {slides.map((_, i) => (
-                  <button key={i} onClick={() => setCurrent(i)}
-                    className={`rounded-full transition-all cursor-pointer ${i === current ? 'w-4 h-1 bg-white' : 'w-1 h-1 bg-white/40 hover:bg-white/60'}`}
-                  />
-                ))}
-              </div>
-              <button onClick={next} className="w-6 h-6 rounded-full bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center transition-all cursor-pointer">
-                <ChevronRight size={12} className="text-white" />
-              </button>
-            </div>
-          </motion.div>
-        </AnimatePresence>
-      </div>
 
       <div className="p-6 md:p-8 space-y-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">

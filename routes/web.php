@@ -1,22 +1,22 @@
 <?php
 
 use App\Http\Controllers\AdminConfigController;
+use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AdminRolesController;
 use App\Http\Controllers\AdminUsersController;
 use App\Http\Controllers\AiController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\BravoController;
 use App\Http\Controllers\ChallengeController;
+use App\Http\Controllers\CommentController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EngagementController;
 use App\Http\Controllers\HrDashboardController;
-use App\Http\Controllers\AdminController;
-use App\Http\Controllers\CommentController;
+use App\Http\Controllers\MessengerController;
 use App\Http\Controllers\NotificationCenterController;
 use App\Http\Controllers\RewardController;
 use App\Http\Controllers\StatsController;
 use App\Models\Direction;
-use App\Models\Department;
 use App\Models\User;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -71,6 +71,17 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/notifications/read-all', [NotificationCenterController::class, 'markAllRead'])->name('notifications.read-all');
     Route::post('/notifications/{id}/read', [NotificationCenterController::class, 'markRead'])->name('notifications.read');
 
+    Route::prefix('messenger')->name('messenger.')->group(function () {
+        Route::get('/conversations', [MessengerController::class, 'conversations'])->name('conversations.index');
+        Route::get('/users', [MessengerController::class, 'users'])->name('users.index');
+        Route::post('/conversations/direct', [MessengerController::class, 'direct'])->name('conversations.direct');
+        Route::get('/conversations/{conversation}/messages', [MessengerController::class, 'messages'])->name('conversations.messages');
+        Route::post('/conversations/{conversation}/messages', [MessengerController::class, 'sendMessage'])->name('conversations.messages.store');
+        Route::patch('/conversations/{conversation}/messages/{message}', [MessengerController::class, 'updateMessage'])->name('conversations.messages.update');
+        Route::delete('/conversations/{conversation}/messages/{message}', [MessengerController::class, 'deleteMessage'])->name('conversations.messages.destroy');
+        Route::post('/conversations/{conversation}/read', [MessengerController::class, 'markRead'])->name('conversations.read');
+    });
+
     Route::get('/engagement', [EngagementController::class, 'index'])->name('engagement.index');
     Route::post('/engagement/vote', [EngagementController::class, 'vote'])->name('engagement.vote');
     Route::post('/engagement/surveys/{survey}/responses', [EngagementController::class, 'respondSurvey'])->name('engagement.surveys.respond');
@@ -100,20 +111,20 @@ Route::middleware(['auth'])->group(function () {
         $departments = Direction::orderBy('code')->pluck('code');
 
         return Inertia::render('Team', [
-            'users'       => $users->map(fn ($u) => [
-                'id'           => $u->id,
-                'name'         => $u->name,
-                'role'         => $u->role,
-                'department'   => $u->direction?->code ?? $u->direction?->name ?? $u->department?->name,
-                'avatar'       => $u->avatar,
+            'users' => $users->map(fn ($u) => [
+                'id' => $u->id,
+                'name' => $u->name,
+                'role' => $u->role,
+                'department' => $u->direction?->code ?? $u->direction?->name ?? $u->department?->name,
+                'avatar' => $u->avatar,
                 'points_total' => $u->points_total,
             ]),
             'departments' => $departments,
-            'pagination'  => [
+            'pagination' => [
                 'current_page' => $users->currentPage(),
-                'last_page'    => $users->lastPage(),
-                'per_page'     => $users->perPage(),
-                'total'        => $users->total(),
+                'last_page' => $users->lastPage(),
+                'per_page' => $users->perPage(),
+                'total' => $users->total(),
             ],
         ]);
     })->name('team');
@@ -147,4 +158,4 @@ Route::middleware(['auth'])->group(function () {
     Route::patch('/admin/users/{user}/permission', [AdminController::class, 'updatePermission'])->name('admin.users.permission');
 });
 
-require __DIR__ . '/settings.php';
+require __DIR__.'/settings.php';

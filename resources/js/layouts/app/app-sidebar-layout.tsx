@@ -7,6 +7,7 @@ import Sidebar from './Sidebar';
 import Header from './Header';
 import MobileNav from './MobileNav';
 import CreateBravo from '@/pages/CreateBravo';
+import MessengerWidget from '@/components/MessengerWidget';
 import { User, BravoValue } from '@/pages/types';
 
 interface AppSidebarLayoutProps {
@@ -145,6 +146,8 @@ export default function AppSidebarLayout({ breadcrumbs = [], children }: AppSide
           </motion.div>
         )}
       </AnimatePresence>
+
+      <MessengerWidget />
     </div>
   );
 }

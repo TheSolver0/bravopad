@@ -229,6 +229,8 @@ class ChallengeSeeder extends Seeder
             ],
 
         ]);
-    DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+        if (DB::getDriverName() === 'mysql') {
+            DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+        }
     }
 }

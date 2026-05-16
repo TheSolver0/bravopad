@@ -33,8 +33,7 @@ return new class extends Migration
             });
         }
 
-        // Make option_key nullable
-        DB::statement('ALTER TABLE hr_survey_responses MODIFY COLUMN option_key VARCHAR(40) NULL');
+        $this->makeOptionKeyNullable();
     }
 
     public function down(): void
@@ -52,6 +51,71 @@ return new class extends Migration
             });
         }
 
-        DB::statement('ALTER TABLE hr_survey_responses MODIFY COLUMN option_key VARCHAR(40) NOT NULL DEFAULT \'\'');
+        $this->makeOptionKeyRequired();
+    }
+
+    private function makeOptionKeyNullable(): void
+    {
+        if (DB::getDriverName() !== 'sqlite') {
+            DB::statement('ALTER TABLE hr_survey_responses MODIFY COLUMN option_key VARCHAR(40) NULL');
+
+            return;
+        }
+
+        DB::statement('PRAGMA foreign_keys=OFF');
+        DB::statement(<<<'SQL'
+            CREATE TABLE hr_survey_responses_tmp (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                survey_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                option_key VARCHAR(40) NULL,
+                answers TEXT NULL,
+                created_at DATETIME NULL,
+                updated_at DATETIME NULL,
+                FOREIGN KEY (survey_id) REFERENCES hr_surveys(id) ON DELETE CASCADE,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        SQL);
+        DB::statement(<<<'SQL'
+            INSERT INTO hr_survey_responses_tmp (id, survey_id, user_id, option_key, answers, created_at, updated_at)
+            SELECT id, survey_id, user_id, option_key, answers, created_at, updated_at
+            FROM hr_survey_responses
+        SQL);
+        DB::statement('DROP TABLE hr_survey_responses');
+        DB::statement('ALTER TABLE hr_survey_responses_tmp RENAME TO hr_survey_responses');
+        DB::statement('CREATE UNIQUE INDEX hr_survey_responses_survey_id_user_id_unique ON hr_survey_responses (survey_id, user_id)');
+        DB::statement('PRAGMA foreign_keys=ON');
+    }
+
+    private function makeOptionKeyRequired(): void
+    {
+        if (DB::getDriverName() !== 'sqlite') {
+            DB::statement('ALTER TABLE hr_survey_responses MODIFY COLUMN option_key VARCHAR(40) NOT NULL DEFAULT \'\'');
+
+            return;
+        }
+
+        DB::statement('PRAGMA foreign_keys=OFF');
+        DB::statement(<<<'SQL'
+            CREATE TABLE hr_survey_responses_tmp (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                survey_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                option_key VARCHAR(40) NOT NULL DEFAULT '',
+                created_at DATETIME NULL,
+                updated_at DATETIME NULL,
+                FOREIGN KEY (survey_id) REFERENCES hr_surveys(id) ON DELETE CASCADE,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        SQL);
+        DB::statement(<<<'SQL'
+            INSERT INTO hr_survey_responses_tmp (id, survey_id, user_id, option_key, created_at, updated_at)
+            SELECT id, survey_id, user_id, COALESCE(option_key, ''), created_at, updated_at
+            FROM hr_survey_responses
+        SQL);
+        DB::statement('DROP TABLE hr_survey_responses');
+        DB::statement('ALTER TABLE hr_survey_responses_tmp RENAME TO hr_survey_responses');
+        DB::statement('CREATE UNIQUE INDEX hr_survey_responses_survey_id_user_id_unique ON hr_survey_responses (survey_id, user_id)');
+        DB::statement('PRAGMA foreign_keys=ON');
     }
 };

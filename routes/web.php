@@ -80,6 +80,8 @@ Route::middleware(['auth'])->group(function () {
         Route::patch('/conversations/{conversation}/messages/{message}', [MessengerController::class, 'updateMessage'])->name('conversations.messages.update');
         Route::delete('/conversations/{conversation}/messages/{message}', [MessengerController::class, 'deleteMessage'])->name('conversations.messages.destroy');
         Route::post('/conversations/{conversation}/read', [MessengerController::class, 'markRead'])->name('conversations.read');
+        Route::post('/conversations/{conversation}/calls', [MessengerController::class, 'startCall'])->name('conversations.calls.store');
+        Route::patch('/conversations/{conversation}/calls/{call}', [MessengerController::class, 'updateCall'])->name('conversations.calls.update');
     });
 
     Route::get('/engagement', [EngagementController::class, 'index'])->name('engagement.index');

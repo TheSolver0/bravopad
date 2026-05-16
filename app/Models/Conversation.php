@@ -82,6 +82,11 @@ class Conversation extends Model
         return $this->hasMany(Message::class);
     }
 
+    public function calls(): HasMany
+    {
+        return $this->hasMany(MessengerCall::class);
+    }
+
     public function lastMessage(): BelongsTo
     {
         return $this->belongsTo(Message::class, 'last_message_id');

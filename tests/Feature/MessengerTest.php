@@ -2,10 +2,12 @@
 
 use App\Events\MessageSent;
 use App\Events\MessageUpdated;
+use App\Events\MessengerCallUpdated;
 use App\Events\MessengerConversationRead;
 use App\Events\MessengerInboxUpdated;
 use App\Models\Conversation;
 use App\Models\Message;
+use App\Models\MessengerCall;
 use App\Models\User;
 use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Event;
@@ -233,17 +235,69 @@ it('allows message authors to edit and delete their own messages', function () {
     Event::assertDispatched(MessageUpdated::class, 2);
 });
 
+it('starts and updates direct audio and video calls between participants', function () {
+    Event::fake([MessengerCallUpdated::class]);
+
+    $caller = messengerUser();
+    $callee = messengerUser();
+    $outsider = messengerUser();
+    $conversation = Conversation::createDirectBetween($caller, $callee);
+
+    $call = $this->actingAs($caller)
+        ->postJson("/messenger/conversations/{$conversation->id}/calls", ['type' => 'video'])
+        ->assertCreated()
+        ->assertJsonPath('call.type', 'video')
+        ->assertJsonPath('call.status', 'ringing')
+        ->assertJsonPath('call.started_by', $caller->id)
+        ->assertJsonPath('call.callee_id', $callee->id)
+        ->json('call');
+
+    $this->actingAs($outsider)
+        ->patchJson("/messenger/conversations/{$conversation->id}/calls/{$call['id']}", ['status' => 'accepted'])
+        ->assertForbidden();
+
+    $this->actingAs($caller)
+        ->patchJson("/messenger/conversations/{$conversation->id}/calls/{$call['id']}", ['status' => 'accepted'])
+        ->assertForbidden();
+
+    $this->actingAs($callee)
+        ->patchJson("/messenger/conversations/{$conversation->id}/calls/{$call['id']}", ['status' => 'accepted'])
+        ->assertOk()
+        ->assertJsonPath('call.status', 'accepted')
+        ->assertJsonPath('call.accepted_at', fn (?string $value) => filled($value));
+
+    $this->actingAs($caller)
+        ->patchJson("/messenger/conversations/{$conversation->id}/calls/{$call['id']}", ['status' => 'ended'])
+        ->assertOk()
+        ->assertJsonPath('call.status', 'ended')
+        ->assertJsonPath('call.ended_at', fn (?string $value) => filled($value));
+
+    expect(MessengerCall::query()->where('type', 'video')->count())->toBe(1);
+    Event::assertDispatched(MessengerCallUpdated::class, 3);
+});
+
 it('authorizes private messenger broadcast channels', function () {
     $me = messengerUser();
     $target = messengerUser();
     $outsider = messengerUser();
     $conversation = Conversation::createDirectBetween($me, $target);
+    $call = MessengerCall::query()->create([
+        'conversation_id' => $conversation->id,
+        'started_by' => $me->id,
+        'callee_id' => $target->id,
+        'type' => 'audio',
+        'status' => 'ringing',
+    ]);
 
     $conversationAuthorizer = Broadcast::getChannels()->get('messenger.conversation.{conversationId}');
     $userAuthorizer = Broadcast::getChannels()->get('messenger.user.{userId}');
+    $callAuthorizer = Broadcast::getChannels()->get('messenger.call.{callId}');
 
     expect($conversationAuthorizer($me, $conversation->id))->toBeTrue();
     expect($conversationAuthorizer($outsider, $conversation->id))->toBeFalse();
     expect($userAuthorizer($me, $me->id))->toBeTrue();
     expect($userAuthorizer($outsider, $me->id))->toBeFalse();
+    expect($callAuthorizer($me, $call->id))->toBeTrue();
+    expect($callAuthorizer($target, $call->id))->toBeTrue();
+    expect($callAuthorizer($outsider, $call->id))->toBeFalse();
 });

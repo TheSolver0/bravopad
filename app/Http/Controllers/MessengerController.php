@@ -4,10 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Events\MessageSent;
 use App\Events\MessageUpdated;
+use App\Events\MessengerCallUpdated;
 use App\Events\MessengerConversationRead;
 use App\Events\MessengerInboxUpdated;
 use App\Models\Conversation;
 use App\Models\Message;
+use App\Models\MessengerCall;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -242,6 +244,85 @@ class MessengerController extends Controller
         ]);
     }
 
+    public function startCall(Request $request, Conversation $conversation): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $this->abortUnlessParticipant($conversation, $user);
+        $conversation->loadMissing('participants:id,name,email,avatar,role');
+
+        $validated = $request->validate([
+            'type' => ['required', 'string', 'in:audio,video'],
+        ]);
+
+        $callee = $conversation->otherParticipantFor($user);
+
+        if (! $callee || $callee->is_automation) {
+            throw ValidationException::withMessages([
+                'conversation' => 'Cette conversation ne peut pas recevoir un appel.',
+            ]);
+        }
+
+        $call = MessengerCall::query()->create([
+            'conversation_id' => $conversation->id,
+            'started_by' => $user->id,
+            'callee_id' => $callee->id,
+            'type' => $validated['type'],
+            'status' => 'ringing',
+        ]);
+
+        $call->load(['starter:id,name,email,avatar,role', 'callee:id,name,email,avatar,role']);
+        $this->dispatchMessengerEvent(new MessengerCallUpdated($call));
+
+        return response()->json([
+            'call' => $this->callPayload($call),
+        ], 201);
+    }
+
+    public function updateCall(Request $request, Conversation $conversation, MessengerCall $call): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $this->abortUnlessParticipant($conversation, $user);
+        $this->abortUnlessCallInConversation($conversation, $call);
+        $this->abortUnlessCallParticipant($call, $user);
+
+        $validated = $request->validate([
+            'status' => ['required', 'string', 'in:accepted,declined,ended'],
+        ]);
+
+        $status = $validated['status'];
+
+        if (in_array($status, ['accepted', 'declined'], true) && $call->callee_id !== $user->id) {
+            abort(403);
+        }
+
+        if ($status === 'accepted' && $call->status !== 'ringing') {
+            abort(422, 'Cet appel ne peut plus etre accepte.');
+        }
+
+        if ($status === 'declined' && $call->status !== 'ringing') {
+            abort(422, 'Cet appel ne peut plus etre refuse.');
+        }
+
+        if ($status === 'ended' && in_array($call->status, ['declined', 'ended'], true)) {
+            abort(422, 'Cet appel est deja termine.');
+        }
+
+        $call->forceFill([
+            'status' => $status,
+            'accepted_at' => $status === 'accepted' ? now() : $call->accepted_at,
+            'ended_at' => in_array($status, ['declined', 'ended'], true) ? now() : $call->ended_at,
+        ])->save();
+
+        $call->load(['starter:id,name,email,avatar,role', 'callee:id,name,email,avatar,role']);
+        $this->dispatchMessengerEvent(new MessengerCallUpdated($call));
+
+        return response()->json([
+            'call' => $this->callPayload($call),
+        ]);
+    }
+
     private function abortUnlessParticipant(Conversation $conversation, User $user): void
     {
         if (! $conversation->hasParticipant($user)) {
@@ -259,6 +340,20 @@ class MessengerController extends Controller
     private function abortUnlessMessageAuthor(Message $message, User $user): void
     {
         if ($message->sender_id !== $user->id) {
+            abort(403);
+        }
+    }
+
+    private function abortUnlessCallInConversation(Conversation $conversation, MessengerCall $call): void
+    {
+        if ($call->conversation_id !== $conversation->id) {
+            abort(404);
+        }
+    }
+
+    private function abortUnlessCallParticipant(MessengerCall $call, User $user): void
+    {
+        if (! $call->hasParticipant($user)) {
             abort(403);
         }
     }
@@ -311,6 +406,25 @@ class MessengerController extends Controller
             'email' => $user->email,
             'avatar' => $user->avatar,
             'role' => $user->role,
+        ];
+    }
+
+    private function callPayload(MessengerCall $call): array
+    {
+        $call->loadMissing(['starter:id,name,email,avatar,role', 'callee:id,name,email,avatar,role']);
+
+        return [
+            'id' => $call->id,
+            'conversation_id' => $call->conversation_id,
+            'started_by' => $call->started_by,
+            'callee_id' => $call->callee_id,
+            'type' => $call->type,
+            'status' => $call->status,
+            'accepted_at' => $call->accepted_at?->toIso8601String(),
+            'ended_at' => $call->ended_at?->toIso8601String(),
+            'created_at' => $call->created_at?->toIso8601String(),
+            'starter' => $this->userPayload($call->starter),
+            'callee' => $this->userPayload($call->callee),
         ];
     }
 

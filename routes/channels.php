@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Conversation;
+use App\Models\MessengerCall;
 use App\Models\User;
 use Illuminate\Support\Facades\Broadcast;
 
@@ -13,4 +14,13 @@ Broadcast::channel('messenger.conversation.{conversationId}', function (User $us
 
 Broadcast::channel('messenger.user.{userId}', function (User $user, int $userId): bool {
     return $user->id === $userId;
+});
+
+Broadcast::channel('messenger.call.{callId}', function (User $user, int $callId): bool {
+    return MessengerCall::query()
+        ->whereKey($callId)
+        ->where(fn ($query) => $query
+            ->where('started_by', $user->id)
+            ->orWhere('callee_id', $user->id))
+        ->exists();
 });

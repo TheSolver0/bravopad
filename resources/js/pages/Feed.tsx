@@ -32,6 +32,8 @@ import {
   Globe,
   Volume2,
   VolumeX,
+  Search, Building2, Users, BadgeCheck,
+  MapPin, Briefcase, Filter
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -736,6 +738,312 @@ function SuggestedPeople({ users, currentUser }: { users: User[]; currentUser: U
   );
 }
 
+// ─── Mock data ────────────────────────────────────────────────────────────────
+const MOCK_COLLEAGUES = [
+  { id: 1, name: "Mbarga Jean-Pierre", role: "Directeur Technique", department: "Direction Technique", location: "Bâtiment A", avatar: null, initials: "MJ" },
+  { id: 2, name: "Ngo Biyong Chantal", role: "Responsable RH", department: "Ressources Humaines", location: "Bâtiment B", avatar: null, initials: "NC" },
+  { id: 3, name: "Essama Paul", role: "Ingénieur Infrastructure", department: "Direction Technique", location: "Hangar 3", avatar: null, initials: "EP" },
+  { id: 4, name: "Bella Marie-Claire", role: "Comptable Senior", department: "Direction Financière", location: "Bâtiment A", avatar: null, initials: "BM" },
+  { id: 5, name: "Kouam David", role: "Agent de Sécurité", department: "Sécurité Portuaire", location: "Quai 7", avatar: null, initials: "KD" },
+  { id: 6, name: "Tchouakam Sophie", role: "Juriste", department: "Direction Juridique", location: "Bâtiment C", avatar: null, initials: "TS" },
+];
+
+const DEPARTMENTS = [
+  "Tous les départements",
+  "Direction Technique",
+  "Ressources Humaines",
+  "Direction Financière",
+  "Sécurité Portuaire",
+  "Direction Juridique",
+  "RPI – Régie du Patrimoine",
+  "Direction Générale",
+];
+
+// ─── RPI Official Announcement Card ──────────────────────────────────────────
+function RPIAnnouncementCard() {
+  const [expanded, setExpanded] = useState(false);
+
+  const tarifs = [
+    { label: "Enfant (< 18 ans)", tarif: "23 075", ttc: "25 000" },
+    { label: "Enfant (> 18 ans)", tarif: "28 075", ttc: "30 000" },
+    { label: "Conjoint(e)", tarif: "28 075", ttc: "30 000" },
+    { label: "Portuaire", tarif: "48 150", ttc: "50 000", highlight: true },
+  ];
+
+  return (
+    <div className="rounded-2xl overflow-hidden border border-[#003d7a]/10 shadow-md shadow-[#003d7a]/5 bg-white">
+      {/* Header band */}
+      <div className="bg-gradient-to-r from-[#003d7a] to-[#0066c2] px-4 py-2.5 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-full bg-white/15 flex items-center justify-center">
+            <Building2 size={13} className="text-white" />
+          </div>
+          <span className="text-[11px] font-black uppercase tracking-widest text-white/80">
+            Annonce officielle
+          </span>
+        </div>
+        <span className="text-[10px] text-white/50 font-medium">17 Mai 2026</span>
+      </div>
+
+      <div className="p-4">
+        {/* Publisher row */}
+        <div className="flex items-start gap-3 mb-4">
+          {/* RPI Avatar */}
+          <div className="relative shrink-0">
+            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#003d7a] to-[#0066c2] flex items-center justify-center shadow-md">
+              <Anchor size={20} className="text-white" />
+            </div>
+            <div className="absolute -bottom-1 -right-1 bg-[#0066c2] rounded-full p-0.5 border-2 border-white">
+              <BadgeCheck size={11} className="text-white fill-white" />
+            </div>
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="font-black text-sm text-gray-900">RPI – Régie du Patrimoine</span>
+              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-[#003d7a]/8 text-[9px] font-black uppercase tracking-wider text-[#003d7a]">
+                <BadgeCheck size={8} className="fill-[#003d7a] text-white" />
+                Officiel
+              </span>
+            </div>
+            <p className="text-[11px] text-gray-400 font-medium mt-0.5">Port Autonome de Douala · Patrimoine Immobilier</p>
+          </div>
+        </div>
+
+        {/* Title */}
+        <div className="mb-3">
+          <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-amber-50 border border-amber-200 mb-2">
+            <Star size={10} className="text-amber-500 fill-amber-500" />
+            <span className="text-[10px] font-black uppercase tracking-wider text-amber-700">Abonnements 2026</span>
+          </div>
+          <h3 className="text-sm font-black text-gray-900 leading-snug">
+            Tarifs TTC – Abonnement Annuel aux Espaces Sportifs du Club PAD
+          </h3>
+          <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+            Les tarifs TTC applicables pour l'acquisition de titres d'accès aux espaces sportifs
+            (Tennis, Volley, Gym & Piscine) sont fixés comme suit, en Francs CFA :
+          </p>
+        </div>
+
+        {/* Tariff table */}
+        <div className="rounded-xl overflow-hidden border border-gray-100 mb-3">
+          <div className="grid grid-cols-3 bg-[#003d7a]/5 px-3 py-1.5">
+            <span className="text-[10px] font-black uppercase tracking-wider text-gray-500">Bénéficiaire</span>
+            <span className="text-[10px] font-black uppercase tracking-wider text-gray-500 text-right">Tarif HT</span>
+            <span className="text-[10px] font-black uppercase tracking-wider text-[#003d7a] text-right">Montant TTC</span>
+          </div>
+          {tarifs.map((t, i) => (
+            <div
+              key={i}
+              className={`grid grid-cols-3 px-3 py-2.5 border-t border-gray-100 ${t.highlight ? "bg-[#003d7a]/3" : "bg-white"}`}
+            >
+              <span className={`text-xs font-semibold ${t.highlight ? "text-[#003d7a] font-black" : "text-gray-700"}`}>
+                {t.label}
+              </span>
+              <span className="text-xs text-gray-500 text-right font-mono">{t.tarif} F</span>
+              <span className={`text-xs text-right font-black font-mono ${t.highlight ? "text-[#003d7a]" : "text-gray-800"}`}>
+                {t.ttc} F
+              </span>
+            </div>
+          ))}
+          <div className="grid grid-cols-3 px-3 py-2 bg-gray-50 border-t border-gray-200">
+            <span className="text-[10px] text-gray-400 font-semibold col-span-2">TVA 19,25% incluse</span>
+            <span className="text-[10px] text-gray-400 text-right font-mono">Filiales & Succursales</span>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] text-gray-400 font-medium">
+            Valable pour les filiales, succursales et collaborateurs PAD
+          </span>
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="flex items-center gap-1 text-[11px] font-bold text-[#003d7a] hover:text-[#0066c2] transition-colors"
+          >
+            {expanded ? "Réduire" : "Plus d'infos"}
+            <ChevronRight size={11} className={`transition-transform ${expanded ? "rotate-90" : ""}`} />
+          </button>
+        </div>
+
+        {expanded && (
+          <div className="mt-3 pt-3 border-t border-gray-100 text-xs text-gray-500 leading-relaxed space-y-1">
+            <p>• Les abonnements sont valables pour l'année civile 2026.</p>
+            <p>• L'accès couvre : Tennis, Volley-ball, Gymnase & Piscine.</p>
+            <p>• Pour toute inscription, se rapprocher du service RPI au Bâtiment Principal.</p>
+            <p>• Pièces requises : badge PAD + formulaire d'adhésion signé.</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Find a Colleague Section ─────────────────────────────────────────────────
+function FindColleague() {
+  const [query, setQuery] = useState("");
+  const [department, setDepartment] = useState("Tous les départements");
+  const [showFilters, setShowFilters] = useState(false);
+  const [searched, setSearched] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [results, setResults] = useState<typeof MOCK_COLLEAGUES>([]);
+  const [aiSummary, setAiSummary] = useState("");
+
+  const handleSearch = async () => {
+    if (!query.trim() && department === "Tous les départements") return;
+    setLoading(true);
+    setSearched(true);
+    setAiSummary("");
+
+    // Simulate AI search + filter
+    await new Promise(r => setTimeout(r, 700));
+
+    let filtered = MOCK_COLLEAGUES;
+    if (department !== "Tous les départements") {
+      filtered = filtered.filter(c => c.department === department);
+    }
+    if (query.trim()) {
+      const q = query.toLowerCase();
+      filtered = filtered.filter(c =>
+        c.name.toLowerCase().includes(q) ||
+        c.role.toLowerCase().includes(q) ||
+        c.department.toLowerCase().includes(q) ||
+        c.location.toLowerCase().includes(q)
+      );
+    }
+
+    setResults(filtered);
+    setAiSummary(
+      filtered.length > 0
+        ? `${filtered.length} collègue${filtered.length > 1 ? "s" : ""} trouvé${filtered.length > 1 ? "s" : ""} correspondant à votre recherche.`
+        : "Aucun collègue trouvé. Essayez d'autres mots-clés ou filtres."
+    );
+    setLoading(false);
+  };
+
+  const colorMap = ["bg-[#003d7a]", "bg-[#0066c2]", "bg-emerald-600", "bg-purple-600", "bg-amber-600", "bg-rose-600"];
+
+  return (
+    <div className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
+      {/* Header */}
+      <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-lg bg-[#003d7a]/8 flex items-center justify-center">
+            <Users size={14} className="text-[#003d7a]" />
+          </div>
+          <div>
+            <h3 className="text-sm font-black text-gray-900">Retrouver un Collègue</h3>
+            <p className="text-[10px] text-gray-400 font-medium">Recherche par description, poste ou département</p>
+          </div>
+        </div>
+        <button
+          onClick={() => setShowFilters(!showFilters)}
+          className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${showFilters ? "bg-[#003d7a] text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+        >
+          <Filter size={10} />
+          Filtres
+        </button>
+      </div>
+
+      <div className="p-4 space-y-3">
+        {/* Search bar */}
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handleSearch()}
+              placeholder="Ex: responsable informatique, quai 5, casquette bleue…"
+              className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-xs font-medium text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#003d7a]/20 focus:border-[#003d7a]/40 transition-all"
+            />
+            {query && (
+              <button onClick={() => setQuery("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                <X size={12} />
+              </button>
+            )}
+          </div>
+          <button
+            onClick={handleSearch}
+            className="px-4 py-2.5 rounded-xl bg-[#003d7a] hover:bg-[#0066c2] text-white text-xs font-black transition-all shadow-sm shadow-[#003d7a]/20"
+          >
+            Chercher
+          </button>
+        </div>
+
+        {/* Filters */}
+        {showFilters && (
+          <div className="space-y-2 p-3 rounded-xl bg-gray-50 border border-gray-100">
+            <label className="text-[10px] font-black uppercase tracking-wider text-gray-500 flex items-center gap-1">
+              <Briefcase size={9} /> Département
+            </label>
+            <select
+              value={department}
+              onChange={e => setDepartment(e.target.value)}
+              className="w-full text-xs font-medium text-gray-700 bg-white border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#003d7a]/20"
+            >
+              {DEPARTMENTS.map(d => <option key={d}>{d}</option>)}
+            </select>
+          </div>
+        )}
+
+        {/* Loading */}
+        {loading && (
+          <div className="flex items-center justify-center py-6 gap-2 text-gray-400">
+            <span className="w-4 h-4 border-2 border-[#003d7a] border-t-transparent rounded-full animate-spin" />
+            <span className="text-xs font-semibold">Recherche en cours…</span>
+          </div>
+        )}
+
+        {/* Results */}
+        {!loading && searched && (
+          <>
+            <p className="text-[11px] font-semibold text-gray-500 px-0.5">{aiSummary}</p>
+            <div className="space-y-2">
+              {results.map((c, i) => (
+                <div
+                  key={c.id}
+                  className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 border border-gray-100 hover:border-[#003d7a]/20 hover:bg-[#003d7a]/3 transition-all cursor-pointer group"
+                >
+                  <div className={`w-9 h-9 rounded-xl ${colorMap[i % colorMap.length]} flex items-center justify-center shrink-0 shadow-sm`}>
+                    <span className="text-white text-[10px] font-black">{c.initials}</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-black text-gray-900 truncate">{c.name}</p>
+                    <p className="text-[10px] text-gray-500 font-medium truncate">{c.role}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="flex items-center gap-0.5 text-[9px] text-gray-400 font-semibold">
+                        <Briefcase size={8} /> {c.department}
+                      </span>
+                      <span className="flex items-center gap-0.5 text-[9px] text-gray-400 font-semibold">
+                        <MapPin size={8} /> {c.location}
+                      </span>
+                    </div>
+                  </div>
+                  <ChevronRight size={13} className="text-gray-300 group-hover:text-[#003d7a] transition-colors shrink-0" />
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* Idle state */}
+        {!searched && (
+          <div className="flex items-center gap-3 py-3 px-3 rounded-xl bg-[#003d7a]/4 border border-[#003d7a]/8">
+            <div className="w-8 h-8 rounded-lg bg-[#003d7a]/10 flex items-center justify-center shrink-0">
+              <Search size={14} className="text-[#003d7a]/60" />
+            </div>
+            <p className="text-[11px] text-gray-500 leading-snug font-medium">
+              Décrivez votre collègue : son rôle, son emplacement, son département ou tout autre détail que vous connaissez.
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Main Feed Page ────────────────────────────────────────────────────────────
 export default function Feed({ posts, currentUser, users, activeChallenge, bravoCount, bravoValues, announcements = [] }: FeedProps) {
   const { t, i18n } = useTranslation();
@@ -941,9 +1249,9 @@ export default function Feed({ posts, currentUser, users, activeChallenge, bravo
           {/* ── Left / Main column ──────────────────────────────────────── */}
           <div className="flex-1 min-w-0 space-y-4">
 
-            {/* Quick stats */}
-            {/* <QuickStats bravoCount={bravoCount} users={users} /> */}
-
+       
+ 
+        
             {/* Announcements */}
             {ann.length > 0 && <AnnouncementBanner announcements={ann} />}
 
@@ -952,11 +1260,13 @@ export default function Feed({ posts, currentUser, users, activeChallenge, bravo
 
             {/* Compose */}
             <ComposeBox currentUser={currentUser} canAnnounce={canAnnounce} />
+              {/* 1. RPI Announcement */}
+        <RPIAnnouncementCard />
 
             {/* Feed label */}
             <div className="flex items-center gap-3">
               <h2 className="text-sm font-black text-gray-500 uppercase tracking-widest">
-                {t('feed.recentActivity', 'Activité récente')}
+                {t('feed.recentActivity', '')}
               </h2>
               <div className="flex-1 h-px bg-gray-100" />
             </div>
@@ -991,6 +1301,9 @@ export default function Feed({ posts, currentUser, users, activeChallenge, bravo
             {/* <Leaderboard users={users} /> */}
             <SuggestedPeople users={users} currentUser={currentUser} />
 
+            {/* 2. Find a Colleague */}
+        <FindColleague />
+
             {/* Active Challenge card */}
             {activeChallenge && (
               <div
@@ -1014,11 +1327,7 @@ export default function Feed({ posts, currentUser, users, activeChallenge, bravo
               </div>
             )}
 
-            {/* Footer */}
-            <div className="text-[10px] text-gray-300 leading-relaxed">
-              <p className="font-semibold text-gray-400 mb-1">OnePAD · Port Autonome de Douala</p>
-              <p>Plateforme interne de reconnaissance et d'engagement collaboratif.</p>
-            </div>
+           
           </div>
         </div>
       </div>

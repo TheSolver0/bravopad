@@ -204,7 +204,7 @@ function SurveyCard({
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
-            <img src='/assets/images/logo.png' alt='Logo' className="text-on-surface-variant/20" />
+            <img src='/assets/images/onepad-logo.png' alt='Logo' className="text-on-surface-variant/20" />
           </div>
         )}
 

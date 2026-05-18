@@ -26,14 +26,14 @@ export default function AuthSplitLayout({
                     <Link href={home()} className="flex flex-col items-center gap-6">
                         <div className="flex h-40 w-40 items-center justify-center rounded-2xl bg-white p-4 shadow-2xl">
                             <img
-                                src="/assets/images/logo.png"
+                                src="/assets/images/onepad-logo.png"
                                 alt="PAD"
                                 className="h-full w-full object-contain"
                             />
                         </div>
                         <div className="text-center">
                             <p className="text-lg font-semibold uppercase tracking-widest text-blue-200">
-                                PAD
+                                
                             </p>
                             {/* <p className="mt-1 text-sm text-blue-300 tracking-wider">
                                 Port Authority of Douala
@@ -44,7 +44,7 @@ export default function AuthSplitLayout({
                     <div className="max-w-xs text-center">
                         <h2 className="text-2xl font-bold text-white">OnePAD</h2>
                         <p className="mt-3 text-sm leading-relaxed text-blue-200/80">
-                            Plateforme de Reconnaissance entre employés de PAD
+                            Reseau social d'entreprise pour les employés du Port de Douala. Connectez-vous pour collaborer, partager et rester informé.
                         </p>
                     </div>
 
@@ -71,7 +71,7 @@ export default function AuthSplitLayout({
                 >
                     <div className="flex h-20 w-20 items-center justify-center rounded-xl bg-white p-2 shadow-lg ring-1 ring-gray-200">
                         <img
-                            src="/assets/images/logo.png"
+                            src="/assets/images/onepad-logo.png"
                             alt="PAD"
                             className="h-full w-full object-contain"
                         />

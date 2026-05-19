@@ -25,8 +25,8 @@
       "_dist-C9dhbTtK.js"
     ]
   },
-  "_CreateBravo-CXt3Fw-g.js": {
-    "file": "assets/CreateBravo-CXt3Fw-g.js",
+  "_CreateBravo-CFT-Yb-F.js": {
+    "file": "assets/CreateBravo-CFT-Yb-F.js",
     "name": "CreateBravo",
     "imports": [
       "_jsx-runtime-DVQnjiVI.js",
@@ -514,13 +514,6 @@
       "_createLucideIcon-DjdWctSY.js"
     ]
   },
-  "_play-VTK_wuP2.js": {
-    "file": "assets/play-VTK_wuP2.js",
-    "name": "play",
-    "imports": [
-      "_createLucideIcon-DjdWctSY.js"
-    ]
-  },
   "_plus-C0EfmkSP.js": {
     "file": "assets/plus-C0EfmkSP.js",
     "name": "plus",
@@ -712,6 +705,13 @@
       "_createLucideIcon-DjdWctSY.js"
     ]
   },
+  "_upload-DFVc9ImM.js": {
+    "file": "assets/upload-DFVc9ImM.js",
+    "name": "upload",
+    "imports": [
+      "_createLucideIcon-DjdWctSY.js"
+    ]
+  },
   "_use-appearance-DRTh65vD.js": {
     "file": "assets/use-appearance-DRTh65vD.js",
     "name": "use-appearance",
@@ -807,7 +807,7 @@
     ]
   },
   "resources/css/app.css": {
-    "file": "assets/app-DDVfepcV.css",
+    "file": "assets/app-DLpucwPz.css",
     "name": "app",
     "names": [
       "app.css"
@@ -816,7 +816,7 @@
     "isEntry": true
   },
   "resources/js/app.tsx": {
-    "file": "assets/app-u3DVRuSZ.js",
+    "file": "assets/app-Cyz6vRb8.js",
     "name": "app",
     "src": "resources/js/app.tsx",
     "isEntry": true,
@@ -838,7 +838,7 @@
       "_check-Sk1tUhLc.js",
       "_chevron-down-BHcig-Bx.js",
       "_chevron-right-e2cJN0y_.js",
-      "_CreateBravo-CXt3Fw-g.js",
+      "_CreateBravo-CFT-Yb-F.js",
       "_circle-plus-QTiMUD1p.js",
       "_clipboard-check-BagRbmfh.js",
       "_clipboard-list-Bsrb2_2Z.js",
@@ -885,7 +885,7 @@
       "resources/js/pages/AdminUsers.tsx",
       "resources/js/pages/AuditLog.tsx",
       "resources/js/pages/Challenges.tsx",
-      "_CreateBravo-CXt3Fw-g.js",
+      "_CreateBravo-CFT-Yb-F.js",
       "resources/js/pages/Engagement.tsx",
       "resources/js/pages/Feed.tsx",
       "resources/js/pages/History.tsx",
@@ -1138,7 +1138,7 @@
     ]
   },
   "resources/js/pages/Challenges.tsx": {
-    "file": "assets/Challenges-CNn3HTq4.js",
+    "file": "assets/Challenges-_5rk8mqr.js",
     "name": "Challenges",
     "src": "resources/js/pages/Challenges.tsx",
     "isDynamicEntry": true,
@@ -1159,7 +1159,7 @@
       "_heart-SHAUslrp.js",
       "_image-B2d6VvQS.js",
       "_loader-circle-BUMICfzV.js",
-      "_play-VTK_wuP2.js",
+      "_upload-DFVc9ImM.js",
       "_plus-C0EfmkSP.js",
       "_star-BGxjqXA8.js",
       "_trash-2-DTtlmIrP.js",
@@ -1176,12 +1176,12 @@
     ]
   },
   "resources/js/pages/CreateBravo.tsx": {
-    "file": "assets/CreateBravo-COq-cY3h.js",
+    "file": "assets/CreateBravo-BB0Kghnl.js",
     "name": "CreateBravo",
     "src": "resources/js/pages/CreateBravo.tsx",
     "isDynamicEntry": true,
     "imports": [
-      "_CreateBravo-CXt3Fw-g.js"
+      "_CreateBravo-CFT-Yb-F.js"
     ]
   },
   "resources/js/pages/Engagement.tsx": {
@@ -1213,7 +1213,7 @@
     ]
   },
   "resources/js/pages/Feed.tsx": {
-    "file": "assets/Feed-lDHJT-mq.js",
+    "file": "assets/Feed-B73KvIHE.js",
     "name": "Feed",
     "src": "resources/js/pages/Feed.tsx",
     "isDynamicEntry": true,
@@ -1230,7 +1230,7 @@
       "_chevron-left-DtzQPVWb.js",
       "_chevron-right-e2cJN0y_.js",
       "_chevron-up-qfykbZd0.js",
-      "_CreateBravo-CXt3Fw-g.js",
+      "_CreateBravo-CFT-Yb-F.js",
       "_clock-CBdc05vL.js",
       "_ellipsis-BFnIDBzK.js",
       "_filter-Bo4Pggvp.js",
@@ -1239,7 +1239,7 @@
       "_image-B2d6VvQS.js",
       "_message-square-CXfcfI5D.js",
       "_pencil-LXUBmfgk.js",
-      "_play-VTK_wuP2.js",
+      "_upload-DFVc9ImM.js",
       "_plus-C0EfmkSP.js",
       "_search-eRtYW8S8.js",
       "_send-Dh8CgVjh.js",
@@ -1540,7 +1540,7 @@
     ]
   },
   "resources/js/pages/dashboard.tsx": {
-    "file": "assets/dashboard-Cp6NMLLX.js",
+    "file": "assets/dashboard-ClfYvSli.js",
     "name": "dashboard",
     "src": "resources/js/pages/dashboard.tsx",
     "isDynamicEntry": true,
@@ -1556,7 +1556,7 @@
       "_chevron-left-DtzQPVWb.js",
       "_chevron-right-e2cJN0y_.js",
       "_chevron-up-qfykbZd0.js",
-      "_CreateBravo-CXt3Fw-g.js",
+      "_CreateBravo-CFT-Yb-F.js",
       "_circle-plus-QTiMUD1p.js",
       "_ellipsis-BFnIDBzK.js",
       "_heart-SHAUslrp.js",

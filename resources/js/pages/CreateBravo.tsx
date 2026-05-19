@@ -27,7 +27,8 @@ interface CreateBravoProps {
   bravoValues: BravoValue[];
   bravoInsights?: BravoInsights;
   onSuccess?: () => void;
-  isModal?: boolean;
+  isModal?: boolean; // Indicates if the component is rendered within a modal
+  prefillRecipients?: User[]; // Optional: Users to pre-fill as recipients
 }
 
 function getAvatar(user: { name: string; avatar?: string | null }): string {
@@ -42,7 +43,7 @@ const emptyInsights: BravoInsights = {
   quality: { score: 70, tips: [] },
 };
 
-export default function CreateBravo({ users, bravoValues, bravoInsights = emptyInsights, onSuccess, isModal }: CreateBravoProps) {
+export default function CreateBravo({ users, bravoValues, bravoInsights = emptyInsights, onSuccess, isModal, prefillRecipients }: CreateBravoProps) {
   const { t, i18n } = useTranslation();
   const [selectedRecipients, setSelectedRecipients] = useState<User[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -62,8 +63,14 @@ export default function CreateBravo({ users, bravoValues, bravoInsights = emptyI
     message: '',
   });
 
+  // Initialize selectedRecipients and receiver_ids if prefillRecipients are provided
+  useEffect(() => {
+    if (prefillRecipients && prefillRecipients.length > 0) {
+      setSelectedRecipients(prefillRecipients);
+      setData('receiver_ids', prefillRecipients.map(u => u.id));
+    }
+  }, [prefillRecipients]);
   messageRef.current = data.message;
-
   const page = usePage<{ currentUser?: { monthly_points_remaining?: number; monthly_points_allowance?: number } }>();
   const monthlyRemaining = page.props.currentUser?.monthly_points_remaining ?? 100;
 
@@ -223,7 +230,7 @@ export default function CreateBravo({ users, bravoValues, bravoInsights = emptyI
           <div className="flex flex-wrap items-center gap-2 px-4 py-3 border border-gray-300 rounded-xl bg-white focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/10 transition-all min-h-[52px]">
             <Search size={17} className="text-gray-400 shrink-0" />
             {selectedRecipients.map(user => (
-              <div key={user.id} className="flex items-center gap-2 bg-gray-100 rounded-full pl-1 pr-2 py-0.5">
+              <div key={user.id} className="flex items-center gap-2 bg-gray-100 rounded-full pl-1 pr-2 py-0.5" >
                 <img src={getAvatar(user)} alt="" className="w-5 h-5 rounded-full" referrerPolicy="no-referrer" />
                 <span className="text-sm font-medium text-gray-700">{user.name}</span>
                 <button
@@ -238,6 +245,7 @@ export default function CreateBravo({ users, bravoValues, bravoInsights = emptyI
             <input
               placeholder={selectedRecipients.length === 0 ? t('bravo.searchPlaceholder') : t('bravo.addAnother')}
               value={searchTerm}
+              disabled={prefillRecipients && prefillRecipients.length > 0}
               onChange={e => setSearchTerm(e.target.value)}
               className="flex-1 min-w-[140px] outline-none text-sm text-gray-700 placeholder-gray-400"
             />

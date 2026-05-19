@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Model;
 
 class Post extends Model
@@ -14,6 +15,8 @@ class Post extends Model
     protected $casts = [
         'is_pinned' => 'boolean',
     ];
+    
+    protected $with = ['media']; 
 
     public function user()
     {
@@ -28,5 +31,20 @@ class Post extends Model
     public function likedBy()
     {
         return $this->belongsToMany(User::class, 'post_likes')->withTimestamps();
+    }
+     /**
+     * Médias attachés au post (images, vidéos).
+     */
+    public function media(): HasMany
+    {
+        return $this->hasMany(PostMedia::class)->orderBy('order');
+    }
+ 
+    /**
+     * Indique si le post contient des médias.
+     */
+    public function hasMedia(): bool
+    {
+        return $this->media()->exists();
     }
 }

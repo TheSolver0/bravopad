@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef,  DragEvent, ChangeEvent} from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { router } from '@inertiajs/react';
 import { useTranslation } from 'react-i18next';
@@ -33,23 +33,14 @@ import {
   Volume2,
   VolumeX,
   Search, Building2, Users, BadgeCheck,
-  MapPin, Briefcase, Filter
+  MapPin, Briefcase, Filter,Upload
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
-import { Post, PostComment, User, Challenge, BravoValue } from './types';
+import { Post, PostComment, PostMedia, Challenge, BravoValue } from './types';
 import CreateBravo from './CreateBravo';
 
-interface FeedProps {
-  posts: Post[];
-  currentUser: User;
-  users: User[];
-  activeChallenge: Challenge | null;
-  bravoCount: number;
-  bravoValues: BravoValue[];
-  announcements?: Post[];
-}
 
 function getAvatar(user: { name: string; avatar?: string | null }): string {
   if (user.avatar && user.avatar.trim() !== '') return user.avatar;
@@ -303,88 +294,507 @@ function QuickStats({ bravoCount, users }: { bravoCount: number; users: User[] }
 }
 
 // ── Compose Box ───────────────────────────────────────────────────────────────
-function ComposeBox({ currentUser, canAnnounce }: { currentUser: User; canAnnounce: boolean }) {
-  const { t } = useTranslation();
-  const [content, setContent] = useState('');
-  const [type, setType] = useState<'post' | 'announcement'>('post');
-  const [submitting, setSubmitting] = useState(false);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface User {
+  id: number;
+  name: string;
+  avatar?: string;
+  permission: string;
+}
+
+interface MediaPreview {
+  id: string;          // uuid local (pas encore en base)
+  file: File;
+  objectUrl: string;
+  type: 'image' | 'video';
+  name: string;
+  size: number;
+}
+
+// ─── Constantes ───────────────────────────────────────────────────────────────
+
+const ACCEPTED_MIME = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/webm'];
+const MAX_FILES      = 10;
+const MAX_SIZE_BYTES = 50 * 1024 * 1024; // 50 Mo
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function uid() { return Math.random().toString(36).slice(2, 10); }
+
+// function getAvatar(user: User) {
+//   return user.avatar ?? `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name)}&background=random`;
+// }
+
+function formatSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} o`;
+  if (bytes < 1024 ** 2) return `${(bytes / 1024).toFixed(0)} Ko`;
+  return `${(bytes / 1024 ** 2).toFixed(1)} Mo`;
+}
+
+function buildMediaPreview(file: File): MediaPreview | null {
+  if (!ACCEPTED_MIME.includes(file.type)) return null;
+  if (file.size > MAX_SIZE_BYTES) return null;
+  return {
+    id: uid(),
+    file,
+    objectUrl: URL.createObjectURL(file),
+    type: file.type.startsWith('video/') ? 'video' : 'image',
+    name: file.name,
+    size: file.size,
+  };
+}
+
+// ─── Sous-composant : grille de preview ───────────────────────────────────────
+
+function MediaGrid({ items, onRemove }: { items: MediaPreview[]; onRemove: (id: string) => void }) {
+  if (items.length === 0) return null;
+
+  // Mise en page style Facebook : 1 / 2 / 3+ items
+  const gridClass =
+    items.length === 1 ? 'grid-cols-1' :
+    items.length === 2 ? 'grid-cols-2' :
+    items.length === 3 ? 'grid-cols-3' :
+    items.length === 4 ? 'grid-cols-2' :
+    'grid-cols-3';
+
+  const maxVisible = 5;
+  const visible  = items.slice(0, maxVisible);
+  const overflow = items.length - maxVisible;
+
+  return (
+    <div className={`grid gap-1 rounded-xl overflow-hidden ${gridClass}`}>
+      {visible.map((m, i) => {
+        const isLast = i === maxVisible - 1 && overflow > 0;
+        return (
+          <div
+            key={m.id}
+            className={`relative group overflow-hidden bg-gray-900 ${
+              items.length === 3 && i === 0 ? 'col-span-3 h-56' :
+              items.length === 4 && i < 2   ? 'h-48' :
+              items.length === 4 && i >= 2  ? 'h-40' :
+              items.length >= 5 && i === 0  ? 'col-span-2 row-span-2 h-64' :
+              'h-40'
+            }`}
+          >
+            {/* Média */}
+            {m.type === 'image' ? (
+              <img
+                src={m.objectUrl}
+                alt={m.name}
+                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+              />
+            ) : (
+              <div className="relative w-full h-full">
+                <video src={m.objectUrl} className="w-full h-full object-cover" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-full bg-black/50 flex items-center justify-center backdrop-blur-sm">
+                    <Play size={16} className="text-white ml-0.5" fill="white" />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Overlay compteur (+N) */}
+            {isLast && (
+              <div className="absolute inset-0 bg-black/55 flex items-center justify-center">
+                <span className="text-white text-2xl font-bold tracking-tight">+{overflow}</span>
+              </div>
+            )}
+
+            {/* Bouton supprimer */}
+            <button
+              type="button"
+              onClick={() => onRemove(m.id)}
+              className="absolute top-1.5 right-1.5 w-7 h-7 rounded-full bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-150 hover:bg-black/80 z-10"
+            >
+              <X size={13} className="text-white" />
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Composant principal ───────────────────────────────────────────────────────
+
+export function ComposeBox({ currentUser, canAnnounce }: { currentUser: User; canAnnounce: boolean }) {
+  const { t } = useTranslation();
+
+  const [content,    setContent]    = useState('');
+  const [type,       setType]       = useState<'post' | 'announcement'>('post');
+  const [medias,     setMedias]     = useState<MediaPreview[]>([]);
+  const [dragging,   setDragging]   = useState(false);
+  const [errors,     setErrors]     = useState<string[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  const [progress,   setProgress]   = useState(0);
+
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ── Auto-resize textarea ──
   const autoResize = () => {
     const el = textareaRef.current;
     if (el) { el.style.height = 'auto'; el.style.height = `${el.scrollHeight}px`; }
   };
 
-  const submit = () => {
-    if (!content.trim() || submitting) return;
-    setSubmitting(true);
-    router.post('/posts', { content: content.trim(), type }, {
-      onSuccess: () => {
-        setContent('');
-        setSubmitting(false);
-        if (textareaRef.current) textareaRef.current.style.height = 'auto';
-      },
-      onError: () => setSubmitting(false),
+  // ── Ajouter des fichiers (validation) ──
+  const addFiles = useCallback((files: FileList | File[]) => {
+    const list = Array.from(files);
+    const newErrors: string[] = [];
+    const previews: MediaPreview[] = [];
+
+    const remaining = MAX_FILES - medias.length;
+    if (list.length > remaining) {
+      newErrors.push(`Maximum ${MAX_FILES} fichiers par post.`);
+    }
+
+    list.slice(0, remaining).forEach(f => {
+      if (!ACCEPTED_MIME.includes(f.type)) {
+        newErrors.push(`${f.name} : format non supporté.`);
+        return;
+      }
+      if (f.size > MAX_SIZE_BYTES) {
+        newErrors.push(`${f.name} : fichier trop lourd (max 50 Mo).`);
+        return;
+      }
+      const p = buildMediaPreview(f);
+      if (p) previews.push(p);
+    });
+
+    setErrors(newErrors);
+    if (previews.length) setMedias(prev => [...prev, ...previews]);
+  }, [medias.length]);
+
+  // ── Retirer un fichier ──
+  const removeMedia = (id: string) => {
+    setMedias(prev => {
+      const m = prev.find(x => x.id === id);
+      if (m) URL.revokeObjectURL(m.objectUrl);
+      return prev.filter(x => x.id !== id);
     });
   };
 
+  // ── Drag & Drop ──
+  const onDragOver = (e: DragEvent) => { e.preventDefault(); setDragging(true); };
+  const onDragLeave = () => setDragging(false);
+  const onDrop = (e: DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
+    addFiles(e.dataTransfer.files);
+  };
+
+  // ── Submit ──
+  const submit = () => {
+    if ((!content.trim() && medias.length === 0) || submitting) return;
+    setSubmitting(true);
+    setProgress(0);
+
+    // Construire FormData (Inertia router.post supporte FormData)
+    const formData = new FormData();
+    formData.append('content', content.trim());
+    formData.append('type', type);
+    medias.forEach(m => formData.append('media[]', m.file));
+
+    router.post('/posts', formData, {
+      forceFormData: true,
+      onProgress: (p) => { if (p.percentage) setProgress(p.percentage); },
+      onSuccess: () => {
+        setContent('');
+        setType('post');
+        medias.forEach(m => URL.revokeObjectURL(m.objectUrl));
+        setMedias([]);
+        setErrors([]);
+        setSubmitting(false);
+        setProgress(0);
+        if (textareaRef.current) textareaRef.current.style.height = 'auto';
+      },
+      onError: (errs) => {
+        const msgs = Object.values(errs) as string[];
+        setErrors(msgs);
+        setSubmitting(false);
+        setProgress(0);
+      },
+    });
+  };
+
+  const canSubmit = (content.trim().length > 0 || medias.length > 0) && !submitting;
+
   return (
-    <Card className="p-4 border border-gray-100 shadow-sm bg-white rounded-2xl">
-      <div className="flex items-start gap-3">
-        <img src={getAvatar(currentUser)} alt="" className="w-9 h-9 rounded-full shrink-0 ring-2 ring-primary/10" referrerPolicy="no-referrer" />
-        <div className="flex-1 space-y-2">
-          <textarea
-            ref={textareaRef}
-            value={content}
-            onChange={e => { setContent(e.target.value); autoResize(); }}
-            placeholder={t('feed.compose')}
-            rows={2}
-            className="w-full resize-none bg-gray-50 rounded-xl px-4 py-2.5 text-sm text-gray-700 placeholder-gray-400 outline-none focus:ring-2 focus:ring-primary/20 border border-gray-100 transition-all"
+    <div
+      className={`rounded-2xl border bg-white shadow-sm transition-all duration-200 ${
+        dragging ? 'border-blue-400 ring-2 ring-blue-200 bg-blue-50/30' : 'border-gray-100'
+      }`}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+    >
+      {/* Barre de progression upload */}
+      {submitting && (
+        <div className="h-0.5 bg-gray-100 rounded-t-2xl overflow-hidden">
+          <div
+            className="h-full bg-blue-500 transition-all duration-300"
+            style={{ width: `${progress}%` }}
           />
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              {canAnnounce && (
-                <button
-                  onClick={() => setType(t => t === 'post' ? 'announcement' : 'post')}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
-                    type === 'announcement'
-                      ? 'bg-amber-50 text-amber-600 border-amber-200'
-                      : 'bg-gray-50 text-gray-500 border-gray-200 hover:border-amber-200 hover:text-amber-500'
-                  }`}
-                >
-                  <Megaphone size={12} />
-                  {t('feed.announcement')}
-                </button>
-              )}
-              <button className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-gray-500 bg-gray-50 border border-gray-200 hover:border-primary/30 hover:text-primary transition-all cursor-pointer">
-                <ImageIcon size={12} />
-                {t('feed.media')}
-              </button>
-              <button className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-gray-500 bg-gray-50 border border-gray-200 hover:border-primary/30 hover:text-primary transition-all cursor-pointer">
-                <Globe size={12} />
-                {t('feed.public', 'Public')}
-              </button>
-            </div>
-            <Button
-              variant="primary"
-              className="px-4 py-1.5 text-xs shadow-md shadow-primary/20 rounded-xl"
-              onClick={submit}
-              disabled={!content.trim() || submitting}
-            >
-              {submitting
-                ? <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin block" />
-                : <><Send size={12} /> {t('feed.publish')}</>
+        </div>
+      )}
+
+      <div className="p-4 space-y-3">
+
+        {/* Header : avatar + textarea */}
+        <div className="flex items-start gap-3">
+          <img
+            src={getAvatar(currentUser)}
+            alt=""
+            className="w-9 h-9 rounded-full shrink-0 ring-2 ring-blue-100"
+            referrerPolicy="no-referrer"
+          />
+          <div className="flex-1">
+            <textarea
+              ref={textareaRef}
+              value={content}
+              onChange={e => { setContent(e.target.value); autoResize(); }}
+              placeholder={
+                dragging
+                  ? '📎 Déposez vos fichiers ici…'
+                  : (t('feed.compose') || 'Quoi de neuf ?')
               }
-            </Button>
+              rows={2}
+              className="w-full resize-none bg-gray-50 rounded-xl px-4 py-2.5 text-sm text-gray-700 placeholder-gray-400 outline-none focus:ring-2 focus:ring-blue-200 border border-gray-100 transition-all"
+            />
           </div>
         </div>
+
+        {/* Drag overlay hint */}
+        {dragging && (
+          <div className="flex items-center justify-center gap-2 py-3 rounded-xl border-2 border-dashed border-blue-300 text-blue-500 text-sm font-medium bg-blue-50/50">
+            <Upload size={16} />
+            Déposez vos photos / vidéos ici
+          </div>
+        )}
+
+        {/* Grille de preview */}
+        <MediaGrid items={medias} onRemove={removeMedia} />
+
+        {/* Compteur fichiers */}
+        {medias.length > 0 && (
+          <div className="flex items-center gap-2 text-xs text-gray-400">
+            <span className="font-medium text-gray-600">{medias.length}/{MAX_FILES} fichier{medias.length > 1 ? 's' : ''}</span>
+            <span>·</span>
+            <span>{formatSize(medias.reduce((acc, m) => acc + m.size, 0))} total</span>
+            {medias.length < MAX_FILES && (
+              <>
+                <span>·</span>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center gap-1 text-blue-500 hover:text-blue-600 font-medium"
+                >
+                  <Plus size={11} /> Ajouter
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Erreurs */}
+        {errors.length > 0 && (
+          <div className="rounded-lg bg-red-50 border border-red-100 px-3 py-2 space-y-0.5">
+            {errors.map((e, i) => (
+              <p key={i} className="text-xs text-red-600">{e}</p>
+            ))}
+          </div>
+        )}
+
+        {/* Barre d'actions */}
+        <div className="flex items-center justify-between pt-1 border-t border-gray-50">
+          <div className="flex items-center gap-1.5">
+            {/* Bouton média */}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={medias.length >= MAX_FILES || submitting}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-gray-500 bg-gray-50 border border-gray-200 hover:border-blue-300 hover:text-blue-500 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            >
+              <ImageIcon size={12} />
+              {t('feed.media') || 'Photo / Vidéo'}
+            </button>
+
+            {/* Toggle annonce */}
+            {canAnnounce && (
+              <button
+                type="button"
+                onClick={() => setType(t => t === 'post' ? 'announcement' : 'post')}
+                disabled={submitting}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
+                  type === 'announcement'
+                    ? 'bg-amber-50 text-amber-600 border-amber-200'
+                    : 'bg-gray-50 text-gray-500 border-gray-200 hover:border-amber-200 hover:text-amber-500'
+                }`}
+              >
+                <Megaphone size={12} />
+                {t('feed.announcement') || 'Annonce'}
+              </button>
+            )}
+
+            {/* Visibilité */}
+            <button
+              type="button"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-gray-500 bg-gray-50 border border-gray-200 hover:border-blue-300 hover:text-blue-500 transition-all cursor-pointer"
+            >
+              <Globe size={12} />
+              {t('feed.public') || 'Public'}
+            </button>
+          </div>
+
+          {/* Bouton publier */}
+          <button
+            type="button"
+            onClick={submit}
+            disabled={!canSubmit}
+            className={`flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-semibold text-white transition-all shadow-sm ${
+              canSubmit
+                ? 'bg-blue-500 hover:bg-blue-600 shadow-blue-200'
+                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+            }`}
+          >
+            {submitting
+              ? <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin block" />
+              : <><Send size={12} /> {t('feed.publish') || 'Publier'}</>
+            }
+          </button>
+        </div>
       </div>
-    </Card>
+
+      {/* Input file caché */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        accept={ACCEPTED_MIME.join(',')}
+        className="hidden"
+        onChange={(e: ChangeEvent<HTMLInputElement>) => {
+          if (e.target.files) {
+            addFiles(e.target.files);
+            e.target.value = ''; // reset pour permettre re-sélection du même fichier
+          }
+        }}
+      />
+    </div>
   );
 }
-
+function MediaGallery({ items }: { items: PostMedia[] }) {
+  const [lightbox, setLightbox] = useState<PostMedia | null>(null);
+ 
+  if (!items || items.length === 0) return null;
+ 
+  const count = items.length;
+ 
+  // Mise en page identique au ComposeBox preview
+  const gridClass =
+    count === 1 ? 'grid-cols-1' :
+    count === 2 ? 'grid-cols-2' :
+    count === 3 ? 'grid-cols-3' :
+    count === 4 ? 'grid-cols-2' :
+    'grid-cols-3';
+ 
+  const maxVisible = 5;
+  const visible  = items.slice(0, maxVisible);
+  const overflow = count - maxVisible;
+ 
+  return (
+    <>
+      <div className={`grid gap-0.5 overflow-hidden ${gridClass}`}>
+        {visible.map((m, i) => {
+          const isLast = i === maxVisible - 1 && overflow > 0;
+          const heightClass =
+            count === 1        ? 'h-80' :
+            count === 2        ? 'h-56' :
+            count === 3 && i === 0 ? 'col-span-3 h-56' :
+            count >= 5 && i === 0  ? 'col-span-2 row-span-2 h-72' :
+            'h-40';
+ 
+          return (
+            <div
+              key={m.id}
+              onClick={() => !isLast && setLightbox(m)}
+              className={`relative group overflow-hidden bg-gray-900 cursor-pointer ${heightClass}`}
+            >
+              {m.type === 'image' ? (
+                <img
+                  src={m.url}
+                  alt=""
+                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                />
+              ) : (
+                <div className="relative w-full h-full">
+                  <video
+                    src={m.url}
+                    className="w-full h-full object-cover"
+                    preload="metadata"
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                    <div className="w-12 h-12 rounded-full bg-black/50 flex items-center justify-center backdrop-blur-sm">
+                      <Play size={18} className="text-white ml-1" fill="white" />
+                    </div>
+                  </div>
+                </div>
+              )}
+ 
+              {/* Overlay +N */}
+              {isLast && (
+                <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                  <span className="text-white text-3xl font-bold">+{overflow}</span>
+                </div>
+              )}
+ 
+              {/* Hover dim */}
+              {!isLast && (
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/15 transition-colors duration-200" />
+              )}
+            </div>
+          );
+        })}
+      </div>
+ 
+      {/* Lightbox simple */}
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setLightbox(null)}
+        >
+          <button
+            className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors"
+            onClick={() => setLightbox(null)}
+          >
+            <X size={28} />
+          </button>
+          {lightbox.type === 'image' ? (
+            <img
+              src={lightbox.url}
+              alt=""
+              className="max-w-full max-h-full object-contain rounded-lg"
+              onClick={e => e.stopPropagation()}
+            />
+          ) : (
+            <video
+              src={lightbox.url}
+              controls
+              autoPlay
+              className="max-w-full max-h-full rounded-lg"
+              onClick={e => e.stopPropagation()}
+            />
+          )}
+        </div>
+      )}
+    </>
+  );
+}
 // ── Post Card ─────────────────────────────────────────────────────────────────
-function PostCard({ post, currentUser }: { post: Post; currentUser: User }) {
+function PostCard({ post, currentUser, onSendBravoClick }: { post: Post; currentUser: User; onSendBravoClick: (recipients: User[]) => void }) {
   const { t, i18n } = useTranslation();
   const locale = i18n.language?.startsWith('fr') ? 'fr-FR' : 'en-US';
 
@@ -563,11 +973,23 @@ function PostCard({ post, currentUser }: { post: Post; currentUser: User }) {
             <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{post.content}</p>
           )}
 
-          {post.media_url && !editing && (
-            <div className="mt-3 rounded-xl overflow-hidden border border-gray-100">
-              <img src={post.media_url} alt="" className="w-full max-h-80 object-cover" />
-            </div>
-          )}
+          {!editing && (
+  <>
+    {/* Médias uploadés (nouvelle logique) */}
+    {post.media && post.media.length > 0 && (
+      <div className="mt-3 rounded-xl overflow-hidden border border-gray-100">
+        <MediaGallery items={post.media} />
+      </div>
+    )}
+ 
+    {/* Fallback : ancien champ media_url (URL externe) */}
+    {(!post.media || post.media.length === 0) && post.media_url && (
+      <div className="mt-3 rounded-xl overflow-hidden border border-gray-100">
+        <img src={post.media_url} alt="" className="w-full max-h-80 object-cover" />
+      </div>
+    )}
+  </>
+)}
         </div>
 
         {/* Actions */}
@@ -593,6 +1015,14 @@ function PostCard({ post, currentUser }: { post: Post; currentUser: User }) {
           <button className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 hover:text-primary transition-colors cursor-pointer ml-auto">
             <Share2 size={14} />
           </button>
+          {post.user && (
+            <button
+              onClick={() => onSendBravoClick([post.user as User])}
+              className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 hover:text-primary transition-colors cursor-pointer"
+            >
+              <Award size={15} /> {t('dashboard.sendBravo')}
+            </button>
+          )}
         </div>
 
         {/* Comments */}
@@ -1052,6 +1482,8 @@ export default function Feed({ posts, currentUser, users, activeChallenge, bravo
   const sortedUsers = [...users].sort((a, b) => b.points_total - a.points_total);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [prefillBravoRecipients, setPrefillBravoRecipients] = useState<User[]>([]);
+
 
   // ── Hero Carousel ──────────────────────────────────────────────────────────
   interface Slide {
@@ -1180,6 +1612,11 @@ export default function Feed({ posts, currentUser, users, activeChallenge, bravo
     observer.current.observe(node);
   }, [hasMore, loadMore]);
 
+  const handleSendBravoFromPost = (recipients: User[]) => {
+    setPrefillBravoRecipients(recipients);
+    setShowCreateModal(true);
+  };
+
   const ann = announcements.length > 0 ? announcements : posts.filter(p => p.type === 'announcement');
 
   return (
@@ -1284,7 +1721,7 @@ export default function Feed({ posts, currentUser, users, activeChallenge, bravo
                   key={post.id}
                   ref={index === displayed.length - 1 ? lastRef : undefined}
                 >
-                  <PostCard post={post} currentUser={currentUser} />
+                  <PostCard post={post} currentUser={currentUser} onSendBravoClick={handleSendBravoFromPost} />
                 </div>
               ))
             )}
@@ -1363,6 +1800,7 @@ export default function Feed({ posts, currentUser, users, activeChallenge, bravo
                   users={users}
                   bravoValues={bravoValues}
                   isModal
+                  prefillRecipients={prefillBravoRecipients}
                   onSuccess={() => { setShowCreateModal(false); router.reload(); }}
                 />
               </div>

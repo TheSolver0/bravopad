@@ -25,7 +25,7 @@ class MessengerController extends Controller
         $user = $request->user();
 
         $conversations = $user->conversations()
-            ->with(['participants:id,name,avatar,role', 'lastMessage.sender:id,name,avatar'])
+            ->with(['participants:id,name,avatar,role,last_seen_at', 'lastMessage.sender:id,name,avatar,last_seen_at'])
             ->orderByDesc('last_message_at')
             ->orderByDesc('conversations.updated_at')
             ->limit(30)
@@ -56,10 +56,24 @@ class MessengerController extends Controller
             })
             ->orderBy('name')
             ->limit(15)
-            ->get(['id', 'name', 'email', 'avatar', 'role']);
+            ->get(['id', 'name', 'email', 'avatar', 'role', 'last_seen_at']);
 
         return response()->json([
             'users' => $users->map(fn (User $candidate) => $this->userPayload($candidate))->values(),
+        ]);
+    }
+
+    public function heartbeat(Request $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        $user->forceFill([
+            'last_seen_at' => now(),
+        ])->save();
+
+        return response()->json([
+            'user' => $this->userPayload($user->fresh()),
         ]);
     }
 
@@ -83,7 +97,7 @@ class MessengerController extends Controller
         $directKey = Conversation::directKeyFor($user, $recipient);
         $alreadyExists = Conversation::query()->where('direct_key', $directKey)->exists();
         $conversation = Conversation::createDirectBetween($user, $recipient)
-            ->load(['participants:id,name,avatar,role', 'lastMessage.sender:id,name,avatar']);
+            ->load(['participants:id,name,avatar,role,last_seen_at', 'lastMessage.sender:id,name,avatar,last_seen_at']);
 
         return response()->json([
             'conversation' => $this->conversationPayload($conversation, $user),
@@ -98,7 +112,7 @@ class MessengerController extends Controller
         $this->abortUnlessParticipant($conversation, $user);
 
         $messages = $conversation->messages()
-            ->with('sender:id,name,avatar')
+            ->with('sender:id,name,avatar,last_seen_at')
             ->oldest()
             ->limit(100)
             ->get();
@@ -145,8 +159,8 @@ class MessengerController extends Controller
             return $message;
         });
 
-        $conversation = $conversation->fresh(['participants:id,name,avatar,role', 'lastMessage.sender:id,name,avatar']);
-        $message->load('sender:id,name,avatar');
+        $conversation = $conversation->fresh(['participants:id,name,avatar,role,last_seen_at', 'lastMessage.sender:id,name,avatar,last_seen_at']);
+        $message->load('sender:id,name,avatar,last_seen_at');
 
         $this->dispatchMessengerEvent(new MessageSent($message, $conversation));
 
@@ -190,9 +204,9 @@ class MessengerController extends Controller
             'edited_at' => now(),
         ])->save();
 
-        $message->load('sender:id,name,email,avatar,role');
+        $message->load('sender:id,name,email,avatar,role,last_seen_at');
         $this->dispatchMessengerEvent(new MessageUpdated($message, 'edited'));
-        $this->dispatchInboxUpdatesFor($conversation->fresh(['participants:id,name,avatar,role', 'lastMessage.sender:id,name,avatar']));
+        $this->dispatchInboxUpdatesFor($conversation->fresh(['participants:id,name,avatar,role,last_seen_at', 'lastMessage.sender:id,name,avatar,last_seen_at']));
 
         return response()->json([
             'message' => $this->messagePayload($message),
@@ -213,9 +227,9 @@ class MessengerController extends Controller
             ])->save();
         }
 
-        $message->load('sender:id,name,email,avatar,role');
+        $message->load('sender:id,name,email,avatar,role,last_seen_at');
         $this->dispatchMessengerEvent(new MessageUpdated($message, 'deleted'));
-        $this->dispatchInboxUpdatesFor($conversation->fresh(['participants:id,name,avatar,role', 'lastMessage.sender:id,name,avatar']));
+        $this->dispatchInboxUpdatesFor($conversation->fresh(['participants:id,name,avatar,role,last_seen_at', 'lastMessage.sender:id,name,avatar,last_seen_at']));
 
         return response()->json([
             'message' => $this->messagePayload($message),
@@ -234,7 +248,7 @@ class MessengerController extends Controller
             'last_read_at' => $readAt,
         ]);
 
-        $conversation = $conversation->fresh(['participants:id,name,avatar,role', 'lastMessage.sender:id,name,avatar']);
+        $conversation = $conversation->fresh(['participants:id,name,avatar,role,last_seen_at', 'lastMessage.sender:id,name,avatar,last_seen_at']);
         $this->dispatchMessengerEvent(new MessengerConversationRead($user, $conversation, $readAt->toIso8601String()));
         $this->dispatchMessengerEvent(new MessengerInboxUpdated($user, $conversation));
 
@@ -249,7 +263,7 @@ class MessengerController extends Controller
         /** @var User $user */
         $user = $request->user();
         $this->abortUnlessParticipant($conversation, $user);
-        $conversation->loadMissing('participants:id,name,email,avatar,role');
+        $conversation->loadMissing('participants:id,name,email,avatar,role,last_seen_at');
 
         $validated = $request->validate([
             'type' => ['required', 'string', 'in:audio,video'],
@@ -360,7 +374,7 @@ class MessengerController extends Controller
 
     private function conversationPayload(Conversation $conversation, User $viewer): array
     {
-        $conversation->loadMissing(['participants:id,name,avatar,role', 'lastMessage.sender:id,name,avatar']);
+        $conversation->loadMissing(['participants:id,name,avatar,role,last_seen_at', 'lastMessage.sender:id,name,avatar,last_seen_at']);
         $other = $conversation->otherParticipantFor($viewer);
 
         return [
@@ -382,7 +396,7 @@ class MessengerController extends Controller
 
     private function messagePayload(Message $message): array
     {
-        $message->loadMissing('sender:id,name,avatar');
+        $message->loadMissing('sender:id,name,avatar,last_seen_at');
 
         return [
             'id' => $message->id,
@@ -406,12 +420,13 @@ class MessengerController extends Controller
             'email' => $user->email,
             'avatar' => $user->avatar,
             'role' => $user->role,
+            'last_seen_at' => $user->last_seen_at?->toIso8601String(),
         ];
     }
 
     private function callPayload(MessengerCall $call): array
     {
-        $call->loadMissing(['starter:id,name,email,avatar,role', 'callee:id,name,email,avatar,role']);
+        $call->loadMissing(['starter:id,name,email,avatar,role,last_seen_at', 'callee:id,name,email,avatar,role,last_seen_at']);
 
         return [
             'id' => $call->id,

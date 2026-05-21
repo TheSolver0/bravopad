@@ -85,6 +85,7 @@ Route::middleware(['auth'])->group(function () {
     Route::prefix('messenger')->name('messenger.')->group(function () {
         Route::get('/conversations', [MessengerController::class, 'conversations'])->name('conversations.index');
         Route::get('/users', [MessengerController::class, 'users'])->name('users.index');
+        Route::post('/presence/heartbeat', [MessengerController::class, 'heartbeat'])->name('presence.heartbeat');
         Route::post('/conversations/direct', [MessengerController::class, 'direct'])->name('conversations.direct');
         Route::get('/conversations/{conversation}/messages', [MessengerController::class, 'messages'])->name('conversations.messages');
         Route::post('/conversations/{conversation}/messages', [MessengerController::class, 'sendMessage'])->name('conversations.messages.store');

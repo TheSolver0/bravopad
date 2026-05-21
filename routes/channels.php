@@ -16,6 +16,16 @@ Broadcast::channel('messenger.user.{userId}', function (User $user, int $userId)
     return $user->id === $userId;
 });
 
+Broadcast::channel('messenger.presence', function (User $user): array {
+    return [
+        'id' => $user->id,
+        'name' => $user->name,
+        'avatar' => $user->avatar,
+        'role' => $user->role,
+        'last_seen_at' => $user->last_seen_at?->toIso8601String(),
+    ];
+});
+
 Broadcast::channel('messenger.call.{callId}', function (User $user, int $callId): bool {
     return MessengerCall::query()
         ->whereKey($callId)

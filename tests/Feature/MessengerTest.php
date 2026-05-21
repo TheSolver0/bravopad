@@ -45,6 +45,61 @@ it('searches non automation users for direct messages', function () {
         ->assertJsonMissing(['name' => 'Current User']);
 });
 
+it('updates the authenticated user messenger presence heartbeat', function () {
+    $user = messengerUser();
+
+    $this->actingAs($user)
+        ->postJson('/messenger/presence/heartbeat')
+        ->assertOk()
+        ->assertJsonPath('user.id', $user->id)
+        ->assertJsonPath('user.last_seen_at', fn (?string $value) => filled($value));
+
+    expect($user->fresh()->last_seen_at)->not->toBeNull();
+});
+
+it('includes last seen timestamps in messenger user payloads', function () {
+    $me = messengerUser();
+    $target = messengerUser([
+        'name' => 'Alice Martin',
+        'last_seen_at' => now()->subMinutes(3),
+    ]);
+
+    $conversation = Conversation::createDirectBetween($me, $target);
+
+    $this->actingAs($me)
+        ->getJson('/messenger/users?search=ali')
+        ->assertOk()
+        ->assertJsonPath('users.0.id', $target->id)
+        ->assertJsonPath('users.0.last_seen_at', fn (?string $value) => filled($value));
+
+    $this->actingAs($me)
+        ->getJson('/messenger/conversations')
+        ->assertOk()
+        ->assertJsonPath('conversations.0.id', $conversation->id)
+        ->assertJsonPath('conversations.0.other_user.last_seen_at', fn (?string $value) => filled($value))
+        ->assertJsonPath("conversations.0.participants.1.last_seen_at", fn (?string $value) => filled($value));
+});
+
+it('authorizes messenger presence channel with safe user metadata', function () {
+    $user = messengerUser([
+        'name' => 'Current User',
+        'email' => 'current@example.com',
+        'last_seen_at' => now(),
+    ]);
+
+    $presenceAuthorizer = Broadcast::getChannels()->get('messenger.presence');
+    $payload = $presenceAuthorizer($user);
+
+    expect($payload)->toMatchArray([
+        'id' => $user->id,
+        'name' => 'Current User',
+        'avatar' => null,
+        'role' => null,
+    ]);
+    expect($payload)->toHaveKey('last_seen_at');
+    expect($payload)->not->toHaveKey('email');
+});
+
 it('creates and reuses a direct conversation between two users', function () {
     $me = messengerUser();
     $target = messengerUser();

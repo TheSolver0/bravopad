@@ -35,9 +35,9 @@ class MessengerCallUpdated implements ShouldBroadcastNow
     public function broadcastWith(): array
     {
         $this->call->loadMissing([
-            'conversation.participants:id,name,email,avatar,role',
-            'starter:id,name,email,avatar,role',
-            'callee:id,name,email,avatar,role',
+            'conversation.participants:id,name,email,avatar,role,last_seen_at',
+            'starter:id,name,email,avatar,role,last_seen_at',
+            'callee:id,name,email,avatar,role,last_seen_at',
         ]);
 
         return [
@@ -65,6 +65,7 @@ class MessengerCallUpdated implements ShouldBroadcastNow
             'email' => $user->email,
             'avatar' => $user->avatar,
             'role' => $user->role,
+            'last_seen_at' => $user->last_seen_at?->toIso8601String(),
         ];
     }
 }

@@ -30,7 +30,7 @@ class MessageUpdated implements ShouldBroadcastNow
 
     public function broadcastWith(): array
     {
-        $this->message->loadMissing('sender:id,name,email,avatar,role');
+        $this->message->loadMissing('sender:id,name,email,avatar,role,last_seen_at');
 
         return [
             'action' => $this->action,
@@ -50,6 +50,7 @@ class MessageUpdated implements ShouldBroadcastNow
                     'email' => $this->message->sender->email,
                     'avatar' => $this->message->sender->avatar,
                     'role' => $this->message->sender->role,
+                    'last_seen_at' => $this->message->sender->last_seen_at?->toIso8601String(),
                 ],
             ],
         ];

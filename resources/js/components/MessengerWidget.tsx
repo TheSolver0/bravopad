@@ -25,6 +25,7 @@ import {
     X,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useMessengerPresence } from '@/hooks/useMessengerPresence';
 import { getEcho } from '@/lib/echo';
 
 type MessengerUser = {
@@ -33,6 +34,7 @@ type MessengerUser = {
     email?: string | null;
     avatar?: string | null;
     role?: string | null;
+    last_seen_at?: string | null;
 };
 
 type MessengerMessage = {
@@ -146,6 +148,7 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
     const { auth } = usePage<PageProps>().props;
     const fullscreen = variant === 'fullscreen';
     const currentUser = auth?.user;
+    const onlineUserIds = useMessengerPresence(Boolean(currentUser?.id));
     const [open, setOpen] = useState(fullscreen);
     const [conversations, setConversations] = useState<MessengerConversation[]>([]);
     const [activeConversation, setActiveConversation] = useState<MessengerConversation | null>(null);
@@ -1242,6 +1245,7 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
             <ChatHeader
                 conversation={activeConversation}
                 calling={Boolean(activeCall)}
+                onlineUserIds={onlineUserIds}
                 onBack={() => setActiveConversation(null)}
                 onClose={!fullscreen ? () => setOpen(false) : undefined}
                 onStartCall={startCall}
@@ -1358,11 +1362,12 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
 
             <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
                 {search.trim().length >= 1 ? (
-                    <UserSearchResults users={searchResults} onSelect={startDirectChat} searching={searching} error={searchError} />
+                    <UserSearchResults users={searchResults} onlineUserIds={onlineUserIds} onSelect={startDirectChat} searching={searching} error={searchError} />
                 ) : (
                     <ConversationList
                         conversations={sortedConversations}
                         activeId={activeId ?? undefined}
+                        onlineUserIds={onlineUserIds}
                         loading={loadingConversations}
                         onSelect={loadMessages}
                     />
@@ -1531,17 +1536,20 @@ function WidgetHeader({
 function ChatHeader({
     conversation,
     calling,
+    onlineUserIds,
     onBack,
     onClose,
     onStartCall,
 }: {
     conversation: MessengerConversation;
     calling: boolean;
+    onlineUserIds: Set<number>;
     onBack: () => void;
     onClose?: () => void;
     onStartCall: (type: MessengerCall['type']) => void;
 }) {
     const user = conversation.other_user;
+    const online = isMessengerUserOnline(user, onlineUserIds);
 
     return (
         <div className="flex h-14 items-center justify-between border-b border-primary/10 bg-white px-3">
@@ -1549,10 +1557,10 @@ function ChatHeader({
                 <button onClick={onBack} className="flex h-8 w-8 items-center justify-center rounded-full text-gray-500 hover:bg-primary/5 hover:text-primary" aria-label="Back to conversations">
                     <ArrowLeft size={16} />
                 </button>
-                <Avatar user={user} />
+                <Avatar user={user} online={online} />
                 <div className="min-w-0">
                     <div className="truncate text-base font-bold text-gray-900">{user?.name ?? 'Conversation'}</div>
-                    <div className="truncate text-xs text-gray-400">{user?.role ?? 'Active recently'}</div>
+                    <div className={`truncate text-xs ${online ? 'font-semibold text-green-600' : 'text-gray-400'}`}>{messengerStatusText(user, online)}</div>
                 </div>
             </div>
             <div className="flex items-center gap-1 text-primary">
@@ -1587,11 +1595,13 @@ function ChatHeader({
 function ConversationList({
     conversations,
     activeId,
+    onlineUserIds,
     loading,
     onSelect,
 }: {
     conversations: MessengerConversation[];
     activeId?: number;
+    onlineUserIds: Set<number>;
     loading: boolean;
     onSelect: (conversation: MessengerConversation) => Promise<void>;
 }) {
@@ -1605,39 +1615,47 @@ function ConversationList({
 
     return (
         <div className="space-y-1">
-            {conversations.map((conversation) => (
-                <button
-                    key={conversation.id}
-                    onClick={() => void onSelect(conversation)}
-                    className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition hover:bg-primary/5 ${activeId === conversation.id ? 'bg-primary/8' : ''}`}
-                >
-                    <Avatar user={conversation.other_user} size="lg" />
-                    <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-2">
-                            <span className="truncate text-[15px] font-semibold text-gray-900">{conversation.other_user?.name ?? 'Conversation'}</span>
-                            {conversation.unread_count > 0 && (
-                                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-black text-white">
-                                    {conversation.unread_count > 9 ? '9+' : conversation.unread_count}
-                                </span>
-                            )}
+            {conversations.map((conversation) => {
+                const online = isMessengerUserOnline(conversation.other_user, onlineUserIds);
+
+                return (
+                    <button
+                        key={conversation.id}
+                        onClick={() => void onSelect(conversation)}
+                        className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition hover:bg-primary/5 ${activeId === conversation.id ? 'bg-primary/8' : ''}`}
+                    >
+                        <Avatar user={conversation.other_user} size="lg" online={online} />
+                        <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-2">
+                                <span className="truncate text-[15px] font-semibold text-gray-900">{conversation.other_user?.name ?? 'Conversation'}</span>
+                                {conversation.unread_count > 0 && (
+                                    <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-black text-white">
+                                        {conversation.unread_count > 9 ? '9+' : conversation.unread_count}
+                                    </span>
+                                )}
+                            </div>
+                            <p className={`mt-0.5 truncate text-sm ${conversation.unread_count > 0 ? 'font-semibold text-primary' : 'text-gray-500'}`}>
+                                <span className={online ? 'text-green-600' : ''}>{messengerStatusText(conversation.other_user, online)}</span>
+                                <span className="text-gray-300"> · </span>
+                                {conversation.last_message?.body ? previewText(conversation.last_message.body) : 'No messages yet'}
+                            </p>
                         </div>
-                        <p className={`mt-0.5 truncate text-sm ${conversation.unread_count > 0 ? 'font-semibold text-primary' : 'text-gray-500'}`}>
-                            {conversation.last_message?.body ? previewText(conversation.last_message.body) : 'No messages yet'}
-                        </p>
-                    </div>
-                </button>
-            ))}
+                    </button>
+                );
+            })}
         </div>
     );
 }
 
 function UserSearchResults({
     users,
+    onlineUserIds,
     searching,
     error,
     onSelect,
 }: {
     users: MessengerUser[];
+    onlineUserIds: Set<number>;
     searching: boolean;
     error: string | null;
     onSelect: (user: MessengerUser) => Promise<void>;
@@ -1656,15 +1674,19 @@ function UserSearchResults({
 
     return (
         <div className="space-y-1">
-            {users.map((user) => (
-                <button key={user.id} onClick={() => void onSelect(user)} className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition hover:bg-primary/5">
-                    <Avatar user={user} size="lg" />
-                    <div className="min-w-0">
-                        <div className="truncate text-sm font-bold text-gray-900">{user.name}</div>
-                        <div className="truncate text-xs text-gray-400">{user.email}</div>
-                    </div>
-                </button>
-            ))}
+            {users.map((user) => {
+                const online = isMessengerUserOnline(user, onlineUserIds);
+
+                return (
+                    <button key={user.id} onClick={() => void onSelect(user)} className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition hover:bg-primary/5">
+                        <Avatar user={user} size="lg" online={online} />
+                        <div className="min-w-0">
+                            <div className="truncate text-sm font-bold text-gray-900">{user.name}</div>
+                            <div className={`truncate text-xs ${online ? 'font-semibold text-green-600' : 'text-gray-400'}`}>{messengerStatusText(user, online)}</div>
+                        </div>
+                    </button>
+                );
+            })}
         </div>
     );
 }
@@ -1959,7 +1981,7 @@ function MessageContextMenu({
     );
 }
 
-function Avatar({ user, size = 'md' }: { user?: MessengerUser | null; size?: 'md' | 'lg' }) {
+function Avatar({ user, size = 'md', online = false }: { user?: MessengerUser | null; size?: 'md' | 'lg'; online?: boolean }) {
     const initials = (user?.name ?? '?')
         .split(' ')
         .map((part) => part[0])
@@ -1967,16 +1989,52 @@ function Avatar({ user, size = 'md' }: { user?: MessengerUser | null; size?: 'md
         .slice(0, 2)
         .toUpperCase();
     const sizeClass = size === 'lg' ? 'h-12 w-12 text-sm' : 'h-9 w-9 text-xs';
-
-    if (user?.avatar) {
-        return <img src={user.avatar} alt="" className={`${sizeClass} shrink-0 rounded-full object-cover`} />;
-    }
+    const indicatorClass = size === 'lg' ? 'h-3.5 w-3.5 border-[3px]' : 'h-2.5 w-2.5 border-2';
 
     return (
-        <div className={`flex ${sizeClass} shrink-0 items-center justify-center rounded-full bg-primary/10 font-black text-primary`}>
-            {initials}
+        <div className="relative shrink-0">
+            {user?.avatar ? (
+                <img src={user.avatar} alt="" className={`${sizeClass} rounded-full object-cover`} />
+            ) : (
+                <div className={`flex ${sizeClass} items-center justify-center rounded-full bg-primary/10 font-black text-primary`}>
+                    {initials}
+                </div>
+            )}
+            {online && <span className={`absolute right-0 bottom-0 rounded-full border-white bg-green-500 ${indicatorClass}`} />}
         </div>
     );
+}
+
+function isMessengerUserOnline(user: MessengerUser | null | undefined, onlineUserIds: Set<number>): boolean {
+    return Boolean(user?.id && onlineUserIds.has(user.id));
+}
+
+function messengerStatusText(user: MessengerUser | null | undefined, online: boolean): string {
+    if (online) {
+        return 'Online';
+    }
+
+    if (!user?.last_seen_at) {
+        return 'Active recently';
+    }
+
+    const minutes = Math.max(0, Math.floor((Date.now() - new Date(user.last_seen_at).getTime()) / 60_000));
+
+    if (minutes < 1) {
+        return 'Active just now';
+    }
+
+    if (minutes < 60) {
+        return `Active ${minutes} min ago`;
+    }
+
+    const hours = Math.floor(minutes / 60);
+
+    if (hours < 24) {
+        return `Active ${hours} h ago`;
+    }
+
+    return `Active ${new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(user.last_seen_at))}`;
 }
 
 function appendMessage(messages: MessengerMessage[], message: MessengerMessage): MessengerMessage[] {

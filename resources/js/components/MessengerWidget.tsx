@@ -171,6 +171,7 @@ export default function MessengerWidget() {
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
     const localVideoRef = useRef<HTMLVideoElement | null>(null);
     const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
+    const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
     const notifiedMessageIds = useRef<Set<number>>(new Set());
     const typingTimeoutRef = useRef<number | null>(null);
     const lastTypingWhisperRef = useRef(0);
@@ -513,6 +514,22 @@ export default function MessengerWidget() {
     useEffect(() => {
         if (remoteVideoRef.current) {
             remoteVideoRef.current.srcObject = remoteStream;
+        }
+    }, [remoteStream]);
+
+    useEffect(() => {
+        const audio = remoteAudioRef.current;
+
+        if (!audio) {
+            return;
+        }
+
+        audio.srcObject = remoteStream;
+
+        if (remoteStream) {
+            void audio.play().catch(() => {
+                setCallError('Audio playback was blocked. Click the call window and check browser sound permissions.');
+            });
         }
     }, [remoteStream]);
 
@@ -949,6 +966,7 @@ export default function MessengerWidget() {
 
         peerConnection.ontrack = (event) => {
             setRemoteStream(event.streams[0] ?? null);
+            setCallStatus('connected');
         };
 
         peerConnection.onconnectionstatechange = () => {
@@ -1388,6 +1406,7 @@ export default function MessengerWidget() {
                         cameraOff={cameraOff}
                         localVideoRef={localVideoRef}
                         remoteVideoRef={remoteVideoRef}
+                        remoteAudioRef={remoteAudioRef}
                         remoteStream={remoteStream}
                         onToggleMute={toggleMute}
                         onToggleCamera={toggleCamera}
@@ -1672,6 +1691,7 @@ function CallWindow({
     cameraOff,
     localVideoRef,
     remoteVideoRef,
+    remoteAudioRef,
     remoteStream,
     onToggleMute,
     onToggleCamera,
@@ -1685,6 +1705,7 @@ function CallWindow({
     cameraOff: boolean;
     localVideoRef: RefObject<HTMLVideoElement | null>;
     remoteVideoRef: RefObject<HTMLVideoElement | null>;
+    remoteAudioRef: RefObject<HTMLAudioElement | null>;
     remoteStream: MediaStream | null;
     onToggleMute: () => void;
     onToggleCamera: () => void;
@@ -1722,6 +1743,7 @@ function CallWindow({
             </div>
 
             <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-primary/8">
+                {!isVideo && <audio ref={remoteAudioRef} autoPlay className="hidden" />}
                 {isVideo && remoteStream ? (
                     <video ref={remoteVideoRef} autoPlay playsInline className="h-full w-full object-cover" />
                 ) : (

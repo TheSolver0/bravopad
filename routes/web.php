@@ -27,6 +27,7 @@ Route::middleware(['auth'])->group(function () {
     // Dashboard
     Route::get('/', fn () => redirect()->route('feed'))->name('home');
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/messages', fn () => Inertia::render('Messages'))->name('messages.index');
 
     // Fil social — Posts & Actualités
     Route::get('/feed', [PostController::class, 'index'])->name('feed');

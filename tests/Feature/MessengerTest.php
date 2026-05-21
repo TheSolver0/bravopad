@@ -11,11 +11,25 @@ use App\Models\MessengerCall;
 use App\Models\User;
 use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Event;
+use Inertia\Testing\AssertableInertia;
 
 function messengerUser(array $attributes = []): User
 {
     return User::factory()->create($attributes);
 }
+
+it('renders the full screen messenger page for authenticated users only', function () {
+    $user = messengerUser();
+
+    $this->get('/messages')
+        ->assertRedirect('/login');
+
+    $this->actingAs($user)
+        ->get('/messages')
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->component('Messages'));
+});
 
 it('searches non automation users for direct messages', function () {
     $me = messengerUser(['name' => 'Current User']);

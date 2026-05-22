@@ -121,6 +121,177 @@ it('creates and reuses a direct conversation between two users', function () {
     expect(Conversation::first()->participants)->toHaveCount(2);
 });
 
+it('creates a named group conversation with the creator and selected members', function () {
+    $creator = messengerUser();
+    $firstMember = messengerUser();
+    $secondMember = messengerUser();
+
+    $conversation = $this->actingAs($creator)
+        ->postJson('/messenger/conversations/groups', [
+            'name' => 'Ops Squad',
+            'user_ids' => [$firstMember->id, $secondMember->id],
+        ])
+        ->assertCreated()
+        ->assertJsonPath('conversation.type', 'group')
+        ->assertJsonPath('conversation.name', 'Ops Squad')
+        ->assertJsonPath('conversation.other_user', null)
+        ->assertJsonPath('conversation.is_creator', true)
+        ->json('conversation');
+
+    expect($conversation['participants'])->toHaveCount(3);
+    expect(Conversation::query()->where('type', 'group')->where('name', 'Ops Squad')->count())->toBe(1);
+    expect(Conversation::query()->find($conversation['id'])->participants()->pluck('users.id')->all())
+        ->toEqualCanonicalizing([$creator->id, $firstMember->id, $secondMember->id]);
+});
+
+it('validates group creation inputs', function () {
+    $creator = messengerUser();
+    $member = messengerUser();
+    $automation = messengerUser(['is_automation' => true]);
+
+    $this->actingAs($creator)
+        ->postJson('/messenger/conversations/groups', [
+            'name' => '',
+            'user_ids' => [$member->id],
+        ])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors(['name']);
+
+    $this->actingAs($creator)
+        ->postJson('/messenger/conversations/groups', [
+            'name' => 'No Members',
+            'user_ids' => [],
+        ])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors(['user_ids']);
+
+    $this->actingAs($creator)
+        ->postJson('/messenger/conversations/groups', [
+            'name' => 'Self Only',
+            'user_ids' => [$creator->id],
+        ])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors(['user_ids']);
+
+    $this->actingAs($creator)
+        ->postJson('/messenger/conversations/groups', [
+            'name' => 'Automation Group',
+            'user_ids' => [$automation->id],
+        ])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors(['user_ids']);
+});
+
+it('allows group participants to chat while blocking outsiders', function () {
+    $creator = messengerUser();
+    $member = messengerUser();
+    $outsider = messengerUser();
+
+    $conversation = $this->actingAs($creator)
+        ->postJson('/messenger/conversations/groups', [
+            'name' => 'Launch Team',
+            'user_ids' => [$member->id],
+        ])
+        ->assertCreated()
+        ->json('conversation');
+
+    Event::fake([MessageSent::class, MessengerInboxUpdated::class]);
+
+    $this->actingAs($member)
+        ->postJson("/messenger/conversations/{$conversation['id']}/messages", ['body' => 'Hello group'])
+        ->assertCreated()
+        ->assertJsonPath('conversation.type', 'group')
+        ->assertJsonPath('conversation.name', 'Launch Team');
+
+    $this->actingAs($creator)
+        ->getJson("/messenger/conversations/{$conversation['id']}/messages")
+        ->assertOk()
+        ->assertJsonPath('messages.0.body', 'Hello group');
+
+    $this->actingAs($outsider)
+        ->getJson("/messenger/conversations/{$conversation['id']}/messages")
+        ->assertForbidden();
+
+    Event::assertDispatched(MessageSent::class);
+    Event::assertDispatched(MessengerInboxUpdated::class, 2);
+});
+
+it('allows the group creator to rename add remove members and delete the group', function () {
+    $creator = messengerUser();
+    $member = messengerUser();
+    $newMember = messengerUser();
+
+    $conversation = $this->actingAs($creator)
+        ->postJson('/messenger/conversations/groups', [
+            'name' => 'Project Alpha',
+            'user_ids' => [$member->id],
+        ])
+        ->assertCreated()
+        ->json('conversation');
+
+    $this->actingAs($creator)
+        ->patchJson("/messenger/conversations/{$conversation['id']}/group", ['name' => 'Project Beta'])
+        ->assertOk()
+        ->assertJsonPath('conversation.name', 'Project Beta');
+
+    $this->actingAs($creator)
+        ->postJson("/messenger/conversations/{$conversation['id']}/members", ['user_ids' => [$newMember->id]])
+        ->assertOk()
+        ->assertJsonPath('conversation.participants.2.id', $newMember->id);
+
+    $this->actingAs($creator)
+        ->postJson("/messenger/conversations/{$conversation['id']}/members", ['user_ids' => [$creator->id]])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors(['user_ids']);
+
+    $this->actingAs($creator)
+        ->deleteJson("/messenger/conversations/{$conversation['id']}/members/{$member->id}")
+        ->assertOk();
+
+    $this->actingAs($member)
+        ->getJson("/messenger/conversations/{$conversation['id']}/messages")
+        ->assertForbidden();
+
+    $this->actingAs($creator)
+        ->deleteJson("/messenger/conversations/{$conversation['id']}")
+        ->assertOk()
+        ->assertJsonPath('deleted', true);
+
+    expect(Conversation::query()->whereKey($conversation['id'])->exists())->toBeFalse();
+});
+
+it('blocks non creators from managing or deleting groups', function () {
+    $creator = messengerUser();
+    $member = messengerUser();
+    $candidate = messengerUser();
+
+    $conversation = $this->actingAs($creator)
+        ->postJson('/messenger/conversations/groups', [
+            'name' => 'Private Group',
+            'user_ids' => [$member->id],
+        ])
+        ->assertCreated()
+        ->json('conversation');
+
+    $this->actingAs($member)
+        ->patchJson("/messenger/conversations/{$conversation['id']}/group", ['name' => 'Hacked'])
+        ->assertForbidden();
+
+    $this->actingAs($member)
+        ->postJson("/messenger/conversations/{$conversation['id']}/members", ['user_ids' => [$candidate->id]])
+        ->assertForbidden();
+
+    $this->actingAs($member)
+        ->deleteJson("/messenger/conversations/{$conversation['id']}/members/{$creator->id}")
+        ->assertForbidden();
+
+    $this->actingAs($member)
+        ->deleteJson("/messenger/conversations/{$conversation['id']}")
+        ->assertForbidden();
+
+    expect(Conversation::query()->whereKey($conversation['id'])->exists())->toBeTrue();
+});
+
 it('rejects direct conversations with self and automation users', function () {
     $me = messengerUser();
     $automation = messengerUser(['is_automation' => true]);

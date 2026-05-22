@@ -15,6 +15,7 @@ class Conversation extends Model
 
     protected $fillable = [
         'type',
+        'name',
         'direct_key',
         'created_by',
         'last_message_id',

@@ -105,6 +105,165 @@ class MessengerController extends Controller
         ], $alreadyExists ? 200 : 201);
     }
 
+    public function group(Request $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:80'],
+            'user_ids' => ['required', 'array', 'min:1'],
+            'user_ids.*' => ['integer', 'exists:users,id'],
+        ]);
+
+        $name = trim($validated['name']);
+        $members = $this->resolveGroupMembers($validated['user_ids'], $user);
+
+        if ($name === '' || $members->isEmpty()) {
+            throw ValidationException::withMessages([
+                $name === '' ? 'name' : 'user_ids' => $name === ''
+                    ? 'Le nom du groupe est obligatoire.'
+                    : 'Selectionnez au moins un membre valide.',
+            ]);
+        }
+
+        $conversation = DB::transaction(function () use ($user, $name, $members) {
+            $conversation = Conversation::query()->create([
+                'type' => 'group',
+                'name' => $name,
+                'created_by' => $user->id,
+            ]);
+
+            $participantIds = collect([$user->id])
+                ->merge($members->pluck('id'))
+                ->unique()
+                ->values();
+
+            foreach ($participantIds as $participantId) {
+                $conversation->participants()->attach($participantId, [
+                    'joined_at' => now(),
+                    'last_read_at' => null,
+                ]);
+            }
+
+            return $conversation->fresh(['participants:id,name,avatar,role,last_seen_at', 'lastMessage.sender:id,name,avatar,last_seen_at']);
+        });
+
+        $this->dispatchInboxUpdatesFor($conversation);
+
+        return response()->json([
+            'conversation' => $this->conversationPayload($conversation, $user),
+            'unread_total' => $this->unreadTotal($user),
+        ], 201);
+    }
+
+    public function updateGroup(Request $request, Conversation $conversation): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $this->abortUnlessGroupCreator($conversation, $user);
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:80'],
+        ]);
+
+        $name = trim($validated['name']);
+
+        if ($name === '') {
+            throw ValidationException::withMessages([
+                'name' => 'Le nom du groupe est obligatoire.',
+            ]);
+        }
+
+        $conversation->forceFill(['name' => $name])->save();
+        $conversation = $conversation->fresh(['participants:id,name,avatar,role,last_seen_at', 'lastMessage.sender:id,name,avatar,last_seen_at']);
+        $this->dispatchInboxUpdatesFor($conversation);
+
+        return response()->json([
+            'conversation' => $this->conversationPayload($conversation, $user),
+        ]);
+    }
+
+    public function addMembers(Request $request, Conversation $conversation): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $this->abortUnlessGroupCreator($conversation, $user);
+
+        $validated = $request->validate([
+            'user_ids' => ['required', 'array', 'min:1'],
+            'user_ids.*' => ['integer', 'exists:users,id'],
+        ]);
+
+        if (collect($validated['user_ids'])->map(fn ($id) => (int) $id)->contains((int) $user->id)) {
+            throw ValidationException::withMessages([
+                'user_ids' => 'Le createur est deja membre du groupe.',
+            ]);
+        }
+
+        $members = $this->resolveGroupMembers($validated['user_ids'], $user);
+        $existingIds = $conversation->participants()->pluck('users.id');
+
+        if ($members->isEmpty() || $members->pluck('id')->intersect($existingIds)->isNotEmpty()) {
+            throw ValidationException::withMessages([
+                'user_ids' => 'Selectionnez uniquement de nouveaux membres valides.',
+            ]);
+        }
+
+        foreach ($members as $member) {
+            $conversation->participants()->attach($member->id, [
+                'joined_at' => now(),
+                'last_read_at' => null,
+            ]);
+        }
+
+        $conversation = $conversation->fresh(['participants:id,name,avatar,role,last_seen_at', 'lastMessage.sender:id,name,avatar,last_seen_at']);
+        $this->dispatchInboxUpdatesFor($conversation);
+
+        return response()->json([
+            'conversation' => $this->conversationPayload($conversation, $user),
+        ]);
+    }
+
+    public function removeMember(Request $request, Conversation $conversation, User $member): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $this->abortUnlessGroupCreator($conversation, $user);
+
+        if ($member->id === $user->id) {
+            throw ValidationException::withMessages([
+                'member' => 'Le createur ne peut pas se retirer du groupe.',
+            ]);
+        }
+
+        if (! $conversation->hasParticipant($member)) {
+            abort(404);
+        }
+
+        $conversation->participants()->detach($member->id);
+        $conversation = $conversation->fresh(['participants:id,name,avatar,role,last_seen_at', 'lastMessage.sender:id,name,avatar,last_seen_at']);
+        $this->dispatchInboxUpdatesFor($conversation);
+
+        return response()->json([
+            'conversation' => $this->conversationPayload($conversation, $user),
+        ]);
+    }
+
+    public function deleteConversation(Request $request, Conversation $conversation): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $this->abortUnlessGroupCreator($conversation, $user);
+
+        $conversation->delete();
+
+        return response()->json([
+            'deleted' => true,
+            'conversation_id' => $conversation->id,
+        ]);
+    }
+
     public function messages(Request $request, Conversation $conversation): JsonResponse
     {
         /** @var User $user */
@@ -269,6 +428,12 @@ class MessengerController extends Controller
             'type' => ['required', 'string', 'in:audio,video'],
         ]);
 
+        if ($conversation->type !== 'direct') {
+            throw ValidationException::withMessages([
+                'conversation' => 'Les appels de groupe ne sont pas encore disponibles.',
+            ]);
+        }
+
         $callee = $conversation->otherParticipantFor($user);
 
         if (! $callee || $callee->is_automation) {
@@ -344,6 +509,19 @@ class MessengerController extends Controller
         }
     }
 
+    private function abortUnlessGroupCreator(Conversation $conversation, User $user): void
+    {
+        if ($conversation->type !== 'group') {
+            throw ValidationException::withMessages([
+                'conversation' => 'Cette action est reservee aux conversations de groupe.',
+            ]);
+        }
+
+        if ((int) $conversation->created_by !== (int) $user->id) {
+            abort(403);
+        }
+    }
+
     private function abortUnlessMessageInConversation(Conversation $conversation, Message $message): void
     {
         if ($message->conversation_id !== $conversation->id) {
@@ -375,11 +553,15 @@ class MessengerController extends Controller
     private function conversationPayload(Conversation $conversation, User $viewer): array
     {
         $conversation->loadMissing(['participants:id,name,avatar,role,last_seen_at', 'lastMessage.sender:id,name,avatar,last_seen_at']);
-        $other = $conversation->otherParticipantFor($viewer);
+        $other = $conversation->type === 'direct'
+            ? $conversation->otherParticipantFor($viewer)
+            : null;
 
         return [
             'id' => $conversation->id,
             'type' => $conversation->type,
+            'name' => $conversation->type === 'group' ? $conversation->name : null,
+            'is_creator' => (int) $conversation->created_by === (int) $viewer->id,
             'other_user' => $other ? $this->userPayload($other) : null,
             'participants' => $conversation->participants->map(fn (User $participant) => $this->userPayload($participant))->values(),
             'last_message' => $conversation->lastMessage ? $this->messagePayload($conversation->lastMessage) : null,
@@ -449,6 +631,32 @@ class MessengerController extends Controller
             ->with(['participants:id', 'messages'])
             ->get()
             ->sum(fn (Conversation $conversation) => $conversation->unreadCountFor($user));
+    }
+
+    private function resolveGroupMembers(array $requestedIds, User $creator)
+    {
+        $requestedIds = collect($requestedIds)
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->reject(fn (int $id) => $id === (int) $creator->id)
+            ->values();
+
+        if ($requestedIds->isEmpty()) {
+            return collect();
+        }
+
+        $members = User::query()
+            ->whereIn('id', $requestedIds)
+            ->where('is_automation', false)
+            ->get(['id', 'name', 'email', 'avatar', 'role', 'last_seen_at']);
+
+        if ($members->count() !== $requestedIds->count()) {
+            throw ValidationException::withMessages([
+                'user_ids' => 'Selectionnez uniquement des membres valides.',
+            ]);
+        }
+
+        return $members;
     }
 
     private function dispatchMessengerEvent(object $event): void

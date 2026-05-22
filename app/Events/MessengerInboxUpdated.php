@@ -33,7 +33,9 @@ class MessengerInboxUpdated implements ShouldBroadcastNow
     public function broadcastWith(): array
     {
         $this->conversation->loadMissing(['participants:id,name,email,avatar,role,last_seen_at', 'lastMessage.sender:id,name,email,avatar,role,last_seen_at']);
-        $other = $this->conversation->participants->firstWhere('id', '!=', $this->user->id);
+        $other = $this->conversation->type === 'direct'
+            ? $this->conversation->participants->firstWhere('id', '!=', $this->user->id)
+            : null;
 
         return [
             'conversation_id' => $this->conversation->id,
@@ -44,6 +46,8 @@ class MessengerInboxUpdated implements ShouldBroadcastNow
             'conversation' => [
                 'id' => $this->conversation->id,
                 'type' => $this->conversation->type,
+                'name' => $this->conversation->type === 'group' ? $this->conversation->name : null,
+                'is_creator' => (int) $this->conversation->created_by === (int) $this->user->id,
                 'other_user' => $other ? $this->userPayload($other) : null,
                 'participants' => $this->conversation->participants
                     ->map(fn (User $participant) => $this->userPayload($participant))

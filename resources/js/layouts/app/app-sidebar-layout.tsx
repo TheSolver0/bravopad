@@ -32,6 +32,7 @@ export default function AppSidebarLayout({ breadcrumbs = [], children }: AppSide
   const { flash } = page.props;
   const isDashboard = page.component === 'dashboard';
   const isFeed = page.component === 'Feed';
+  const isMessages = page.component === 'Messages';
   const users: User[] =
     (page.props.users as User[] | undefined) ?? (page.props.team?.data as User[] | undefined) ?? [];
   const bravoValues: BravoValue[] = (page.props.bravoValues as BravoValue[]) ?? [];
@@ -148,7 +149,7 @@ export default function AppSidebarLayout({ breadcrumbs = [], children }: AppSide
         )}
       </AnimatePresence>
 
-      <MessengerWidget />
+      {!isMessages && <MessengerWidget />}
     </div>
   );
 }

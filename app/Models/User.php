@@ -14,7 +14,7 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 use Spatie\Permission\Traits\HasRoles;
 
-#[Fillable(['name', 'email', 'password', 'role', 'department_id', 'direction_id', 'birth_date', 'hired_at', 'is_automation', 'avatar', 'points_total'])]
+#[Fillable(['name', 'email', 'password', 'role', 'department_id', 'direction_id', 'birth_date', 'hired_at', 'is_automation', 'avatar', 'points_total', 'last_seen_at'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -30,6 +30,7 @@ class User extends Authenticatable
             'birth_date' => 'date',
             'hired_at' => 'date',
             'is_automation' => 'boolean',
+            'last_seen_at' => 'datetime',
         ];
     }
 

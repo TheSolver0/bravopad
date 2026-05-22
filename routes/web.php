@@ -27,6 +27,7 @@ Route::middleware(['auth'])->group(function () {
     // Dashboard
     Route::get('/', fn () => redirect()->route('feed'))->name('home');
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/messages', fn () => Inertia::render('Messages'))->name('messages.index');
 
     // Fil social — Posts & Actualités
     Route::get('/feed', [PostController::class, 'index'])->name('feed');
@@ -85,6 +86,7 @@ Route::middleware(['auth'])->group(function () {
     Route::prefix('messenger')->name('messenger.')->group(function () {
         Route::get('/conversations', [MessengerController::class, 'conversations'])->name('conversations.index');
         Route::get('/users', [MessengerController::class, 'users'])->name('users.index');
+        Route::post('/presence/heartbeat', [MessengerController::class, 'heartbeat'])->name('presence.heartbeat');
         Route::post('/conversations/direct', [MessengerController::class, 'direct'])->name('conversations.direct');
         Route::get('/conversations/{conversation}/messages', [MessengerController::class, 'messages'])->name('conversations.messages');
         Route::post('/conversations/{conversation}/messages', [MessengerController::class, 'sendMessage'])->name('conversations.messages.store');

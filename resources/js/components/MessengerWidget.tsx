@@ -1,5 +1,5 @@
 import { type MouseEvent, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { usePage } from '@inertiajs/react';
+import { router, usePage } from '@inertiajs/react';
 import { AnimatePresence, motion } from 'motion/react';
 import {
     ArrowLeft,
@@ -25,6 +25,7 @@ import {
     X,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useMessengerPresence } from '@/hooks/useMessengerPresence';
 import { getEcho } from '@/lib/echo';
 
 type MessengerUser = {
@@ -33,6 +34,7 @@ type MessengerUser = {
     email?: string | null;
     avatar?: string | null;
     role?: string | null;
+    last_seen_at?: string | null;
 };
 
 type MessengerMessage = {
@@ -138,10 +140,16 @@ type MessageMenuState = {
     y: number;
 };
 
-export default function MessengerWidget() {
+type MessengerWidgetProps = {
+    variant?: 'floating' | 'fullscreen';
+};
+
+export default function MessengerWidget({ variant = 'floating' }: MessengerWidgetProps) {
     const { auth } = usePage<PageProps>().props;
+    const fullscreen = variant === 'fullscreen';
     const currentUser = auth?.user;
-    const [open, setOpen] = useState(false);
+    const onlineUserIds = useMessengerPresence(Boolean(currentUser?.id));
+    const [open, setOpen] = useState(fullscreen);
     const [conversations, setConversations] = useState<MessengerConversation[]>([]);
     const [activeConversation, setActiveConversation] = useState<MessengerConversation | null>(null);
     const [messages, setMessages] = useState<MessengerMessage[]>([]);
@@ -171,6 +179,7 @@ export default function MessengerWidget() {
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
     const localVideoRef = useRef<HTMLVideoElement | null>(null);
     const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
+    const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
     const notifiedMessageIds = useRef<Set<number>>(new Set());
     const typingTimeoutRef = useRef<number | null>(null);
     const lastTypingWhisperRef = useRef(0);
@@ -191,6 +200,12 @@ export default function MessengerWidget() {
     useEffect(() => {
         localStreamRef.current = localStream;
     }, [localStream]);
+
+    useEffect(() => {
+        if (fullscreen) {
+            setOpen(true);
+        }
+    }, [fullscreen]);
 
     const fetchConversations = useCallback(async () => {
         setLoadingConversations(true);
@@ -513,6 +528,22 @@ export default function MessengerWidget() {
     useEffect(() => {
         if (remoteVideoRef.current) {
             remoteVideoRef.current.srcObject = remoteStream;
+        }
+    }, [remoteStream]);
+
+    useEffect(() => {
+        const audio = remoteAudioRef.current;
+
+        if (!audio) {
+            return;
+        }
+
+        audio.srcObject = remoteStream;
+
+        if (remoteStream) {
+            void audio.play().catch(() => {
+                setCallError('Audio playback was blocked. Click the call window and check browser sound permissions.');
+            });
         }
     }, [remoteStream]);
 
@@ -949,6 +980,7 @@ export default function MessengerWidget() {
 
         peerConnection.ontrack = (event) => {
             setRemoteStream(event.streams[0] ?? null);
+            setCallStatus('connected');
         };
 
         peerConnection.onconnectionstatechange = () => {
@@ -1208,164 +1240,153 @@ export default function MessengerWidget() {
         return null;
     }
 
-    return (
-        <div className="fixed right-4 bottom-24 z-[60] md:right-6 md:bottom-24">
-            <AnimatePresence>
-                {open && (
-                    <motion.div
-                        initial={{ opacity: 0, y: 18, scale: 0.98 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: 18, scale: 0.98 }}
-                        transition={{ duration: 0.18 }}
-                        className={`fixed inset-x-3 bottom-20 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-2xl border border-primary/10 bg-white text-gray-900 shadow-2xl shadow-primary/20 sm:inset-x-auto sm:right-5 sm:w-[360px] md:right-6 md:bottom-6 ${
-                            activeConversation ? 'h-[min(70vh,590px)] sm:h-[590px] md:w-[370px]' : 'h-[min(68vh,540px)] sm:h-[540px]'
-                        }`}
-                    >
-                        {activeConversation ? (
-                            <section className="flex h-full min-w-0 flex-col">
-                                <ChatHeader
-                                    conversation={activeConversation}
-                                    calling={Boolean(activeCall)}
-                                    onBack={() => setActiveConversation(null)}
-                                    onClose={() => setOpen(false)}
-                                    onStartCall={startCall}
-                                />
+    const panelContent = activeConversation ? (
+        <section className="flex h-full min-w-0 flex-col">
+            <ChatHeader
+                conversation={activeConversation}
+                calling={Boolean(activeCall)}
+                onlineUserIds={onlineUserIds}
+                onBack={() => setActiveConversation(null)}
+                onClose={!fullscreen ? () => setOpen(false) : undefined}
+                onStartCall={startCall}
+            />
 
-                                <div className="min-h-0 flex-1 overflow-y-auto bg-background px-3 py-3 sm:px-4">
-                                    {loadingMessages ? (
-                                        <div className="flex h-full items-center justify-center text-sm text-gray-400">
-                                            <Loader2 size={18} className="mr-2 animate-spin" />
-                                            Loading messages
-                                        </div>
-                                    ) : (
-                                        <div className="space-y-3">
-                                            {messages.length === 0 && (
-                                                <div className="py-16 text-center text-sm text-gray-400">No messages yet</div>
-                                            )}
-                                            {messages.map((message) => (
-                                                <MessageBubble
-                                                    key={message.id}
-                                                    message={message}
-                                                    mine={message.sender_id === currentUser.id}
-                                                    readStatus={message.id === latestOwnMessageId ? messageReadStatus(message, otherReadAt) : null}
-                                                    editing={editingMessageId === message.id}
-                                                    editingBody={editingBody}
-                                                    onEditingBodyChange={setEditingBody}
-                                                    onCancelEdit={cancelEditingMessage}
-                                                    onSaveEdit={() => void updateMessage(message.id)}
-                                                    onOpenMenu={(event) => openMessageMenu(event, message)}
-                                                />
-                                            ))}
-                                            <div ref={messagesEndRef} />
-                                        </div>
-                                    )}
-                                </div>
-
-                                {typingName && (
-                                    <div className="border-t border-primary/10 bg-white px-4 py-1.5 text-xs font-medium text-gray-400">
-                                        {typingName} is typing...
-                                    </div>
-                                )}
-
-                                <form
-                                    className="border-t border-primary/10 bg-white p-3"
-                                    onSubmit={(event) => {
-                                        event.preventDefault();
-                                        void sendMessage();
-                                    }}
-                                >
-                                    {sendError && <div className="mb-2 rounded-lg bg-red-500/10 px-3 py-2 text-xs font-medium text-red-300">{sendError}</div>}
-                                    <div className="flex items-center gap-1.5">
-                                        <div className="flex shrink-0 items-center gap-0.5 text-primary">
-                                            <span className="flex h-9 w-8 items-center justify-center rounded-full hover:bg-primary/10">
-                                                <Mic size={18} />
-                                            </span>
-                                            <span className="flex h-9 w-8 items-center justify-center rounded-full hover:bg-primary/10">
-                                                <Image size={18} />
-                                            </span>
-                                        </div>
-                                        <div className="flex min-h-10 flex-1 items-center rounded-full bg-primary/8 px-3 ring-1 ring-primary/10 focus-within:ring-primary/30">
-                                            <textarea
-                                                value={body}
-                                                onChange={(event) => updateBodyWithTyping(event.target.value.slice(0, 2000))}
-                                                className="max-h-24 min-h-6 flex-1 resize-none bg-transparent py-2 text-sm text-gray-900 outline-none placeholder:text-gray-400"
-                                                placeholder="Aa"
-                                                rows={1}
-                                                onKeyDown={(event) => {
-                                                    if (event.key === 'Enter' && !event.shiftKey) {
-                                                        event.preventDefault();
-                                                        void sendMessage();
-                                                    }
-                                                }}
-                                            />
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onClick={() => void sendMessage(body.trim().length === 0 ? '\u{1F44D}' : undefined)}
-                                            disabled={sending}
-                                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-primary transition hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-50"
-                                            aria-label={body.trim().length === 0 ? 'Like' : 'Send message'}
-                                        >
-                                            {sending ? <Loader2 size={18} className="animate-spin" /> : body.trim().length === 0 ? <ThumbsUp size={20} /> : <Send size={18} />}
-                                        </button>
-                                    </div>
-                                </form>
-                            </section>
-                        ) : (
-                            <section className="flex h-full w-full flex-col">
-                                <WidgetHeader
-                                    title="Discussions"
-                                    notificationPermission={desktopNotificationPermission}
-                                    onEnableNotifications={requestDesktopNotifications}
-                                    onClose={() => setOpen(false)}
-                                />
-
-                                <div className="px-3 pb-2 sm:px-4">
-                                    <label className="flex h-9 items-center gap-2 rounded-full bg-primary/8 px-3 text-sm text-gray-500 ring-1 ring-primary/10 focus-within:bg-white focus-within:ring-primary/30">
-                                        <Search size={18} />
-                                        <input
-                                            value={search}
-                                            onChange={(event) => setSearch(event.target.value)}
-                                            className="min-w-0 flex-1 bg-transparent text-sm text-gray-900 outline-none placeholder:text-gray-400"
-                                            placeholder="Search Messenger"
-                                        />
-                                        {searching && <Loader2 size={14} className="animate-spin" />}
-                                    </label>
-                                </div>
-
-                                <div className="flex gap-1.5 px-3 pb-2 sm:px-4">
-                                    <span className="rounded-full bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary">Tout</span>
-                                    <span className="rounded-full px-3 py-1.5 text-xs font-bold text-gray-600 hover:bg-primary/5">Non lu</span>
-                                    <span className="rounded-full px-3 py-1.5 text-xs font-bold text-gray-600 hover:bg-primary/5">Groupes</span>
-                                </div>
-
-                                <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
-                                    {search.trim().length >= 1 ? (
-                                        <UserSearchResults users={searchResults} onSelect={startDirectChat} searching={searching} error={searchError} />
-                                    ) : (
-                                        <ConversationList
-                                            conversations={sortedConversations}
-                                            activeId={activeId ?? undefined}
-                                            loading={loadingConversations}
-                                            onSelect={loadMessages}
-                                        />
-                                    )}
-                                </div>
-                            </section>
+            <div className="min-h-0 flex-1 overflow-y-auto bg-background px-3 py-3 sm:px-4">
+                {loadingMessages ? (
+                    <div className="flex h-full items-center justify-center text-sm text-gray-400">
+                        <Loader2 size={18} className="mr-2 animate-spin" />
+                        Loading messages
+                    </div>
+                ) : (
+                    <div className="space-y-3">
+                        {messages.length === 0 && (
+                            <div className="py-16 text-center text-sm text-gray-400">No messages yet</div>
                         )}
-
-                        {messageMenu && menuMessage && (
-                            <MessageContextMenu
-                                x={messageMenu.x}
-                                y={messageMenu.y}
-                                onEdit={() => editMenuMessage(menuMessage)}
-                                onDelete={() => deleteMenuMessage(menuMessage)}
+                        {messages.map((message) => (
+                            <MessageBubble
+                                key={message.id}
+                                message={message}
+                                mine={message.sender_id === currentUser.id}
+                                readStatus={message.id === latestOwnMessageId ? messageReadStatus(message, otherReadAt) : null}
+                                editing={editingMessageId === message.id}
+                                editingBody={editingBody}
+                                onEditingBodyChange={setEditingBody}
+                                onCancelEdit={cancelEditingMessage}
+                                onSaveEdit={() => void updateMessage(message.id)}
+                                onOpenMenu={(event) => openMessageMenu(event, message)}
                             />
-                        )}
-                    </motion.div>
+                        ))}
+                        <div ref={messagesEndRef} />
+                    </div>
                 )}
-            </AnimatePresence>
+            </div>
 
+            {typingName && (
+                <div className="border-t border-primary/10 bg-white px-4 py-1.5 text-xs font-medium text-gray-400">
+                    {typingName} is typing...
+                </div>
+            )}
+
+            <form
+                className="border-t border-primary/10 bg-white p-3"
+                onSubmit={(event) => {
+                    event.preventDefault();
+                    void sendMessage();
+                }}
+            >
+                {sendError && <div className="mb-2 rounded-lg bg-red-500/10 px-3 py-2 text-xs font-medium text-red-300">{sendError}</div>}
+                <div className="flex items-center gap-1.5">
+                    <div className="flex shrink-0 items-center gap-0.5 text-primary">
+                        <span className="flex h-9 w-8 items-center justify-center rounded-full hover:bg-primary/10">
+                            <Mic size={18} />
+                        </span>
+                        <span className="flex h-9 w-8 items-center justify-center rounded-full hover:bg-primary/10">
+                            <Image size={18} />
+                        </span>
+                    </div>
+                    <div className="flex min-h-10 flex-1 items-center rounded-full bg-primary/8 px-3 ring-1 ring-primary/10 focus-within:ring-primary/30">
+                        <textarea
+                            value={body}
+                            onChange={(event) => updateBodyWithTyping(event.target.value.slice(0, 2000))}
+                            className="max-h-24 min-h-6 flex-1 resize-none bg-transparent py-2 text-sm text-gray-900 outline-none placeholder:text-gray-400"
+                            placeholder="Aa"
+                            rows={1}
+                            onKeyDown={(event) => {
+                                if (event.key === 'Enter' && !event.shiftKey) {
+                                    event.preventDefault();
+                                    void sendMessage();
+                                }
+                            }}
+                        />
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => void sendMessage(body.trim().length === 0 ? '\u{1F44D}' : undefined)}
+                        disabled={sending}
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-primary transition hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-50"
+                        aria-label={body.trim().length === 0 ? 'Like' : 'Send message'}
+                    >
+                        {sending ? <Loader2 size={18} className="animate-spin" /> : body.trim().length === 0 ? <ThumbsUp size={20} /> : <Send size={18} />}
+                    </button>
+                </div>
+            </form>
+        </section>
+    ) : (
+        <section className="flex h-full w-full flex-col">
+            <WidgetHeader
+                title={fullscreen ? 'Messages' : 'Discussions'}
+                notificationPermission={desktopNotificationPermission}
+                onEnableNotifications={requestDesktopNotifications}
+                onExpand={!fullscreen ? () => router.visit('/messages') : undefined}
+                onClose={!fullscreen ? () => setOpen(false) : undefined}
+            />
+
+            <div className="px-3 pb-2 sm:px-4">
+                <label className="flex h-9 items-center gap-2 rounded-full bg-primary/8 px-3 text-sm text-gray-500 ring-1 ring-primary/10 focus-within:bg-white focus-within:ring-primary/30">
+                    <Search size={18} />
+                    <input
+                        value={search}
+                        onChange={(event) => setSearch(event.target.value)}
+                        className="min-w-0 flex-1 bg-transparent text-sm text-gray-900 outline-none placeholder:text-gray-400"
+                        placeholder="Search Messenger"
+                    />
+                    {searching && <Loader2 size={14} className="animate-spin" />}
+                </label>
+            </div>
+
+            <div className="flex gap-1.5 px-3 pb-2 sm:px-4">
+                <span className="rounded-full bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary">Tout</span>
+                <span className="rounded-full px-3 py-1.5 text-xs font-bold text-gray-600 hover:bg-primary/5">Non lu</span>
+                <span className="rounded-full px-3 py-1.5 text-xs font-bold text-gray-600 hover:bg-primary/5">Groupes</span>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+                {search.trim().length >= 1 ? (
+                    <UserSearchResults users={searchResults} onlineUserIds={onlineUserIds} onSelect={startDirectChat} searching={searching} error={searchError} />
+                ) : (
+                    <ConversationList
+                        conversations={sortedConversations}
+                        activeId={activeId ?? undefined}
+                        onlineUserIds={onlineUserIds}
+                        loading={loadingConversations}
+                        onSelect={loadMessages}
+                    />
+                )}
+            </div>
+        </section>
+    );
+
+    const contextMenu = messageMenu && menuMessage ? (
+        <MessageContextMenu
+            x={messageMenu.x}
+            y={messageMenu.y}
+            onEdit={() => editMenuMessage(menuMessage)}
+            onDelete={() => deleteMenuMessage(menuMessage)}
+        />
+    ) : null;
+
+    const callPanels = (
+        <>
             <AnimatePresence>
                 {incomingCall && !activeCall && (
                     <IncomingCallCard
@@ -1388,6 +1409,7 @@ export default function MessengerWidget() {
                         cameraOff={cameraOff}
                         localVideoRef={localVideoRef}
                         remoteVideoRef={remoteVideoRef}
+                        remoteAudioRef={remoteAudioRef}
                         remoteStream={remoteStream}
                         onToggleMute={toggleMute}
                         onToggleCamera={toggleCamera}
@@ -1395,6 +1417,39 @@ export default function MessengerWidget() {
                     />
                 )}
             </AnimatePresence>
+        </>
+    );
+
+    if (fullscreen) {
+        return (
+            <div className="relative h-full min-h-0 overflow-hidden rounded-2xl border border-primary/10 bg-white text-gray-900 shadow-sm">
+                {panelContent}
+                {contextMenu}
+                {callPanels}
+            </div>
+        );
+    }
+
+    return (
+        <div className="fixed right-4 bottom-24 z-[60] md:right-6 md:bottom-24">
+            <AnimatePresence>
+                {open && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 18, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 18, scale: 0.98 }}
+                        transition={{ duration: 0.18 }}
+                        className={`fixed inset-x-3 bottom-20 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-2xl border border-primary/10 bg-white text-gray-900 shadow-2xl shadow-primary/20 sm:inset-x-auto sm:right-5 sm:w-[360px] md:right-6 md:bottom-6 ${
+                            activeConversation ? 'h-[min(70vh,590px)] sm:h-[590px] md:w-[370px]' : 'h-[min(68vh,540px)] sm:h-[540px]'
+                        }`}
+                    >
+                        {panelContent}
+                        {contextMenu}
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {callPanels}
 
             {!open && (
                 <button
@@ -1419,12 +1474,14 @@ function WidgetHeader({
     title,
     notificationPermission,
     onEnableNotifications,
+    onExpand,
     onClose,
 }: {
     title: string;
     notificationPermission: DesktopNotificationPermission;
     onEnableNotifications: () => Promise<void>;
-    onClose: () => void;
+    onExpand?: () => void;
+    onClose?: () => void;
 }) {
     const notificationsDisabled = notificationPermission === 'denied' || notificationPermission === 'unsupported';
     const notificationsGranted = notificationPermission === 'granted';
@@ -1461,12 +1518,16 @@ function WidgetHeader({
                 <button type="button" className="flex h-9 w-9 items-center justify-center rounded-full text-gray-500 hover:bg-primary/5 hover:text-primary" aria-label="More options">
                     <MoreHorizontal size={19} />
                 </button>
-                <button type="button" className="flex h-9 w-9 items-center justify-center rounded-full text-gray-500 hover:bg-primary/5 hover:text-primary" aria-label="Expand messages">
-                    <Maximize2 size={17} />
-                </button>
-                <button type="button" onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-full text-gray-500 hover:bg-primary/5 hover:text-primary" aria-label="Close messages">
-                    <X size={16} />
-                </button>
+                {onExpand && (
+                    <button type="button" onClick={onExpand} className="flex h-9 w-9 items-center justify-center rounded-full text-gray-500 hover:bg-primary/5 hover:text-primary" aria-label="Expand messages">
+                        <Maximize2 size={17} />
+                    </button>
+                )}
+                {onClose && (
+                    <button type="button" onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-full text-gray-500 hover:bg-primary/5 hover:text-primary" aria-label="Close messages">
+                        <X size={16} />
+                    </button>
+                )}
             </div>
         </div>
     );
@@ -1475,17 +1536,20 @@ function WidgetHeader({
 function ChatHeader({
     conversation,
     calling,
+    onlineUserIds,
     onBack,
     onClose,
     onStartCall,
 }: {
     conversation: MessengerConversation;
     calling: boolean;
+    onlineUserIds: Set<number>;
     onBack: () => void;
-    onClose: () => void;
+    onClose?: () => void;
     onStartCall: (type: MessengerCall['type']) => void;
 }) {
     const user = conversation.other_user;
+    const online = isMessengerUserOnline(user, onlineUserIds);
 
     return (
         <div className="flex h-14 items-center justify-between border-b border-primary/10 bg-white px-3">
@@ -1493,10 +1557,10 @@ function ChatHeader({
                 <button onClick={onBack} className="flex h-8 w-8 items-center justify-center rounded-full text-gray-500 hover:bg-primary/5 hover:text-primary" aria-label="Back to conversations">
                     <ArrowLeft size={16} />
                 </button>
-                <Avatar user={user} />
+                <Avatar user={user} online={online} />
                 <div className="min-w-0">
                     <div className="truncate text-base font-bold text-gray-900">{user?.name ?? 'Conversation'}</div>
-                    <div className="truncate text-xs text-gray-400">{user?.role ?? 'Active recently'}</div>
+                    <div className={`truncate text-xs ${online ? 'font-semibold text-green-600' : 'text-gray-400'}`}>{messengerStatusText(user, online)}</div>
                 </div>
             </div>
             <div className="flex items-center gap-1 text-primary">
@@ -1518,9 +1582,11 @@ function ChatHeader({
                 >
                     <Video size={18} />
                 </button>
-                <button type="button" onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-primary/5" aria-label="Close messages">
-                    <X size={22} />
-                </button>
+                {onClose && (
+                    <button type="button" onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-primary/5" aria-label="Close messages">
+                        <X size={22} />
+                    </button>
+                )}
             </div>
         </div>
     );
@@ -1529,11 +1595,13 @@ function ChatHeader({
 function ConversationList({
     conversations,
     activeId,
+    onlineUserIds,
     loading,
     onSelect,
 }: {
     conversations: MessengerConversation[];
     activeId?: number;
+    onlineUserIds: Set<number>;
     loading: boolean;
     onSelect: (conversation: MessengerConversation) => Promise<void>;
 }) {
@@ -1547,39 +1615,47 @@ function ConversationList({
 
     return (
         <div className="space-y-1">
-            {conversations.map((conversation) => (
-                <button
-                    key={conversation.id}
-                    onClick={() => void onSelect(conversation)}
-                    className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition hover:bg-primary/5 ${activeId === conversation.id ? 'bg-primary/8' : ''}`}
-                >
-                    <Avatar user={conversation.other_user} size="lg" />
-                    <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-2">
-                            <span className="truncate text-[15px] font-semibold text-gray-900">{conversation.other_user?.name ?? 'Conversation'}</span>
-                            {conversation.unread_count > 0 && (
-                                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-black text-white">
-                                    {conversation.unread_count > 9 ? '9+' : conversation.unread_count}
-                                </span>
-                            )}
+            {conversations.map((conversation) => {
+                const online = isMessengerUserOnline(conversation.other_user, onlineUserIds);
+
+                return (
+                    <button
+                        key={conversation.id}
+                        onClick={() => void onSelect(conversation)}
+                        className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition hover:bg-primary/5 ${activeId === conversation.id ? 'bg-primary/8' : ''}`}
+                    >
+                        <Avatar user={conversation.other_user} size="lg" online={online} />
+                        <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-2">
+                                <span className="truncate text-[15px] font-semibold text-gray-900">{conversation.other_user?.name ?? 'Conversation'}</span>
+                                {conversation.unread_count > 0 && (
+                                    <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-black text-white">
+                                        {conversation.unread_count > 9 ? '9+' : conversation.unread_count}
+                                    </span>
+                                )}
+                            </div>
+                            <p className={`mt-0.5 truncate text-sm ${conversation.unread_count > 0 ? 'font-semibold text-primary' : 'text-gray-500'}`}>
+                                <span className={online ? 'text-green-600' : ''}>{messengerStatusText(conversation.other_user, online)}</span>
+                                <span className="text-gray-300"> · </span>
+                                {conversation.last_message?.body ? previewText(conversation.last_message.body) : 'No messages yet'}
+                            </p>
                         </div>
-                        <p className={`mt-0.5 truncate text-sm ${conversation.unread_count > 0 ? 'font-semibold text-primary' : 'text-gray-500'}`}>
-                            {conversation.last_message?.body ? previewText(conversation.last_message.body) : 'No messages yet'}
-                        </p>
-                    </div>
-                </button>
-            ))}
+                    </button>
+                );
+            })}
         </div>
     );
 }
 
 function UserSearchResults({
     users,
+    onlineUserIds,
     searching,
     error,
     onSelect,
 }: {
     users: MessengerUser[];
+    onlineUserIds: Set<number>;
     searching: boolean;
     error: string | null;
     onSelect: (user: MessengerUser) => Promise<void>;
@@ -1598,15 +1674,19 @@ function UserSearchResults({
 
     return (
         <div className="space-y-1">
-            {users.map((user) => (
-                <button key={user.id} onClick={() => void onSelect(user)} className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition hover:bg-primary/5">
-                    <Avatar user={user} size="lg" />
-                    <div className="min-w-0">
-                        <div className="truncate text-sm font-bold text-gray-900">{user.name}</div>
-                        <div className="truncate text-xs text-gray-400">{user.email}</div>
-                    </div>
-                </button>
-            ))}
+            {users.map((user) => {
+                const online = isMessengerUserOnline(user, onlineUserIds);
+
+                return (
+                    <button key={user.id} onClick={() => void onSelect(user)} className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition hover:bg-primary/5">
+                        <Avatar user={user} size="lg" online={online} />
+                        <div className="min-w-0">
+                            <div className="truncate text-sm font-bold text-gray-900">{user.name}</div>
+                            <div className={`truncate text-xs ${online ? 'font-semibold text-green-600' : 'text-gray-400'}`}>{messengerStatusText(user, online)}</div>
+                        </div>
+                    </button>
+                );
+            })}
         </div>
     );
 }
@@ -1672,6 +1752,7 @@ function CallWindow({
     cameraOff,
     localVideoRef,
     remoteVideoRef,
+    remoteAudioRef,
     remoteStream,
     onToggleMute,
     onToggleCamera,
@@ -1685,6 +1766,7 @@ function CallWindow({
     cameraOff: boolean;
     localVideoRef: RefObject<HTMLVideoElement | null>;
     remoteVideoRef: RefObject<HTMLVideoElement | null>;
+    remoteAudioRef: RefObject<HTMLAudioElement | null>;
     remoteStream: MediaStream | null;
     onToggleMute: () => void;
     onToggleCamera: () => void;
@@ -1722,6 +1804,7 @@ function CallWindow({
             </div>
 
             <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-primary/8">
+                {!isVideo && <audio ref={remoteAudioRef} autoPlay className="hidden" />}
                 {isVideo && remoteStream ? (
                     <video ref={remoteVideoRef} autoPlay playsInline className="h-full w-full object-cover" />
                 ) : (
@@ -1898,7 +1981,7 @@ function MessageContextMenu({
     );
 }
 
-function Avatar({ user, size = 'md' }: { user?: MessengerUser | null; size?: 'md' | 'lg' }) {
+function Avatar({ user, size = 'md', online = false }: { user?: MessengerUser | null; size?: 'md' | 'lg'; online?: boolean }) {
     const initials = (user?.name ?? '?')
         .split(' ')
         .map((part) => part[0])
@@ -1906,16 +1989,52 @@ function Avatar({ user, size = 'md' }: { user?: MessengerUser | null; size?: 'md
         .slice(0, 2)
         .toUpperCase();
     const sizeClass = size === 'lg' ? 'h-12 w-12 text-sm' : 'h-9 w-9 text-xs';
-
-    if (user?.avatar) {
-        return <img src={user.avatar} alt="" className={`${sizeClass} shrink-0 rounded-full object-cover`} />;
-    }
+    const indicatorClass = size === 'lg' ? 'h-3.5 w-3.5 border-[3px]' : 'h-2.5 w-2.5 border-2';
 
     return (
-        <div className={`flex ${sizeClass} shrink-0 items-center justify-center rounded-full bg-primary/10 font-black text-primary`}>
-            {initials}
+        <div className="relative shrink-0">
+            {user?.avatar ? (
+                <img src={user.avatar} alt="" className={`${sizeClass} rounded-full object-cover`} />
+            ) : (
+                <div className={`flex ${sizeClass} items-center justify-center rounded-full bg-primary/10 font-black text-primary`}>
+                    {initials}
+                </div>
+            )}
+            {online && <span className={`absolute right-0 bottom-0 rounded-full border-white bg-green-500 ${indicatorClass}`} />}
         </div>
     );
+}
+
+function isMessengerUserOnline(user: MessengerUser | null | undefined, onlineUserIds: Set<number>): boolean {
+    return Boolean(user?.id && onlineUserIds.has(user.id));
+}
+
+function messengerStatusText(user: MessengerUser | null | undefined, online: boolean): string {
+    if (online) {
+        return 'Online';
+    }
+
+    if (!user?.last_seen_at) {
+        return 'Active recently';
+    }
+
+    const minutes = Math.max(0, Math.floor((Date.now() - new Date(user.last_seen_at).getTime()) / 60_000));
+
+    if (minutes < 1) {
+        return 'Active just now';
+    }
+
+    if (minutes < 60) {
+        return `Active ${minutes} min ago`;
+    }
+
+    const hours = Math.floor(minutes / 60);
+
+    if (hours < 24) {
+        return `Active ${hours} h ago`;
+    }
+
+    return `Active ${new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(user.last_seen_at))}`;
 }
 
 function appendMessage(messages: MessengerMessage[], message: MessengerMessage): MessengerMessage[] {

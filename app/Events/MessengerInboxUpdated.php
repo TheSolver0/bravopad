@@ -32,13 +32,13 @@ class MessengerInboxUpdated implements ShouldBroadcastNow
 
     public function broadcastWith(): array
     {
-        $this->conversation->loadMissing(['participants:id,name,email,avatar,role', 'lastMessage.sender:id,name,email,avatar,role']);
+        $this->conversation->loadMissing(['participants:id,name,email,avatar,role,last_seen_at', 'lastMessage.sender:id,name,email,avatar,role,last_seen_at']);
         $other = $this->conversation->participants->firstWhere('id', '!=', $this->user->id);
 
         return [
             'conversation_id' => $this->conversation->id,
             'unread_total' => $this->user->fresh()?->conversations()
-                ->with(['participants:id,name,avatar', 'messages'])
+                ->with(['participants:id,name,avatar,last_seen_at', 'messages'])
                 ->get()
                 ->sum(fn (Conversation $conversation) => $conversation->unreadCountFor($this->user)) ?? 0,
             'conversation' => [
@@ -85,6 +85,7 @@ class MessengerInboxUpdated implements ShouldBroadcastNow
             'email' => $user->email,
             'avatar' => $user->avatar,
             'role' => $user->role,
+            'last_seen_at' => $user->last_seen_at?->toIso8601String(),
         ];
     }
 }

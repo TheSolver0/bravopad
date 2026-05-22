@@ -27,6 +27,7 @@ import {
   Play,
   Bookmark,
   Share2,
+  Repeat,
   TrendingUp,
   Zap,
   Globe,
@@ -38,8 +39,18 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
-import { Post, PostComment, PostMedia, Challenge, BravoValue } from './types';
+import { Post, PostComment, PostMedia, Challenge, BravoValue, User as AppUser, User } from './types';
 import CreateBravo from './CreateBravo';
+
+interface FeedProps {
+  posts: Post[];
+  currentUser: AppUser;
+  users: AppUser[];
+  activeChallenge: Challenge | null;
+  bravoCount: number;
+  bravoValues: BravoValue[];
+  announcements?: Post[];
+}
 
 
 function getAvatar(user: { name: string; avatar?: string | null }): string {
@@ -64,9 +75,17 @@ interface Story {
   isOwn?: boolean;
   previewColor?: string;
 }
+interface Colleague {
+  id: number;
+  name: string;
+  role: string;
+  department: string;
+  location: string;
+  initials: string;
+}
 
 // Mock stories - replace with real data from props
-function StoriesBar({ currentUser, users }: { currentUser: User; users: User[] }) {
+function StoriesBar({ currentUser, users }: { currentUser: LocalUser; users: LocalUser[] }) {
   const { t } = useTranslation();
   const [activeStory, setActiveStory] = useState<Story | null>(null);
   const [storyProgress, setStoryProgress] = useState(0);
@@ -267,38 +286,12 @@ function AnnouncementBanner({ announcements }: { announcements: Post[] }) {
   );
 }
 
-// ── Quick Stats Bar ───────────────────────────────────────────────────────────
-function QuickStats({ bravoCount, users }: { bravoCount: number; users: User[] }) {
-  const { t } = useTranslation();
-  const topUser = [...users].sort((a, b) => b.points_total - a.points_total)[0];
-
-  const stats = [
-    { icon: Zap, label: t('feed.statBravos', 'Bravos ce mois'), value: bravoCount, color: 'text-primary bg-primary/10' },
-    // { icon: Users, label: t('feed.statActive', 'Membres actifs'), value: users.length, color: 'text-emerald-600 bg-emerald-50' },
-    { icon: TrendingUp, label: t('feed.statEngagement', 'Taux d\'engagement'), value: '87%', color: 'text-violet-600 bg-violet-50' },
-  ];
-
-  return (
-    <div className="grid grid-cols-3 gap-3">
-      {stats.map((stat, i) => (
-        <div key={i} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-3 flex flex-col items-center text-center">
-          <div className={`w-8 h-8 rounded-xl flex items-center justify-center mb-2 ${stat.color}`}>
-            <stat.icon size={15} />
-          </div>
-          <span className="text-xl font-extrabold text-gray-800 leading-none">{stat.value}</span>
-          <span className="text-[10px] text-gray-400 mt-1 leading-tight">{stat.label}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 // ── Compose Box ───────────────────────────────────────────────────────────────
 
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface User {
+interface LocalUser {
   id: number;
   name: string;
   avatar?: string;
@@ -421,7 +414,7 @@ function MediaGrid({ items, onRemove }: { items: MediaPreview[]; onRemove: (id: 
 
 // ─── Composant principal ───────────────────────────────────────────────────────
 
-export function ComposeBox({ currentUser, canAnnounce }: { currentUser: User; canAnnounce: boolean }) {
+export function ComposeBox({ currentUser, canAnnounce }: { currentUser: LocalUser; canAnnounce: boolean }) {
   const { t } = useTranslation();
 
   const [content,    setContent]    = useState('');
@@ -501,7 +494,7 @@ export function ComposeBox({ currentUser, canAnnounce }: { currentUser: User; ca
 
     router.post('/posts', formData, {
       forceFormData: true,
-      onProgress: (p) => { if (p.percentage) setProgress(p.percentage); },
+      onProgress: (p) => { if (p?.percentage) setProgress(p.percentage); },
       onSuccess: () => {
         setContent('');
         setType('post');
@@ -646,7 +639,7 @@ export function ComposeBox({ currentUser, canAnnounce }: { currentUser: User; ca
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-gray-500 bg-gray-50 border border-gray-200 hover:border-blue-300 hover:text-blue-500 transition-all cursor-pointer"
             >
               <Globe size={12} />
-              {t('feed.public') || 'Public'}
+              {'Definir Audience'}
             </button>
           </div>
 
@@ -794,7 +787,7 @@ function MediaGallery({ items }: { items: PostMedia[] }) {
   );
 }
 // ── Post Card ─────────────────────────────────────────────────────────────────
-function PostCard({ post, currentUser, onSendBravoClick }: { post: Post; currentUser: User; onSendBravoClick: (recipients: User[]) => void }) {
+function PostCard({ post, currentUser, onSendBravoClick }: { post: Post; currentUser: AppUser; onSendBravoClick: (recipients: AppUser[]) => void }) {
   const { t, i18n } = useTranslation();
   const locale = i18n.language?.startsWith('fr') ? 'fr-FR' : 'en-US';
 
@@ -812,6 +805,9 @@ function PostCard({ post, currentUser, onSendBravoClick }: { post: Post; current
   const [editing, setEditing] = useState(false);
   const [editContent, setEditContent] = useState(post.content);
   const [saving, setSaving] = useState(false);
+  const [republishing, setRepublishing] = useState(false);
+  const [expandedContent, setExpandedContent] = useState(false);
+  const [expandedOriginal, setExpandedOriginal] = useState(false);
 
   const isOwner = currentUser.id === post.user_id;
   const canModerate = ['admin', 'manager'].includes(currentUser.permission);
@@ -875,6 +871,39 @@ function PostCard({ post, currentUser, onSendBravoClick }: { post: Post; current
     if (confirm(t('feed.confirmDelete'))) router.delete(`/posts/${post.id}`);
   };
 
+  const contentLimit = 280;
+  const isContentLong = post.content.length > contentLimit;
+  const contentPreview = isContentLong && !expandedContent
+    ? `${post.content.slice(0, contentLimit).trimEnd()}...`
+    : post.content;
+
+  const originalContent = post.original_post?.content ?? '';
+  const isOriginalLong = originalContent.length > contentLimit;
+  const originalContentPreview = isOriginalLong && !expandedOriginal
+    ? `${originalContent.slice(0, contentLimit).trimEnd()}...`
+    : originalContent;
+
+  const republishPost = async () => {
+    if (republishing) return;
+    setRepublishing(true);
+
+    try {
+      const res = await fetch(`/posts/${post.id}/republish`, {
+        method: 'POST',
+        headers: { 'X-CSRF-TOKEN': getCsrf(), 'Accept': 'application/json' },
+      });
+
+      if (res.ok) {
+        router.reload();
+      } else {
+        const error = await res.text();
+        alert(error || t('feed.republishError', 'Impossible de republier ce post.'));
+      }
+    } finally {
+      setRepublishing(false);
+    }
+  };
+
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }}>
       <Card className="border border-gray-100 shadow-sm bg-white overflow-hidden rounded-2xl">
@@ -885,6 +914,19 @@ function PostCard({ post, currentUser, onSendBravoClick }: { post: Post; current
             <Megaphone size={12} className="text-amber-500 shrink-0" />
             <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wide">{t('feed.announcementLabel')}</span>
             {post.is_pinned && <Pin size={10} className="text-amber-400 ml-auto" />}
+          </div>
+        )}
+
+        {/* Republier badge */}
+        {post.original_post && (
+          <div className="flex items-center gap-2 px-4 pt-4 text-xs font-semibold uppercase tracking-wide text-gray-500">
+            <Repeat size={14} className="text-gray-400" />
+            <span>
+              {t('feed.republishedBy', {
+                name: post.user.name,
+                original: post.original_post.user.name,
+              })}
+            </span>
           </div>
         )}
 
@@ -970,26 +1012,84 @@ function PostCard({ post, currentUser, onSendBravoClick }: { post: Post; current
               </div>
             </div>
           ) : (
-            <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{post.content}</p>
+            <>
+              <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{contentPreview}</p>
+              {isContentLong && !editing && (
+                <button
+                  type="button"
+                  className="mt-2 text-xs font-semibold text-primary hover:underline"
+                  onClick={() => setExpandedContent(prev => !prev)}
+                >
+                  {expandedContent ? t('feed.showLess', 'Voir moins') : t('feed.showMore', 'Voir plus')}
+                </button>
+              )}
+            </>
           )}
 
-          {!editing && (
-  <>
-    {/* Médias uploadés (nouvelle logique) */}
-    {post.media && post.media.length > 0 && (
-      <div className="mt-3 rounded-xl overflow-hidden border border-gray-100">
-        <MediaGallery items={post.media} />
-      </div>
-    )}
- 
-    {/* Fallback : ancien champ media_url (URL externe) */}
-    {(!post.media || post.media.length === 0) && post.media_url && (
-      <div className="mt-3 rounded-xl overflow-hidden border border-gray-100">
-        <img src={post.media_url} alt="" className="w-full max-h-80 object-cover" />
-      </div>
-    )}
-  </>
-)}
+          {!editing && post.original_post ? (
+            <div className="mt-4 rounded-2xl border border-gray-100 bg-gray-50">
+              <div className="px-4 py-4">
+                {post.original_post.type === 'announcement' && (
+                  <div className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-amber-100 text-amber-700 text-[10px] font-bold uppercase tracking-wide mb-3">
+                    <Megaphone size={12} /> {t('feed.announcementLabel')}
+                  </div>
+                )}
+                <div className="flex items-start gap-3 pb-3 border-b border-gray-200">
+                  <img
+                    src={getAvatar(post.original_post.user)}
+                    alt=""
+                    className="w-10 h-10 rounded-full"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div>
+                    <p className="text-sm font-bold text-gray-800">{post.original_post.user.name}</p>
+                    <p className="text-[11px] text-gray-400">
+                      {post.original_post.user.role}
+                      {post.original_post.user.department ? ` · ${post.original_post.user.department}` : ''}
+                    </p>
+                  </div>
+                </div>
+                <p className="mt-3 text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+                  {originalContentPreview}
+                </p>
+                {isOriginalLong && (
+                  <button
+                    type="button"
+                    className="mt-2 text-xs font-semibold text-primary hover:underline"
+                    onClick={() => setExpandedOriginal(prev => !prev)}
+                  >
+                    {expandedOriginal ? t('feed.showLess', 'Voir moins') : t('feed.showMore', 'Voir plus')}
+                  </button>
+                )}
+              </div>
+              {post.original_post.media && post.original_post.media.length > 0 && (
+                <div className="px-4 pb-4">
+                  <MediaGallery items={post.original_post.media} />
+                </div>
+              )}
+              {(!post.original_post.media || post.original_post.media.length === 0) && post.original_post.media_url && (
+                <div className="px-4 pb-4">
+                  <img src={post.original_post.media_url} alt="" className="w-full rounded-2xl object-cover" />
+                </div>
+              )}
+            </div>
+          ) : (
+            <>
+              {/* Médias uploadés (nouvelle logique) */}
+              {post.media && post.media.length > 0 && (
+                <div className="mt-3 rounded-xl overflow-hidden border border-gray-100">
+                  <MediaGallery items={post.media} />
+                </div>
+              )}
+
+              {/* Fallback : ancien champ media_url (URL externe) */}
+              {(!post.media || post.media.length === 0) && post.media_url && (
+                <div className="mt-3 rounded-xl overflow-hidden border border-gray-100">
+                  <img src={post.media_url} alt="" className="w-full max-h-80 object-cover" />
+                </div>
+              )}
+            </>
+          )}
         </div>
 
         {/* Actions */}
@@ -1012,12 +1112,21 @@ function PostCard({ post, currentUser, onSendBravoClick }: { post: Post; current
             <span>{comments.length}</span>
             {showComments ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
           </button>
-          <button className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 hover:text-primary transition-colors cursor-pointer ml-auto">
-            <Share2 size={14} />
+          <button
+            onClick={republishPost}
+            disabled={republishing}
+            className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 hover:text-primary transition-colors cursor-pointer ml-auto"
+            title={t('feed.republish', 'Republier')}
+          >
+            {republishing ? (
+              <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin block" />
+            ) : (
+              <Repeat size={14} />
+            )}
           </button>
           {post.user && (
             <button
-              onClick={() => onSendBravoClick([post.user as User])}
+              onClick={() => onSendBravoClick([post.user as unknown as AppUser])}
               className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 hover:text-primary transition-colors cursor-pointer"
             >
               <Award size={15} /> {t('dashboard.sendBravo')}
@@ -1093,7 +1202,7 @@ function PostCard({ post, currentUser, onSendBravoClick }: { post: Post; current
 }
 
 // ── Right Sidebar Widgets ─────────────────────────────────────────────────────
-function Leaderboard({ users }: { users: User[] }) {
+function Leaderboard({ users }: { users: AppUser[] }) {
   const { t, i18n } = useTranslation();
   const locale = i18n.language?.startsWith('fr') ? 'fr-FR' : 'en-US';
   const top5 = [...users].sort((a, b) => b.points_total - a.points_total).slice(0, 5);
@@ -1135,7 +1244,7 @@ function Leaderboard({ users }: { users: User[] }) {
   );
 }
 
-function SuggestedPeople({ users, currentUser }: { users: User[]; currentUser: User }) {
+function SuggestedPeople({ users, currentUser }: { users: AppUser[]; currentUser: AppUser }) {
   const { t } = useTranslation();
   const suggestions = users.filter(u => u.id !== currentUser.id).slice(0, 4);
   const [followed, setFollowed] = useState<number[]>([]);
@@ -1316,40 +1425,78 @@ function FindColleague() {
   const [showFilters, setShowFilters] = useState(false);
   const [searched, setSearched] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState<typeof MOCK_COLLEAGUES>([]);
+  const [results, setResults] = useState<Colleague[]>([]);
   const [aiSummary, setAiSummary] = useState("");
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState<{ current_page: number; last_page: number; per_page: number; total: number } | null>(null);
+  const [departments, setDepartments] = useState<string[]>(DEPARTMENTS);
 
-  const handleSearch = async () => {
+  // Helper : construire les initiales depuis le nom
+  const getInitials = (name: string) =>
+    name.split(" ")
+      .slice(0, 2)
+      .map(n => n[0]?.toUpperCase() ?? "")
+      .join("");
+
+  const handleSearch = useCallback(async (pageNumber = 1) => {
     if (!query.trim() && department === "Tous les départements") return;
     setLoading(true);
     setSearched(true);
     setAiSummary("");
 
-    // Simulate AI search + filter
-    await new Promise(r => setTimeout(r, 700));
+    try {
+      const params = new URLSearchParams();
+      if (query.trim()) params.set("search", query.trim());
+      if (department !== "Tous les départements") params.set("department", department);
+      params.set("page", String(pageNumber));
 
-    let filtered = MOCK_COLLEAGUES;
-    if (department !== "Tous les départements") {
-      filtered = filtered.filter(c => c.department === department);
-    }
-    if (query.trim()) {
-      const q = query.toLowerCase();
-      filtered = filtered.filter(c =>
-        c.name.toLowerCase().includes(q) ||
-        c.role.toLowerCase().includes(q) ||
-        c.department.toLowerCase().includes(q) ||
-        c.location.toLowerCase().includes(q)
+      const res = await fetch(`/messenger/users?${params.toString()}`);
+      if (!res.ok) throw new Error("Erreur réseau");
+
+      const data = await res.json();
+      const users = Array.isArray(data.users) ? data.users : [];
+
+      const mapped: Colleague[] = users.map((u: any) => ({
+        id: u.id,
+        name: u.name,
+        role: u.role || '',
+        department: u.department ?? '',
+        location: u.location ?? '',
+        initials: u.avatar ?? getInitials(u.name),
+      }));
+
+      setResults(mapped);
+      setPagination(data.pagination ?? null);
+      setPage(pageNumber);
+      setAiSummary(
+        mapped.length > 0
+          ? `${mapped.length} collègue${mapped.length > 1 ? "s" : ""} trouvé${mapped.length > 1 ? "s" : ""}.`
+          : "Aucun collègue trouvé. Essayez d'autres mots-clés."
       );
+    } catch {
+      setAiSummary("Erreur lors de la recherche. Veuillez réessayer.");
+      setResults([]);
+      setPagination(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [query, department]);
+
+  useEffect(() => {
+    if (!query.trim() && department === 'Tous les départements') {
+      setResults([]);
+      setPagination(null);
+      setSearched(false);
+      setAiSummary('');
+      return;
     }
 
-    setResults(filtered);
-    setAiSummary(
-      filtered.length > 0
-        ? `${filtered.length} collègue${filtered.length > 1 ? "s" : ""} trouvé${filtered.length > 1 ? "s" : ""} correspondant à votre recherche.`
-        : "Aucun collègue trouvé. Essayez d'autres mots-clés ou filtres."
-    );
-    setLoading(false);
-  };
+    const timeout = window.setTimeout(() => {
+      handleSearch(1);
+    }, 250);
+    
+    return () => window.clearTimeout(timeout);
+  }, [query, department, handleSearch]);
 
   const colorMap = ["bg-[#003d7a]", "bg-[#0066c2]", "bg-emerald-600", "bg-purple-600", "bg-amber-600", "bg-rose-600"];
 
@@ -1395,7 +1542,7 @@ function FindColleague() {
             )}
           </div>
           <button
-            onClick={handleSearch}
+            onClick={() => handleSearch()}
             className="px-4 py-2.5 rounded-xl bg-[#003d7a] hover:bg-[#0066c2] text-white text-xs font-black transition-all shadow-sm shadow-[#003d7a]/20"
           >
             Chercher
@@ -1413,7 +1560,7 @@ function FindColleague() {
               onChange={e => setDepartment(e.target.value)}
               className="w-full text-xs font-medium text-gray-700 bg-white border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#003d7a]/20"
             >
-              {DEPARTMENTS.map(d => <option key={d}>{d}</option>)}
+              {departments.map(d => <option key={d}>{d}</option>)}
             </select>
           </div>
         )}
@@ -1455,6 +1602,32 @@ function FindColleague() {
                 </div>
               ))}
             </div>
+
+            {pagination && pagination.last_page > 1 && (
+              <div className="flex items-center justify-between gap-3 mt-3 px-1">
+                <span className="text-[10px] text-gray-500">
+                  Page {pagination.current_page} sur {pagination.last_page}
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={pagination.current_page <= 1 || loading}
+                    onClick={() => handleSearch(Math.max(1, pagination.current_page - 1))}
+                    className="px-3 py-1.5 rounded-lg text-[10px] font-bold transition-colors border border-gray-200 bg-white text-gray-700 disabled:cursor-not-allowed disabled:opacity-40 hover:bg-gray-100"
+                  >
+                    Précédent
+                  </button>
+                  <button
+                    type="button"
+                    disabled={pagination.current_page >= pagination.last_page || loading}
+                    onClick={() => handleSearch(Math.min(pagination.last_page, pagination.current_page + 1))}
+                    className="px-3 py-1.5 rounded-lg text-[10px] font-bold transition-colors border border-gray-200 bg-white text-gray-700 disabled:cursor-not-allowed disabled:opacity-40 hover:bg-gray-100"
+                  >
+                    Suivant
+                  </button>
+                </div>
+              </div>
+            )}
           </>
         )}
 
@@ -1482,7 +1655,7 @@ export default function Feed({ posts, currentUser, users, activeChallenge, bravo
   const sortedUsers = [...users].sort((a, b) => b.points_total - a.points_total);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [prefillBravoRecipients, setPrefillBravoRecipients] = useState<User[]>([]);
+  const [prefillBravoRecipients, setPrefillBravoRecipients] = useState<AppUser[]>([]);
 
 
   // ── Hero Carousel ──────────────────────────────────────────────────────────
@@ -1612,7 +1785,7 @@ export default function Feed({ posts, currentUser, users, activeChallenge, bravo
     observer.current.observe(node);
   }, [hasMore, loadMore]);
 
-  const handleSendBravoFromPost = (recipients: User[]) => {
+  const handleSendBravoFromPost = (recipients: AppUser[]) => {
     setPrefillBravoRecipients(recipients);
     setShowCreateModal(true);
   };

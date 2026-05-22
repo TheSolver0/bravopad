@@ -7,12 +7,12 @@ use App\Models\BravoValue;
 use App\Models\Challenge;
 use App\Models\Post;
 use App\Models\PostComment;
+use App\Models\PostMedia;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Inertia\Inertia;
-use App\Models\PostMedia;
 use Illuminate\Support\Facades\Storage;
+use Inertia\Inertia;
 
 class PostController extends Controller
 {
@@ -25,7 +25,7 @@ class PostController extends Controller
     {
         $currentUser = Auth::user();
 
-        $posts = Post::with(['user', 'comments.user'])
+        $posts = Post::with(['user', 'comments.user', 'originalPost.user', 'originalPost.media'])
             ->withCount('likedBy')
             ->orderByDesc('is_pinned')
             ->orderByDesc('created_at')
@@ -34,6 +34,31 @@ class PostController extends Controller
                 'user_has_liked' => $post->likedBy->contains('id', $currentUser->id),
                 'likes_count'    => $post->liked_by_count,
                 // 'media'          => $this->media,
+                'original_post'  => $post->originalPost ? [
+                    'id'             => $post->originalPost->id,
+                    'user_id'        => $post->originalPost->user_id,
+                    'content'        => $post->originalPost->content,
+                    'type'           => $post->originalPost->type,
+                    'media_url'      => $post->originalPost->media_url,
+                    'is_pinned'      => $post->originalPost->is_pinned,
+                    'likes_count'    => $post->originalPost->likes_count,
+                    'comments_count' => $post->originalPost->comments_count,
+                    'created_at'     => $post->originalPost->created_at->toDateTimeString(),
+                    'user'           => [
+                        'id'         => $post->originalPost->user->id,
+                        'name'       => $post->originalPost->user->name,
+                        'avatar'     => $post->originalPost->user->avatar,
+                        'role'       => $post->originalPost->user->role,
+                        'department' => $post->originalPost->user->department,
+                    ],
+                    'media'          => $post->originalPost->media->map(fn ($m) => [
+                        'id'        => $m->id,
+                        'url'       => $m->url,
+                        'type'      => $m->type,
+                        'mime_type' => $m->mime_type,
+                        'order'     => $m->order,
+                    ])->values()->toArray(),
+                ] : null,
                 'comments'       => $post->comments->map(fn ($c) => [
                     'id'         => $c->id,
                     'content'    => $c->content,
@@ -113,6 +138,23 @@ class PostController extends Controller
         }
  
         return back();
+    }
+ 
+    public function republish(Post $post)
+    {
+        $user = Auth::user();
+
+        $originalId = $post->original_post_id ? $post->original_post_id : $post->id;
+
+        $newPost = Post::create([
+            'user_id'          => $user->id,
+            'content'          => '',
+            'type'             => 'post',
+            'media_url'        => null,
+            'original_post_id' => $originalId,
+        ]);
+
+        return response()->json(['message' => 'Post republié avec succès', 'post_id' => $newPost->id], 201);
     }
  
     public function update(Request $request, Post $post)
@@ -198,7 +240,6 @@ class PostController extends Controller
             ]);
         }
     }
-
 
     // public function update(Request $request, Post $post)
     // {

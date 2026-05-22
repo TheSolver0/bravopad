@@ -49,6 +49,7 @@ export interface AppSetting {
 export type Permission = 'admin' | 'manager' | 'employee';
 
 export interface User {
+  location: string;
   id: number;
   name: string;
   email?: string;
@@ -199,6 +200,19 @@ export interface Post {
   type: 'post' | 'announcement';
   media_url: string | null;
   media?: PostMedia[];    
+  original_post?: {
+    id: number;
+    user_id: number;
+    content: string;
+    type: 'post' | 'announcement';
+    media_url: string | null;
+    media?: PostMedia[];
+    is_pinned: boolean;
+    likes_count: number;
+    comments_count: number;
+    created_at: string;
+    user: { id: number; name: string; avatar?: string | null; role: string; department?: string | null };
+  } | null;
   is_pinned: boolean;
   likes_count: number;
   comments_count: number;

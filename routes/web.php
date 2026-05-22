@@ -31,6 +31,7 @@ Route::middleware(['auth'])->group(function () {
     // Fil social — Posts & Actualités
     Route::get('/feed', [PostController::class, 'index'])->name('feed');
     Route::post('/posts', [PostController::class, 'store'])->name('posts.store');
+    Route::post('/posts/{post}/republish', [PostController::class, 'republish'])->name('posts.republish');
     Route::put('/posts/{post}', [PostController::class, 'update'])->name('posts.update');
     Route::delete('/posts/{post}', [PostController::class, 'destroy'])->name('posts.destroy');
     Route::post('/posts/{post}/like', [PostController::class, 'like'])->name('posts.like');

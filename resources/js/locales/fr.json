@@ -27,7 +27,7 @@
   },
   "nav": {
     "home": "Mur des Bravos",
-    "myBravos": "Mes Bravos",
+    "myBravos": "Moi",
     "challenges": "Défis",
     "surveys": "Sondages",
     "team": "Personnel",
@@ -272,6 +272,11 @@
     "beFirst": "Soyez le premier à partager quelque chose !",
     "edit": "Modifier",
     "delete": "Supprimer",
-    "confirmDelete": "Supprimer cette publication ?"
+    "confirmDelete": "Supprimer cette publication ?",
+    "republish": "Republier",
+    "republishedBy": "{{name}} a republié un post de {{original}}",
+    "republishError": "Impossible de republier ce post.",
+    "showMore": "Voir plus",
+    "showLess": "Voir moins"
   }
 }

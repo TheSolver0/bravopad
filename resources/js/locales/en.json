@@ -272,6 +272,8 @@
     "beFirst": "Be the first to share something!",
     "edit": "Edit",
     "delete": "Delete",
-    "confirmDelete": "Delete this post?"
+    "confirmDelete": "Delete this post?",
+    "showMore": "See more",
+    "showLess": "See less"
   }
 }

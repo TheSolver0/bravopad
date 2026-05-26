@@ -31,6 +31,7 @@ Broadcast::channel('messenger.call.{callId}', function (User $user, int $callId)
         ->whereKey($callId)
         ->where(fn ($query) => $query
             ->where('started_by', $user->id)
-            ->orWhere('callee_id', $user->id))
+            ->orWhere('callee_id', $user->id)
+            ->orWhereHas('conversation.participants', fn ($participants) => $participants->where('users.id', $user->id)))
         ->exists();
 });

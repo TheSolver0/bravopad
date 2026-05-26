@@ -109,14 +109,26 @@ type MessengerCall = {
     id: number;
     conversation_id: number;
     started_by: number;
-    callee_id: number;
+    callee_id: number | null;
     type: 'audio' | 'video';
     status: 'ringing' | 'accepted' | 'declined' | 'ended';
+    room_key?: string | null;
+    joined_count?: number | null;
+    max_participants?: number | null;
     accepted_at?: string | null;
     ended_at?: string | null;
     created_at?: string | null;
     starter: MessengerUser;
-    callee: MessengerUser;
+    callee: MessengerUser | null;
+    participants?: Record<string, MessengerCallParticipant>;
+};
+
+type MessengerCallParticipant = {
+    user_id: number;
+    status: 'invited' | 'joined' | 'declined' | 'left';
+    joined_at?: string | null;
+    left_at?: string | null;
+    user: MessengerUser | null;
 };
 
 type CallUpdatedPayload = {
@@ -125,17 +137,33 @@ type CallUpdatedPayload = {
 
 type WebRtcSessionPayload = {
     from: number;
+    target?: number;
     sdp: RTCSessionDescriptionInit;
 };
 
 type WebRtcIcePayload = {
     from: number;
+    target?: number;
     candidate: RTCIceCandidateInit;
+};
+
+type MeshReadyPayload = {
+    from: number;
+    target?: number;
+};
+
+type CallIceServer = {
+    urls: string | string[];
+    username?: string | null;
+    credential?: string | null;
 };
 
 type PageProps = {
     auth?: {
         user?: MessengerUser;
+    };
+    messenger?: {
+        call_ice_servers?: CallIceServer[];
     };
 };
 
@@ -152,7 +180,7 @@ type MessengerWidgetProps = {
 };
 
 export default function MessengerWidget({ variant = 'floating' }: MessengerWidgetProps) {
-    const { auth } = usePage<PageProps>().props;
+    const { auth, messenger } = usePage<PageProps>().props;
     const fullscreen = variant === 'fullscreen';
     const currentUser = auth?.user;
     const onlineUserIds = useMessengerPresence(Boolean(currentUser?.id));
@@ -191,6 +219,7 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
     const [cameraOff, setCameraOff] = useState(false);
     const [localStream, setLocalStream] = useState<MediaStream | null>(null);
     const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+    const [remoteStreams, setRemoteStreams] = useState<Record<number, MediaStream>>({});
     const [desktopNotificationPermission, setDesktopNotificationPermission] = useState<DesktopNotificationPermission>(() => getDesktopNotificationPermission());
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
     const localVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -200,14 +229,21 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
     const typingTimeoutsRef = useRef<Record<number, number>>({});
     const lastTypingWhisperRef = useRef(0);
     const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+    const groupPeerConnectionsRef = useRef<Record<number, RTCPeerConnection>>({});
     const localStreamRef = useRef<MediaStream | null>(null);
     const pendingIceCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
+    const pendingGroupIceCandidatesRef = useRef<Record<number, RTCIceCandidateInit[]>>({});
     const startedOfferForCallRef = useRef<number | null>(null);
+    const startedGroupOffersRef = useRef<Set<number>>(new Set());
     const ringtoneContextRef = useRef<AudioContext | null>(null);
     const ringtoneTimerRef = useRef<number | null>(null);
 
     const activeId = activeConversation?.id ?? null;
     const activeCallRef = useRef<MessengerCall | null>(null);
+    const iceServers = useMemo<RTCIceServer[]>(
+        () => normalizeIceServers(messenger?.call_ice_servers),
+        [messenger?.call_ice_servers],
+    );
 
     useEffect(() => {
         activeCallRef.current = activeCall;
@@ -543,10 +579,26 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
             void handleCallReady(payload);
         });
 
+        channel.listenForWhisper('mesh-ready', (payload: MeshReadyPayload) => {
+            void handleMeshReady(payload);
+        });
+
+        channel.listenForWhisper('mesh-offer', (payload: WebRtcSessionPayload) => {
+            void handleMeshOffer(payload);
+        });
+
+        channel.listenForWhisper('mesh-answer', (payload: WebRtcSessionPayload) => {
+            void handleMeshAnswer(payload);
+        });
+
+        channel.listenForWhisper('mesh-ice-candidate', (payload: WebRtcIcePayload) => {
+            void handleMeshIceCandidate(payload);
+        });
+
         return () => {
             echo.leave(channelName);
         };
-    }, [activeCall?.id, currentUser?.id]);
+    }, [activeCall?.id, currentUser?.id, iceServers]);
 
     useEffect(() => {
         if (localVideoRef.current) {
@@ -1025,12 +1077,6 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
             return;
         }
 
-        if (activeConversation.type !== 'direct') {
-            toast.message('Group calls are not available yet.');
-
-            return;
-        }
-
         setCallError(null);
 
         const supportError = callSupportError(type);
@@ -1059,12 +1105,22 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
             const data = (await response.json()) as { call: MessengerCall };
             getEcho()?.private(`messenger.call.${data.call.id}`);
             setActiveCall(data.call);
-            setCallStatus('ringing');
+            setCallStatus(isGroupCall(data.call) ? 'connecting' : 'ringing');
             await waitForCallSubscription(data.call.id);
-            startRingtone('outgoing');
+
+            if (!isGroupCall(data.call)) {
+                startRingtone('outgoing');
+            }
 
             try {
-                await preparePeerConnection(data.call);
+                if (isGroupCall(data.call)) {
+                    await prepareGroupCall(data.call);
+                    whisperCall(data.call.id, 'mesh-ready', {});
+                    createOffersForJoinedPeers(data.call);
+                    setCallStatus('connected');
+                } else {
+                    await preparePeerConnection(data.call);
+                }
             } catch (error) {
                 const message = callErrorMessage(error);
                 setCallError(message);
@@ -1073,7 +1129,7 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
                     method: 'PATCH',
                     credentials: 'same-origin',
                     headers: csrfHeaders({ 'Content-Type': 'application/json' }),
-                    body: JSON.stringify({ status: 'ended' }),
+                    body: JSON.stringify({ status: isGroupCall(data.call) ? 'left' : 'ended' }),
                 });
                 cleanupCallMedia();
             }
@@ -1104,7 +1160,12 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
 
         try {
             await waitForCallSubscription(call.id);
-            await preparePeerConnection(call);
+
+            if (isGroupCall(call)) {
+                await prepareGroupCall(call);
+            } else {
+                await preparePeerConnection(call);
+            }
         } catch (error) {
             const message = callErrorMessage(error);
             setCallError(message);
@@ -1132,7 +1193,14 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
             const data = (await response.json()) as { call: MessengerCall };
             setActiveCall(data.call);
             setCallStatus('connecting');
-            whisperCall(data.call.id, 'call-ready', {});
+
+            if (isGroupCall(data.call)) {
+                whisperCall(data.call.id, 'mesh-ready', {});
+                createOffersForJoinedPeers(data.call);
+                setCallStatus('connected');
+            } else {
+                whisperCall(data.call.id, 'call-ready', {});
+            }
         } catch (error) {
             setCallError(callErrorMessage(error));
         }
@@ -1162,6 +1230,22 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
             method: 'PATCH',
             credentials: 'same-origin',
             headers: csrfHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({ status: isGroupCall(call) ? 'left' : 'ended' }),
+        });
+    }
+
+    async function endCallForEveryone() {
+        const call = activeCallRef.current;
+        cleanupCallMedia();
+
+        if (!call || !currentUser?.id || call.started_by !== currentUser.id || !isGroupCall(call)) {
+            return;
+        }
+
+        await fetch(`/messenger/conversations/${call.conversation_id}/calls/${call.id}`, {
+            method: 'PATCH',
+            credentials: 'same-origin',
+            headers: csrfHeaders({ 'Content-Type': 'application/json' }),
             body: JSON.stringify({ status: 'ended' }),
         });
     }
@@ -1172,6 +1256,36 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
         }
 
         const currentCall = activeCallRef.current;
+
+        if (isGroupCall(call)) {
+            const currentParticipant = call.participants?.[String(currentUser.id)];
+
+            if (call.status === 'accepted' && currentParticipant?.status === 'invited' && !currentCall) {
+                setIncomingCall(call);
+                startRingtone('incoming');
+                toast.message(`${call.starter.name} started a group ${call.type} call`, {
+                    description: `${call.joined_count ?? 1}/${call.max_participants ?? 0} participants joined`,
+                    action: {
+                        label: 'Join',
+                        onClick: () => void acceptCall(call),
+                    },
+                });
+
+                return;
+            }
+
+            if (currentCall?.id !== call.id) {
+                return;
+            }
+
+            setActiveCall(call);
+
+            if (call.status === 'ended') {
+                cleanupCallMedia();
+            }
+
+            return;
+        }
 
         if (call.status === 'ringing' && call.callee_id === currentUser.id && !currentCall) {
             setIncomingCall(call);
@@ -1215,16 +1329,9 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
             return peerConnectionRef.current;
         }
 
-        if (!navigator.mediaDevices?.getUserMedia) {
-            throw new Error('Calls are not available in this browser.');
-        }
-
-        const stream = await navigator.mediaDevices.getUserMedia({
-            audio: true,
-            video: call.type === 'video',
-        });
+        const stream = await getLocalCallStream(call);
         const peerConnection = new RTCPeerConnection({
-            iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+            iceServers,
         });
 
         stream.getTracks().forEach((track) => {
@@ -1257,6 +1364,88 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
         setLocalStream(stream);
         setCallMuted(false);
         setCameraOff(false);
+
+        return peerConnection;
+    }
+
+    async function getLocalCallStream(call: MessengerCall): Promise<MediaStream> {
+        if (localStreamRef.current) {
+            return localStreamRef.current;
+        }
+
+        if (!navigator.mediaDevices?.getUserMedia) {
+            throw new Error('Calls are not available in this browser.');
+        }
+
+        const stream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+            video: call.type === 'video',
+        });
+
+        localStreamRef.current = stream;
+        setLocalStream(stream);
+        setCallMuted(false);
+        setCameraOff(false);
+
+        return stream;
+    }
+
+    async function prepareGroupCall(call: MessengerCall): Promise<void> {
+        await getLocalCallStream(call);
+    }
+
+    async function prepareGroupPeerConnection(call: MessengerCall, peerId: number): Promise<RTCPeerConnection> {
+        const existing = groupPeerConnectionsRef.current[peerId];
+
+        if (existing) {
+            return existing;
+        }
+
+        const stream = await getLocalCallStream(call);
+        const peerConnection = new RTCPeerConnection({ iceServers });
+
+        stream.getTracks().forEach((track) => {
+            peerConnection.addTrack(track, stream);
+        });
+
+        peerConnection.onicecandidate = (event) => {
+            if (event.candidate) {
+                whisperCall(call.id, 'mesh-ice-candidate', {
+                    target: peerId,
+                    candidate: event.candidate.toJSON(),
+                });
+            }
+        };
+
+        peerConnection.ontrack = (event) => {
+            const [stream] = event.streams;
+
+            if (stream) {
+                setRemoteStreams((current) => ({
+                    ...current,
+                    [peerId]: stream,
+                }));
+                setCallStatus('connected');
+            }
+        };
+
+        peerConnection.onconnectionstatechange = () => {
+            if (peerConnection.connectionState === 'connected') {
+                setCallStatus('connected');
+            }
+
+            if (['failed', 'closed', 'disconnected'].includes(peerConnection.connectionState)) {
+                setRemoteStreams((current) => {
+                    const next = { ...current };
+                    delete next[peerId];
+
+                    return next;
+                });
+            }
+        };
+
+        groupPeerConnectionsRef.current[peerId] = peerConnection;
+        pendingGroupIceCandidatesRef.current[peerId] = pendingGroupIceCandidatesRef.current[peerId] ?? [];
 
         return peerConnection;
     }
@@ -1336,12 +1525,137 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
         await createAndSendOffer(call);
     }
 
+    async function handleMeshReady(payload: MeshReadyPayload) {
+        if (!currentUser?.id || payload.from === currentUser.id || (payload.target && payload.target !== currentUser.id)) {
+            return;
+        }
+
+        const call = activeCallRef.current;
+
+        if (!call || !isGroupCall(call) || call.status !== 'accepted') {
+            return;
+        }
+
+        const participant = call.participants?.[String(currentUser.id)];
+
+        if (participant?.status !== 'joined') {
+            return;
+        }
+
+        if (currentUser.id < payload.from) {
+            await createAndSendMeshOffer(call, payload.from);
+        }
+    }
+
+    async function createAndSendMeshOffer(call: MessengerCall, peerId: number) {
+        if (startedGroupOffersRef.current.has(peerId)) {
+            return;
+        }
+
+        startedGroupOffersRef.current.add(peerId);
+        const peerConnection = await prepareGroupPeerConnection(call, peerId);
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+
+        if (peerConnection.localDescription) {
+            whisperCall(call.id, 'mesh-offer', {
+                target: peerId,
+                sdp: peerConnection.localDescription,
+            });
+        }
+    }
+
+    async function handleMeshOffer(payload: WebRtcSessionPayload) {
+        if (!currentUser?.id || payload.from === currentUser.id || payload.target !== currentUser.id) {
+            return;
+        }
+
+        const call = activeCallRef.current;
+
+        if (!call || !isGroupCall(call)) {
+            return;
+        }
+
+        const peerConnection = await prepareGroupPeerConnection(call, payload.from);
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+        await flushPendingGroupIceCandidates(peerConnection, payload.from);
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+
+        if (peerConnection.localDescription) {
+            whisperCall(call.id, 'mesh-answer', {
+                target: payload.from,
+                sdp: peerConnection.localDescription,
+            });
+        }
+    }
+
+    async function handleMeshAnswer(payload: WebRtcSessionPayload) {
+        if (!currentUser?.id || payload.from === currentUser.id || payload.target !== currentUser.id) {
+            return;
+        }
+
+        const peerConnection = groupPeerConnectionsRef.current[payload.from];
+
+        if (!peerConnection) {
+            return;
+        }
+
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+        await flushPendingGroupIceCandidates(peerConnection, payload.from);
+    }
+
+    async function handleMeshIceCandidate(payload: WebRtcIcePayload) {
+        if (!currentUser?.id || payload.from === currentUser.id || payload.target !== currentUser.id || !payload.candidate) {
+            return;
+        }
+
+        const peerConnection = groupPeerConnectionsRef.current[payload.from];
+
+        if (!peerConnection?.remoteDescription) {
+            pendingGroupIceCandidatesRef.current[payload.from] = [
+                ...(pendingGroupIceCandidatesRef.current[payload.from] ?? []),
+                payload.candidate,
+            ];
+
+            return;
+        }
+
+        await peerConnection.addIceCandidate(new RTCIceCandidate(payload.candidate));
+    }
+
+    function createOffersForJoinedPeers(call: MessengerCall) {
+        if (!currentUser?.id || !isGroupCall(call)) {
+            return;
+        }
+
+        Object.values(call.participants ?? {}).forEach((participant) => {
+            if (
+                participant.status === 'joined'
+                && participant.user_id !== currentUser.id
+                && currentUser.id < participant.user_id
+            ) {
+                window.setTimeout(() => {
+                    void createAndSendMeshOffer(call, participant.user_id);
+                }, 350);
+            }
+        });
+    }
+
     async function flushPendingIceCandidates(peerConnection: RTCPeerConnection) {
         for (const candidate of pendingIceCandidatesRef.current) {
             await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
         }
 
         pendingIceCandidatesRef.current = [];
+    }
+
+    async function flushPendingGroupIceCandidates(peerConnection: RTCPeerConnection, peerId: number) {
+        for (const candidate of pendingGroupIceCandidatesRef.current[peerId] ?? []) {
+            await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+        }
+
+        pendingGroupIceCandidatesRef.current[peerId] = [];
     }
 
     function whisperCall(callId: number, event: string, payload: Record<string, unknown>) {
@@ -1454,12 +1768,17 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
         stopRingtone();
         peerConnectionRef.current?.close();
         peerConnectionRef.current = null;
+        Object.values(groupPeerConnectionsRef.current).forEach((peerConnection) => peerConnection.close());
+        groupPeerConnectionsRef.current = {};
         pendingIceCandidatesRef.current = [];
+        pendingGroupIceCandidatesRef.current = {};
         startedOfferForCallRef.current = null;
+        startedGroupOffersRef.current = new Set();
         localStreamRef.current?.getTracks().forEach((track) => track.stop());
         localStreamRef.current = null;
         setLocalStream(null);
         setRemoteStream(null);
+        setRemoteStreams({});
         setActiveCall(null);
         setIncomingCall(null);
         setCallMuted(false);
@@ -1723,9 +2042,11 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
                         remoteVideoRef={remoteVideoRef}
                         remoteAudioRef={remoteAudioRef}
                         remoteStream={remoteStream}
+                        remoteStreams={remoteStreams}
                         onToggleMute={toggleMute}
                         onToggleCamera={toggleCamera}
                         onEnd={() => void endCall()}
+                        onEndAll={activeCall.started_by === currentUser.id && isGroupCall(activeCall) ? () => void endCallForEveryone() : undefined}
                     />
                 )}
             </AnimatePresence>
@@ -1893,15 +2214,28 @@ function ChatHeader({
             </div>
             <div className="flex items-center gap-1 text-primary">
                 {isGroup ? (
-                    <button
-                        type="button"
-                        disabled
-                        className="flex h-8 w-8 cursor-not-allowed items-center justify-center rounded-full opacity-40"
-                        aria-label="Group audio calls unavailable"
-                        title="Group audio calls are not available yet"
-                    >
-                        <Phone size={18} />
-                    </button>
+                    <>
+                        <button
+                            type="button"
+                            onClick={() => onStartCall('audio')}
+                            disabled={calling || conversation.participants.length > 8}
+                            className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-40"
+                            aria-label="Start group audio call"
+                            title={conversation.participants.length > 8 ? 'Audio group calls support up to 8 people' : 'Start group audio call'}
+                        >
+                            <Phone size={18} />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => onStartCall('video')}
+                            disabled={calling || conversation.participants.length > 4}
+                            className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-40"
+                            aria-label="Start group video call"
+                            title={conversation.participants.length > 4 ? 'Video group calls support up to 4 people' : 'Start group video call'}
+                        >
+                            <Video size={18} />
+                        </button>
+                    </>
                 ) : (
                     <>
                         <button
@@ -2323,6 +2657,7 @@ function IncomingCallCard({
     onDecline: () => void;
 }) {
     const caller = callParticipant(call, currentUserId);
+    const group = isGroupCall(call);
 
     return (
         <motion.div
@@ -2337,7 +2672,7 @@ function IncomingCallCard({
                 <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-black text-gray-900">{caller.name}</div>
                     <div className="text-xs font-semibold text-primary">
-                        Incoming {call.type === 'video' ? 'video' : 'audio'} call
+                        Incoming {group ? 'group ' : ''}{call.type === 'video' ? 'video' : 'audio'} call
                     </div>
                 </div>
             </div>
@@ -2374,9 +2709,11 @@ function CallWindow({
     remoteVideoRef,
     remoteAudioRef,
     remoteStream,
+    remoteStreams,
     onToggleMute,
     onToggleCamera,
     onEnd,
+    onEndAll,
 }: {
     call: MessengerCall;
     currentUserId: number;
@@ -2388,12 +2725,20 @@ function CallWindow({
     remoteVideoRef: RefObject<HTMLVideoElement | null>;
     remoteAudioRef: RefObject<HTMLAudioElement | null>;
     remoteStream: MediaStream | null;
+    remoteStreams: Record<number, MediaStream>;
     onToggleMute: () => void;
     onToggleCamera: () => void;
     onEnd: () => void;
+    onEndAll?: () => void;
 }) {
     const otherUser = callParticipant(call, currentUserId);
     const isVideo = call.type === 'video';
+    const group = isGroupCall(call);
+    const participants = group
+        ? Object.values(call.participants ?? {})
+            .filter((participant) => participant.status === 'joined')
+            .sort((first, second) => first.user_id - second.user_id)
+        : [];
     const statusText = error ?? (
         status === 'ringing'
             ? 'Ringing...'
@@ -2414,8 +2759,12 @@ function CallWindow({
                 <div className="flex items-center gap-3">
                     <Avatar user={otherUser} />
                     <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-black">{otherUser.name}</div>
-                        <div className="text-xs font-medium text-white/75">{statusText}</div>
+                        <div className="truncate text-sm font-black">
+                            {group ? 'Group call' : otherUser.name}
+                        </div>
+                        <div className="text-xs font-medium text-white/75">
+                            {group ? `${call.joined_count ?? participants.length}/${call.max_participants ?? participants.length} joined` : statusText}
+                        </div>
                     </div>
                     <div className="rounded-full bg-white/15 px-2.5 py-1 text-xs font-bold">
                         {isVideo ? 'Video' : 'Audio'}
@@ -2424,8 +2773,35 @@ function CallWindow({
             </div>
 
             <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-primary/8">
-                {!isVideo && <audio ref={remoteAudioRef} autoPlay className="hidden" />}
-                {isVideo && remoteStream ? (
+                {!group && !isVideo && <audio ref={remoteAudioRef} autoPlay className="hidden" />}
+                {group ? (
+                    <div className={`grid h-full w-full gap-2 p-2 ${isVideo ? 'grid-cols-2' : 'grid-cols-1 content-center'}`}>
+                        {participants.map((participant) => {
+                            const user = participant.user;
+                            const isLocal = participant.user_id === currentUserId;
+                            const stream = isLocal ? null : remoteStreams[participant.user_id];
+
+                            return (
+                                <div key={participant.user_id} className="relative flex min-h-0 items-center justify-center overflow-hidden rounded-2xl bg-white/75 ring-1 ring-primary/10">
+                                    {!isLocal && stream && isVideo ? (
+                                        <MediaStreamVideo stream={stream} className="h-full w-full object-cover" />
+                                    ) : (
+                                        <div className="flex flex-col items-center gap-2 p-2 text-center">
+                                            <Avatar user={user} size="lg" />
+                                            <div className="max-w-full truncate text-xs font-black text-gray-900">
+                                                {isLocal ? 'You' : user?.name ?? 'Participant'}
+                                            </div>
+                                            <div className="text-[11px] font-semibold text-gray-500">
+                                                {isLocal ? 'Local' : stream ? 'Connected' : 'Connecting'}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {!isLocal && stream && !isVideo && <MediaStreamAudio stream={stream} />}
+                                </div>
+                            );
+                        })}
+                    </div>
+                ) : isVideo && remoteStream ? (
                     <video ref={remoteVideoRef} autoPlay playsInline className="h-full w-full object-cover" />
                 ) : (
                     <div className="flex flex-col items-center gap-3 text-center">
@@ -2477,13 +2853,49 @@ function CallWindow({
                     type="button"
                     onClick={onEnd}
                     className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500 text-white shadow-lg shadow-red-500/25 transition hover:bg-red-600"
-                    aria-label="End call"
+                    aria-label={group ? 'Leave call' : 'End call'}
                 >
                     <PhoneOff size={19} />
                 </button>
+                {onEndAll && (
+                    <button
+                        type="button"
+                        onClick={onEndAll}
+                        className="rounded-full bg-red-50 px-3 py-2 text-xs font-black text-red-600 transition hover:bg-red-100"
+                    >
+                        End all
+                    </button>
+                )}
             </div>
         </motion.div>
     );
+}
+
+function MediaStreamVideo({ stream, className }: { stream: MediaStream; className?: string }) {
+    const ref = useRef<HTMLVideoElement | null>(null);
+
+    useEffect(() => {
+        if (ref.current) {
+            ref.current.srcObject = stream;
+        }
+    }, [stream]);
+
+    return <video ref={ref} autoPlay playsInline className={className} />;
+}
+
+function MediaStreamAudio({ stream }: { stream: MediaStream }) {
+    const ref = useRef<HTMLAudioElement | null>(null);
+
+    useEffect(() => {
+        if (!ref.current) {
+            return;
+        }
+
+        ref.current.srcObject = stream;
+        void ref.current.play().catch(() => undefined);
+    }, [stream]);
+
+    return <audio ref={ref} autoPlay className="hidden" />;
 }
 
 function MessageBubble({
@@ -2769,7 +3181,29 @@ function typingIndicatorText(names: string[]): string | null {
 }
 
 function callParticipant(call: MessengerCall, currentUserId: number): MessengerUser {
-    return call.started_by === currentUserId ? call.callee : call.starter;
+    if (isGroupCall(call)) {
+        return call.starter;
+    }
+
+    return call.started_by === currentUserId ? (call.callee ?? call.starter) : call.starter;
+}
+
+function isGroupCall(call: MessengerCall): boolean {
+    return call.callee_id === null;
+}
+
+function normalizeIceServers(servers: CallIceServer[] | undefined): RTCIceServer[] {
+    if (!servers?.length) {
+        return [{ urls: 'stun:stun.l.google.com:19302' }];
+    }
+
+    return servers
+        .filter((server) => Boolean(server.urls))
+        .map((server) => ({
+            urls: server.urls,
+            ...(server.username ? { username: server.username } : {}),
+            ...(server.credential ? { credential: server.credential } : {}),
+        }));
 }
 
 function callErrorMessage(error: unknown): string {

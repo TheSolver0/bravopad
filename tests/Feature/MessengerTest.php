@@ -8,6 +8,7 @@ use App\Events\MessengerInboxUpdated;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\MessengerCall;
+use App\Models\MessengerCallParticipant;
 use App\Models\User;
 use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Event;
@@ -77,7 +78,7 @@ it('includes last seen timestamps in messenger user payloads', function () {
         ->assertOk()
         ->assertJsonPath('conversations.0.id', $conversation->id)
         ->assertJsonPath('conversations.0.other_user.last_seen_at', fn (?string $value) => filled($value))
-        ->assertJsonPath("conversations.0.participants.1.last_seen_at", fn (?string $value) => filled($value));
+        ->assertJsonPath('conversations.0.participants.1.last_seen_at', fn (?string $value) => filled($value));
 });
 
 it('authorizes messenger presence channel with safe user metadata', function () {
@@ -516,6 +517,179 @@ it('starts and updates direct audio and video calls between participants', funct
     Event::assertDispatched(MessengerCallUpdated::class, 3);
 });
 
+it('starts a group call with invited participants and room metadata', function () {
+    Event::fake([MessengerCallUpdated::class]);
+
+    $starter = messengerUser();
+    $firstMember = messengerUser();
+    $secondMember = messengerUser();
+
+    $conversation = $this->actingAs($starter)
+        ->postJson('/messenger/conversations/groups', [
+            'name' => 'Daily Standup',
+            'user_ids' => [$firstMember->id, $secondMember->id],
+        ])
+        ->assertCreated()
+        ->json('conversation');
+
+    $call = $this->actingAs($starter)
+        ->postJson("/messenger/conversations/{$conversation['id']}/calls", ['type' => 'video'])
+        ->assertCreated()
+        ->assertJsonPath('call.type', 'video')
+        ->assertJsonPath('call.status', 'accepted')
+        ->assertJsonPath('call.callee_id', null)
+        ->assertJsonPath('call.started_by', $starter->id)
+        ->assertJsonPath('call.joined_count', 1)
+        ->assertJsonPath('call.max_participants', 4)
+        ->assertJsonPath("call.participants.{$starter->id}.status", 'joined')
+        ->assertJsonPath("call.participants.{$firstMember->id}.status", 'invited')
+        ->assertJsonPath('call.room_key', fn (?string $value) => filled($value))
+        ->json('call');
+
+    expect(MessengerCallParticipant::query()->where('call_id', $call['id'])->count())->toBe(3);
+    expect(MessengerCallParticipant::query()
+        ->where('call_id', $call['id'])
+        ->where('user_id', $starter->id)
+        ->value('status'))->toBe('joined');
+    expect(MessengerCallParticipant::query()
+        ->where('call_id', $call['id'])
+        ->where('user_id', $firstMember->id)
+        ->value('status'))->toBe('invited');
+
+    Event::assertDispatched(MessengerCallUpdated::class);
+});
+
+it('allows invited group participants to join decline leave and starter end all', function () {
+    Event::fake([MessengerCallUpdated::class]);
+
+    $starter = messengerUser();
+    $firstMember = messengerUser();
+    $secondMember = messengerUser();
+    $outsider = messengerUser();
+
+    $conversation = $this->actingAs($starter)
+        ->postJson('/messenger/conversations/groups', [
+            'name' => 'Ops Call',
+            'user_ids' => [$firstMember->id, $secondMember->id],
+        ])
+        ->assertCreated()
+        ->json('conversation');
+
+    $call = $this->actingAs($starter)
+        ->postJson("/messenger/conversations/{$conversation['id']}/calls", ['type' => 'audio'])
+        ->assertCreated()
+        ->json('call');
+
+    $this->actingAs($outsider)
+        ->patchJson("/messenger/conversations/{$conversation['id']}/calls/{$call['id']}", ['status' => 'accepted'])
+        ->assertForbidden();
+
+    $this->actingAs($firstMember)
+        ->patchJson("/messenger/conversations/{$conversation['id']}/calls/{$call['id']}", ['status' => 'accepted'])
+        ->assertOk()
+        ->assertJsonPath('call.joined_count', 2)
+        ->assertJsonPath("call.participants.{$firstMember->id}.status", 'joined');
+
+    $this->actingAs($secondMember)
+        ->patchJson("/messenger/conversations/{$conversation['id']}/calls/{$call['id']}", ['status' => 'declined'])
+        ->assertOk()
+        ->assertJsonPath("call.participants.{$secondMember->id}.status", 'declined');
+
+    $this->actingAs($firstMember)
+        ->patchJson("/messenger/conversations/{$conversation['id']}/calls/{$call['id']}", ['status' => 'left'])
+        ->assertOk()
+        ->assertJsonPath("call.participants.{$firstMember->id}.status", 'left')
+        ->assertJsonPath('call.status', 'accepted');
+
+    $this->actingAs($firstMember)
+        ->patchJson("/messenger/conversations/{$conversation['id']}/calls/{$call['id']}", ['status' => 'ended'])
+        ->assertForbidden();
+
+    $this->actingAs($starter)
+        ->patchJson("/messenger/conversations/{$conversation['id']}/calls/{$call['id']}", ['status' => 'ended'])
+        ->assertOk()
+        ->assertJsonPath('call.status', 'ended')
+        ->assertJsonPath('call.ended_at', fn (?string $value) => filled($value));
+
+    Event::assertDispatched(MessengerCallUpdated::class, 5);
+});
+
+it('enforces group call capacity and active call uniqueness', function () {
+    $starter = messengerUser();
+    $members = collect(range(1, 8))->map(fn () => messengerUser());
+
+    $conversation = $this->actingAs($starter)
+        ->postJson('/messenger/conversations/groups', [
+            'name' => 'Large Call',
+            'user_ids' => $members->pluck('id')->all(),
+        ])
+        ->assertCreated()
+        ->json('conversation');
+
+    $videoCall = $this->actingAs($starter)
+        ->postJson("/messenger/conversations/{$conversation['id']}/calls", ['type' => 'video'])
+        ->assertCreated()
+        ->json('call');
+
+    $this->actingAs($starter)
+        ->postJson("/messenger/conversations/{$conversation['id']}/calls", ['type' => 'audio'])
+        ->assertStatus(422);
+
+    foreach ($members->take(3) as $member) {
+        $this->actingAs($member)
+            ->patchJson("/messenger/conversations/{$conversation['id']}/calls/{$videoCall['id']}", ['status' => 'accepted'])
+            ->assertOk();
+    }
+
+    $this->actingAs($members[3])
+        ->patchJson("/messenger/conversations/{$conversation['id']}/calls/{$videoCall['id']}", ['status' => 'accepted'])
+        ->assertStatus(422);
+
+    $this->actingAs($starter)
+        ->patchJson("/messenger/conversations/{$conversation['id']}/calls/{$videoCall['id']}", ['status' => 'ended'])
+        ->assertOk();
+
+    $audioCall = $this->actingAs($starter)
+        ->postJson("/messenger/conversations/{$conversation['id']}/calls", ['type' => 'audio'])
+        ->assertCreated()
+        ->assertJsonPath('call.max_participants', 8)
+        ->json('call');
+
+    foreach ($members->take(7) as $member) {
+        $this->actingAs($member)
+            ->patchJson("/messenger/conversations/{$conversation['id']}/calls/{$audioCall['id']}", ['status' => 'accepted'])
+            ->assertOk();
+    }
+
+    $this->actingAs($members[7])
+        ->patchJson("/messenger/conversations/{$conversation['id']}/calls/{$audioCall['id']}", ['status' => 'accepted'])
+        ->assertStatus(422);
+});
+
+it('ends a group call when the last joined participant leaves', function () {
+    $starter = messengerUser();
+    $member = messengerUser();
+
+    $conversation = $this->actingAs($starter)
+        ->postJson('/messenger/conversations/groups', [
+            'name' => 'Short Call',
+            'user_ids' => [$member->id],
+        ])
+        ->assertCreated()
+        ->json('conversation');
+
+    $call = $this->actingAs($starter)
+        ->postJson("/messenger/conversations/{$conversation['id']}/calls", ['type' => 'audio'])
+        ->assertCreated()
+        ->json('call');
+
+    $this->actingAs($starter)
+        ->patchJson("/messenger/conversations/{$conversation['id']}/calls/{$call['id']}", ['status' => 'left'])
+        ->assertOk()
+        ->assertJsonPath('call.status', 'ended')
+        ->assertJsonPath('call.ended_at', fn (?string $value) => filled($value));
+});
+
 it('authorizes private messenger broadcast channels', function () {
     $me = messengerUser();
     $target = messengerUser();
@@ -527,6 +701,22 @@ it('authorizes private messenger broadcast channels', function () {
         'callee_id' => $target->id,
         'type' => 'audio',
         'status' => 'ringing',
+    ]);
+    $groupConversation = Conversation::query()->create([
+        'type' => 'group',
+        'name' => 'Calls',
+        'created_by' => $me->id,
+    ]);
+    $groupConversation->participants()->attach($me->id, ['joined_at' => now()]);
+    $groupConversation->participants()->attach($target->id, ['joined_at' => now()]);
+    $groupCall = MessengerCall::query()->create([
+        'conversation_id' => $groupConversation->id,
+        'started_by' => $me->id,
+        'callee_id' => null,
+        'type' => 'audio',
+        'status' => 'accepted',
+        'room_key' => 'call-test-room',
+        'accepted_at' => now(),
     ]);
 
     $conversationAuthorizer = Broadcast::getChannels()->get('messenger.conversation.{conversationId}');
@@ -540,4 +730,7 @@ it('authorizes private messenger broadcast channels', function () {
     expect($callAuthorizer($me, $call->id))->toBeTrue();
     expect($callAuthorizer($target, $call->id))->toBeTrue();
     expect($callAuthorizer($outsider, $call->id))->toBeFalse();
+    expect($callAuthorizer($me, $groupCall->id))->toBeTrue();
+    expect($callAuthorizer($target, $groupCall->id))->toBeTrue();
+    expect($callAuthorizer($outsider, $groupCall->id))->toBeFalse();
 });

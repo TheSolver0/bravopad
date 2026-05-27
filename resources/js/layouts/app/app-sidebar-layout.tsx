@@ -3,9 +3,11 @@ import { usePage, router } from '@inertiajs/react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X } from 'lucide-react';
 import type { BreadcrumbItem } from '@/types';
-import Sidebar from './Sidebar';
-import Header from './Header';
+import NavRail, { RAIL_W_COLLAPSED, RAIL_W_EXPANDED } from './NavRail';
+import ContextPanel from './ContextPanel';
+import TopBar from './TopBar';
 import MobileNav from './MobileNav';
+import MobileDrawer from './MobileDrawer';
 import CreateBravo from '@/pages/CreateBravo';
 import MessengerWidget from '@/components/MessengerWidget';
 import { User, BravoValue } from '@/pages/types';
@@ -21,7 +23,7 @@ const defaultBravoInsights = {
   quality: { score: 70, tips: [] as string[] },
 };
 
-export default function AppSidebarLayout({ breadcrumbs = [], children }: AppSidebarLayoutProps) {
+export default function AppSidebarLayout({ children }: AppSidebarLayoutProps) {
   const page = usePage<{
     flash?: { success?: string; error?: string };
     users?: User[];
@@ -29,87 +31,90 @@ export default function AppSidebarLayout({ breadcrumbs = [], children }: AppSide
     bravoValues?: BravoValue[];
     bravoInsights?: typeof defaultBravoInsights;
   }>();
+
   const { flash } = page.props;
-  const isDashboard = page.component === 'dashboard';
-  const isFeed = page.component === 'Feed';
-  const isMessages = page.component === 'Messages';
   const users: User[] =
-    (page.props.users as User[] | undefined) ?? (page.props.team?.data as User[] | undefined) ?? [];
+    (page.props.users as User[] | undefined) ??
+    (page.props.team?.data as User[] | undefined) ?? [];
   const bravoValues: BravoValue[] = (page.props.bravoValues as BravoValue[]) ?? [];
   const bravoInsights = page.props.bravoInsights ?? defaultBravoInsights;
 
-  const [collapsed, setCollapsed] = useState(false);
+  const [navExpanded, setNavExpanded] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  const navRailWidth = navExpanded ? RAIL_W_EXPANDED : RAIL_W_COLLAPSED;
 
   return (
-    <div className="flex min-h-screen bg-surface-container-lowest overflow-x-hidden">
+    <div className="flex flex-col h-screen bg-surface-container-lowest overflow-hidden">
 
-      {/* Sidebar desktop floating */}
-      <aside
-        className={`
-          fixed inset-y-4 left-4 z-40
-          hidden md:flex flex-col
-          bg-white/95 backdrop-blur-xl
-          border border-surface-container-high
-          rounded-2xl shadow-2xl shadow-black/10
-          transition-all duration-500
-          ${collapsed ? 'w-[72px]' : 'w-64'}
-        `}
-      >
-        <Sidebar
-          collapsed={collapsed}
-          onCollapseToggle={() => setCollapsed(v => !v)}
+      {/* ── TopBar (full-width, zone logo synchronisée avec NavRail) ── */}
+      <TopBar
+        navRailWidth={navRailWidth}
+        onMenuOpen={() => setDrawerOpen(true)}
+        onCreateBravo={() => setShowCreateModal(true)}
+      />
+
+      {/* ── Corps : Rail | ContextPanel | Contenu ── */}
+      <div className="flex flex-1 overflow-hidden">
+
+        {/* NavRail — desktop uniquement, contrôlé par le layout */}
+        <NavRail
+          expanded={navExpanded}
+          onToggle={() => setNavExpanded(v => !v)}
           onCreateBravo={() => setShowCreateModal(true)}
         />
-      </aside>
 
-      {/* Zone principale */}
-      <div
-        className={`flex-1 flex flex-col transition-all duration-500 ${
-          collapsed ? 'md:ml-[calc(72px+2rem)]' : 'md:ml-[calc(256px+2rem)]'
-        }`}
-      >
-        {!isDashboard && !isFeed && <Header breadcrumbs={breadcrumbs} />}
+        {/* ContextPanel — slide in/out sur /messages et /groups */}
+        <ContextPanel />
 
-        {/* Bottom nav mobile — visible sur toutes les pages */}
-        <MobileNav onCreateBravo={() => setShowCreateModal(true)} />
+        {/* Zone de contenu principale */}
+        <div className="flex-1 flex flex-col overflow-hidden">
 
-        {/* Flash messages */}
-        <AnimatePresence>
-          {flash?.success && (
-            <motion.div
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              className="mx-6 mt-4 p-4 bg-green-50 border border-green-200 text-green-800 rounded-xl text-sm font-medium"
-            >
-              {flash.success}
-            </motion.div>
-          )}
-          {flash?.error && (
-            <motion.div
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              className="mx-6 mt-4 p-4 bg-red-50 border border-red-200 text-red-800 rounded-xl text-sm font-medium"
-            >
-              {flash.error}
-            </motion.div>
-          )}
-        </AnimatePresence>
+          {/* Flash messages */}
+          <AnimatePresence>
+            {flash?.success && (
+              <motion.div
+                key="flash-success"
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="mx-4 mt-3 p-3 bg-green-50 border border-green-200 text-green-800 rounded-xl text-sm font-medium shrink-0"
+              >
+                {flash.success}
+              </motion.div>
+            )}
+            {flash?.error && (
+              <motion.div
+                key="flash-error"
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="mx-4 mt-3 p-3 bg-red-50 border border-red-200 text-red-800 rounded-xl text-sm font-medium shrink-0"
+              >
+                {flash.error}
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-        <main className={`flex-1 overflow-y-auto pb-40 md:pb-24 ${isDashboard || isFeed ? '' : 'p-6 md:p-8'}`}>{children}</main>
-
-        <footer
-          className={`fixed z-30 border-t border-surface-container-high bg-surface-container-lowest/95 px-6 py-4 text-center text-xs text-muted-foreground backdrop-blur-sm bottom-16 left-0 right-0 md:bottom-0 md:px-8 ${
-            collapsed ? 'md:left-[calc(72px+2rem)]' : 'md:left-[calc(256px+2rem)]'
-          }`}
-        >
-          Powered by Kenny LOMIE
-        </footer>
+          {/* Contenu de la page */}
+          <main className="flex-1 overflow-y-auto pb-20 md:pb-0">
+            {children}
+          </main>
+        </div>
       </div>
 
-      {/* ── Modal Créer un Bravo — rendu au niveau racine pour éviter le stacking context de la sidebar ── */}
+      {/* ── Mobile bottom nav ── */}
+      <MobileNav onCreateBravo={() => setShowCreateModal(true)} />
+
+      {/* ── Drawer mobile (hamburger) ── */}
+      <MobileDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        onCreateBravo={() => setShowCreateModal(true)}
+      />
+
+      {/* ── Modal Créer un Bravo ── */}
       <AnimatePresence>
         {showCreateModal && (
           <motion.div

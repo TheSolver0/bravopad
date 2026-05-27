@@ -34,13 +34,16 @@ import {
   Volume2,
   VolumeX,
   Search, Building2, Users, BadgeCheck,
-  MapPin, Briefcase, Filter,Upload
+  MapPin, Briefcase, Filter, Upload,
+  Mic, Type, Eye, Palette, Music, AlignCenter, AlignLeft, AlignRight
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
-import { Post, PostComment, PostMedia, Challenge, BravoValue, User as AppUser, User } from './types';
+import { Post, PostComment, PostMedia, Challenge, BravoValue, User as AppUser, User, Story } from './types';
 import CreateBravo from './CreateBravo';
+import { ClickableAvatar } from '@/components/clickable-avatar';
+import { UserLink } from '@/components/user-link';
 
 interface FeedProps {
   posts: Post[];
@@ -50,6 +53,7 @@ interface FeedProps {
   bravoCount: number;
   bravoValues: BravoValue[];
   announcements?: Post[];
+  stories?: Story[];
 }
 
 
@@ -68,13 +72,6 @@ function getCsrf(): string {
 }
 
 // ── Stories Bar ──────────────────────────────────────────────────────────────
-interface Story {
-  id: number;
-  user: { name: string; avatar?: string | null };
-  seen: boolean;
-  isOwn?: boolean;
-  previewColor?: string;
-}
 interface Colleague {
   id: number;
   name: string;
@@ -84,148 +81,684 @@ interface Colleague {
   initials: string;
 }
 
-// Mock stories - replace with real data from props
-function StoriesBar({ currentUser, users }: { currentUser: LocalUser; users: LocalUser[] }) {
-  const { t } = useTranslation();
-  const [activeStory, setActiveStory] = useState<Story | null>(null);
-  const [storyProgress, setStoryProgress] = useState(0);
-  const progressRef = useRef<ReturnType<typeof setInterval> | null>(null);
+// ── Story Creator ─────────────────────────────────────────────────────────────
+const BG_COLORS = ['#003d7a','#e74c3c','#8e44ad','#16a085','#d35400','#1a1a2e','#27ae60','#2c3e50'];
 
-  // Build mock stories from real users
-  const stories: Story[] = [
-    { id: 0, user: currentUser, seen: false, isOwn: true, previewColor: '#003d7a' },
-    ...users.slice(0, 8).map((u, i) => ({
-      id: i + 1,
-      user: u,
-      seen: i > 2,
-      previewColor: ['#e74c3c', '#3498db', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c', '#e67e22', '#34495e'][i],
-    })),
+function StoryCreator({ currentUser, onClose, onCreated }: {
+  currentUser: LocalUser;
+  onClose: () => void;
+  onCreated: (story: Story) => void;
+}) {
+  const { t } = useTranslation();
+  const [step, setStep]           = useState<'pick' | 'edit'>('pick');
+  const [type, setType]           = useState<Story['type']>('text');
+  const [text, setText]           = useState('');
+  const [caption, setCaption]     = useState('');
+  const [bgColor, setBgColor]     = useState('#003d7a');
+  const [fontStyle, setFontStyle] = useState<'normal'|'bold'|'italic'>('normal');
+  const [textAlign, setTextAlign] = useState<'left'|'center'|'right'>('center');
+  const [file, setFile]           = useState<File | null>(null);
+  const [preview, setPreview]     = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  // Voice recording
+  const [recording, setRecording]   = useState(false);
+  const [audioBlob, setAudioBlob]   = useState<Blob | null>(null);
+  const [audioUrl, setAudioUrl]     = useState<string | null>(null);
+  const [recSeconds, setRecSeconds] = useState(0);
+  const mediaRecRef = useRef<MediaRecorder | null>(null);
+  const chunksRef   = useRef<BlobPart[]>([]);
+  const recTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const fileRef     = useRef<HTMLInputElement>(null);
+
+  const ACCEPT: Record<string, string> = {
+    image: 'image/jpeg,image/png,image/gif,image/webp',
+    video: 'video/mp4,video/mov,video/avi,video/webm',
+  };
+
+  const pickType = (t: Story['type']) => { setType(t); setStep('edit'); };
+
+  const handleFile = (e: ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setFile(f);
+    setPreview(URL.createObjectURL(f));
+  };
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mr = new MediaRecorder(stream);
+      chunksRef.current = [];
+      mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      mr.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+        setAudioBlob(blob);
+        setAudioUrl(URL.createObjectURL(blob));
+        stream.getTracks().forEach(t => t.stop());
+      };
+      mr.start();
+      mediaRecRef.current = mr;
+      setRecording(true);
+      setRecSeconds(0);
+      recTimerRef.current = setInterval(() => setRecSeconds(s => s + 1), 1000);
+    } catch {
+      alert(t('story.micError', 'Impossible d\'accéder au microphone.'));
+    }
+  };
+
+  const stopRecording = () => {
+    mediaRecRef.current?.stop();
+    setRecording(false);
+    if (recTimerRef.current) clearInterval(recTimerRef.current);
+  };
+
+  const resetRecording = () => {
+    setAudioBlob(null);
+    setAudioUrl(null);
+    setRecSeconds(0);
+  };
+
+  const fmtTime = (s: number) => `${String(Math.floor(s / 60)).padStart(2,'0')}:${String(s % 60).padStart(2,'0')}`;
+
+  const canSubmit = () => {
+    if (type === 'text')  return text.trim().length > 0;
+    if (type === 'audio') return audioBlob !== null;
+    return file !== null;
+  };
+
+  const submit = () => {
+    if (submitting || !canSubmit()) return;
+    setSubmitting(true);
+
+    const fd = new FormData();
+    fd.append('type', type);
+    if (type === 'text') {
+      fd.append('content', text);
+      fd.append('background_color', bgColor);
+      fd.append('font_style', fontStyle);
+      fd.append('text_align', textAlign);
+    } else if (type === 'audio') {
+      fd.append('media', audioBlob as Blob, 'voice.webm');
+      if (caption.trim()) fd.append('content', caption);
+    } else {
+      fd.append('media', file as File);
+      if (caption.trim()) fd.append('content', caption);
+    }
+    fd.append('_token', getCsrf());
+
+    fetch('/stories', { method: 'POST', body: fd })
+      .then(r => r.ok ? r.json() : Promise.reject(r))
+      .then((story: Story) => { onCreated(story); onClose(); })
+      .catch(() => setSubmitting(false));
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.92, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.92, opacity: 0 }}
+        className="bg-white rounded-3xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            {step === 'edit' && (
+              <button onClick={() => setStep('pick')} className="text-gray-400 hover:text-gray-600 mr-1">
+                <ChevronLeft size={20} />
+              </button>
+            )}
+            <img src={getAvatar(currentUser)} alt="" className="w-8 h-8 rounded-full" referrerPolicy="no-referrer" />
+            <span className="font-semibold text-gray-800 text-sm">{t('story.create', 'Créer une story')}</span>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+        </div>
+
+        {step === 'pick' ? (
+          /* ── Step 1: choose type ── */
+          <div className="p-5 grid grid-cols-2 gap-3">
+            {[
+              { key: 'text',  icon: <Type size={28} />,  label: t('story.typeText',  'Texte'),  color: 'bg-indigo-50 text-indigo-600' },
+              { key: 'image', icon: <ImageIcon size={28}/>, label: t('story.typeImage','Image'),  color: 'bg-emerald-50 text-emerald-600' },
+              { key: 'video', icon: <Play size={28} />,  label: t('story.typeVideo', 'Vidéo'),  color: 'bg-rose-50 text-rose-600' },
+              { key: 'audio', icon: <Mic size={28} />,   label: t('story.typeAudio', 'Voix'),   color: 'bg-amber-50 text-amber-600' },
+            ].map(({ key, icon, label, color }) => (
+              <button
+                key={key}
+                onClick={() => pickType(key as Story['type'])}
+                className={`flex flex-col items-center gap-3 rounded-2xl p-5 ${color} hover:scale-[1.03] transition-transform border border-transparent hover:border-current/20`}
+              >
+                {icon}
+                <span className="font-semibold text-sm">{label}</span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          /* ── Step 2: edit content ── */
+          <div className="p-5 space-y-4">
+            {type === 'text' ? (
+              <>
+                {/* Preview */}
+                <div
+                  className="w-full h-48 rounded-2xl flex items-center justify-center p-4 transition-colors"
+                  style={{ background: bgColor }}
+                >
+                  <p
+                    className="text-white text-lg leading-snug break-words max-w-full"
+                    style={{
+                      fontWeight: fontStyle === 'bold' ? 700 : 400,
+                      fontStyle: fontStyle === 'italic' ? 'italic' : 'normal',
+                      textAlign,
+                    }}
+                  >
+                    {text || <span className="opacity-40">{t('story.textPlaceholder', 'Votre texte ici…')}</span>}
+                  </p>
+                </div>
+                <textarea
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  rows={3}
+                  maxLength={500}
+                  placeholder={t('story.textPlaceholder', 'Votre texte ici…')}
+                  value={text}
+                  onChange={e => setText(e.target.value)}
+                />
+                {/* Style controls */}
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setFontStyle(f => f === 'bold' ? 'normal' : 'bold')}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-bold border transition-colors ${fontStyle === 'bold' ? 'bg-primary text-white border-primary' : 'border-gray-200 text-gray-600'}`}
+                  >B</button>
+                  <button
+                    onClick={() => setFontStyle(f => f === 'italic' ? 'normal' : 'italic')}
+                    className={`px-3 py-1.5 rounded-lg text-sm italic border transition-colors ${fontStyle === 'italic' ? 'bg-primary text-white border-primary' : 'border-gray-200 text-gray-600'}`}
+                  >I</button>
+                  <button onClick={() => setTextAlign('left')}  className={`p-1.5 rounded-lg border ${textAlign==='left'   ? 'bg-primary text-white border-primary' : 'border-gray-200 text-gray-600'}`}><AlignLeft  size={14}/></button>
+                  <button onClick={() => setTextAlign('center')}className={`p-1.5 rounded-lg border ${textAlign==='center' ? 'bg-primary text-white border-primary' : 'border-gray-200 text-gray-600'}`}><AlignCenter size={14}/></button>
+                  <button onClick={() => setTextAlign('right')} className={`p-1.5 rounded-lg border ${textAlign==='right'  ? 'bg-primary text-white border-primary' : 'border-gray-200 text-gray-600'}`}><AlignRight size={14}/></button>
+                </div>
+                {/* Background colors */}
+                <div className="flex gap-2 flex-wrap">
+                  {BG_COLORS.map(c => (
+                    <button
+                      key={c}
+                      onClick={() => setBgColor(c)}
+                      className={`w-7 h-7 rounded-full border-2 transition-transform hover:scale-110 ${bgColor === c ? 'border-primary scale-110' : 'border-transparent'}`}
+                      style={{ background: c }}
+                    />
+                  ))}
+                </div>
+              </>
+            ) : type === 'audio' ? (
+              /* ── Voice recorder ── */
+              <>
+                <div className="w-full h-48 rounded-2xl bg-amber-50 flex flex-col items-center justify-center gap-4 relative overflow-hidden">
+                  {/* Animated rings while recording */}
+                  {recording && (
+                    <>
+                      <div className="absolute w-24 h-24 rounded-full bg-red-400/20 animate-ping" />
+                      <div className="absolute w-16 h-16 rounded-full bg-red-400/30 animate-ping [animation-delay:150ms]" />
+                    </>
+                  )}
+                  <div className={`w-14 h-14 rounded-full flex items-center justify-center z-10 ${recording ? 'bg-red-500' : audioBlob ? 'bg-green-500' : 'bg-amber-400'}`}>
+                    <Mic size={26} className="text-white" />
+                  </div>
+                  {recording ? (
+                    <p className="text-red-500 font-bold text-lg z-10">{fmtTime(recSeconds)}</p>
+                  ) : audioBlob ? (
+                    <audio src={audioUrl ?? undefined} controls className="z-10 w-56" />
+                  ) : (
+                    <p className="text-amber-600 text-sm font-medium z-10">{t('story.tapToRecord', 'Appuyer pour enregistrer')}</p>
+                  )}
+                </div>
+
+                <div className="flex gap-3">
+                  {!recording && !audioBlob && (
+                    <button onClick={startRecording} className="flex-1 py-2.5 rounded-xl bg-red-500 text-white font-semibold text-sm flex items-center justify-center gap-2 hover:bg-red-600 transition-colors">
+                      <Mic size={16} /> {t('story.record', 'Enregistrer')}
+                    </button>
+                  )}
+                  {recording && (
+                    <button onClick={stopRecording} className="flex-1 py-2.5 rounded-xl bg-gray-800 text-white font-semibold text-sm flex items-center justify-center gap-2 hover:bg-gray-900 transition-colors">
+                      <span className="w-3 h-3 rounded-sm bg-white inline-block" /> {t('story.stop', 'Arrêter')}
+                    </button>
+                  )}
+                  {audioBlob && !recording && (
+                    <button onClick={resetRecording} className="px-4 py-2.5 rounded-xl border border-gray-200 text-gray-500 text-sm hover:bg-gray-50 transition-colors">
+                      {t('story.retry', 'Recommencer')}
+                    </button>
+                  )}
+                </div>
+
+                <input
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  placeholder={t('story.captionPlaceholder', 'Légende (optionnel)')}
+                  value={caption}
+                  onChange={e => setCaption(e.target.value)}
+                  maxLength={200}
+                />
+              </>
+            ) : (
+              /* ── Image / Video picker ── */
+              <>
+                <div
+                  onClick={() => fileRef.current?.click()}
+                  className="w-full h-48 rounded-2xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-primary/50 transition-colors overflow-hidden relative"
+                >
+                  {preview ? (
+                    type === 'video'
+                      ? <video src={preview} className="w-full h-full object-cover" muted />
+                      : <img src={preview} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <>
+                      {type === 'image' && <ImageIcon size={32} className="text-gray-300" />}
+                      {type === 'video' && <Play size={32} className="text-gray-300" />}
+                      <span className="text-sm text-gray-400">{t('story.clickToAdd', 'Cliquer pour ajouter')}</span>
+                    </>
+                  )}
+                </div>
+                <input ref={fileRef} type="file" accept={ACCEPT[type]} className="hidden" onChange={handleFile} />
+                <input
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  placeholder={t('story.captionPlaceholder', 'Légende (optionnel)')}
+                  value={caption}
+                  onChange={e => setCaption(e.target.value)}
+                  maxLength={200}
+                />
+              </>
+            )}
+
+            <button
+              onClick={submit}
+              disabled={submitting || !canSubmit()}
+              className="w-full py-3 rounded-xl bg-primary text-white font-semibold text-sm disabled:opacity-40 hover:bg-primary/90 transition-colors"
+            >
+              {submitting ? t('story.publishing', 'Publication…') : t('story.publish', 'Publier la story')}
+            </button>
+          </div>
+        )}
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// ── Story Viewer ──────────────────────────────────────────────────────────────
+// Groups stories by user, navigates between groups and slides
+function StoryViewer({ groups, startGroupIndex, currentUserId, onClose, onViewed, onDelete }: {
+  groups: Story[][];
+  startGroupIndex: number;
+  currentUserId: number;
+  onClose: () => void;
+  onViewed: (id: number) => void;
+  onDelete: (id: number) => void;
+}) {
+  const { t } = useTranslation();
+  const DURATION = 5000; // ms per story slide
+
+  const [groupIdx, setGroupIdx] = useState(startGroupIndex);
+  const [slideIdx, setSlideIdx] = useState(0);
+  const [progress, setProgress] = useState(0);
+  const [paused, setPaused]     = useState(false);
+  const timerRef  = useRef<ReturnType<typeof setInterval> | null>(null);
+  const startedAt = useRef<number>(Date.now());
+  const elapsed   = useRef<number>(0);
+
+  const group   = groups[groupIdx] ?? [];
+  const story   = group[slideIdx];
+
+  const goNextSlide = useCallback(() => {
+    if (slideIdx < group.length - 1) {
+      setSlideIdx(s => s + 1);
+      setProgress(0);
+    } else if (groupIdx < groups.length - 1) {
+      setGroupIdx(g => g + 1);
+      setSlideIdx(0);
+      setProgress(0);
+    } else {
+      onClose();
+    }
+  }, [slideIdx, groupIdx, group.length, groups.length, onClose]);
+
+  const goPrevSlide = useCallback(() => {
+    if (slideIdx > 0) {
+      setSlideIdx(s => s - 1);
+      setProgress(0);
+    } else if (groupIdx > 0) {
+      setGroupIdx(g => g - 1);
+      setSlideIdx(0);
+      setProgress(0);
+    }
+  }, [slideIdx, groupIdx]);
+
+  // Mark story as viewed + auto-advance
+  useEffect(() => {
+    if (!story) return;
+    onViewed(story.id);
+    elapsed.current = 0;
+    startedAt.current = Date.now();
+    setProgress(0);
+
+    const tick = () => {
+      if (paused) return;
+      const pct = Math.min(((Date.now() - startedAt.current + elapsed.current) / DURATION) * 100, 100);
+      setProgress(pct);
+      if (pct >= 100) goNextSlide();
+    };
+
+    timerRef.current = setInterval(tick, 50);
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [story?.id, groupIdx, slideIdx]);
+
+  // Pause on hold
+  const handlePointerDown = () => {
+    setPaused(true);
+    elapsed.current += Date.now() - startedAt.current;
+    if (timerRef.current) clearInterval(timerRef.current);
+  };
+  const handlePointerUp = () => {
+    setPaused(false);
+    startedAt.current = Date.now();
+    timerRef.current = setInterval(() => {
+      const pct = Math.min(((Date.now() - startedAt.current + elapsed.current) / DURATION) * 100, 100);
+      setProgress(pct);
+      if (pct >= 100) goNextSlide();
+    }, 50);
+  };
+
+  if (!story) return null;
+
+  const isOwn = story.user_id === currentUserId;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90"
+      onClick={onClose}
+    >
+      {/* Prev group */}
+      {groupIdx > 0 && (
+        <button
+          onClick={e => { e.stopPropagation(); setGroupIdx(g => g - 1); setSlideIdx(0); setProgress(0); }}
+          className="absolute left-4 top-1/2 -translate-y-1/2 text-white/60 hover:text-white z-20 hidden md:block"
+        >
+          <ChevronLeft size={40} />
+        </button>
+      )}
+      {/* Next group */}
+      {groupIdx < groups.length - 1 && (
+        <button
+          onClick={e => { e.stopPropagation(); setGroupIdx(g => g + 1); setSlideIdx(0); setProgress(0); }}
+          className="absolute right-4 top-1/2 -translate-y-1/2 text-white/60 hover:text-white z-20 hidden md:block"
+        >
+          <ChevronRight size={40} />
+        </button>
+      )}
+
+      <motion.div
+        key={`${groupIdx}-${slideIdx}`}
+        initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+        className="relative w-[340px] h-[600px] rounded-3xl overflow-hidden shadow-2xl select-none"
+        onClick={e => e.stopPropagation()}
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
+        onPointerLeave={handlePointerUp}
+        style={story.type === 'text' ? { background: story.background_color } : { background: '#1a1a2e' }}
+      >
+        {/* ── Progress bars ── */}
+        <div className="absolute top-3 left-3 right-3 z-20 flex gap-1">
+          {group.map((_, i) => (
+            <div key={i} className="flex-1 h-0.5 bg-white/25 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-white rounded-full"
+                style={{ width: i < slideIdx ? '100%' : i === slideIdx ? `${progress}%` : '0%' }}
+              />
+            </div>
+          ))}
+        </div>
+
+        {/* ── Header ── */}
+        <div className="absolute top-7 left-3 right-3 z-20 flex items-center gap-2">
+          <img src={getAvatar(story.user)} alt="" className="w-9 h-9 rounded-full border-2 border-white/50 shrink-0" referrerPolicy="no-referrer" />
+          <div className="flex-1 min-w-0">
+            <p className="text-white font-bold text-sm leading-none">{story.user.name}</p>
+            <p className="text-white/50 text-[11px] mt-0.5">{story.created_at}</p>
+          </div>
+          {isOwn && (
+            <div className="flex items-center gap-1 text-white/60 text-[11px]">
+              <Eye size={13} /><span>{story.views_count}</span>
+            </div>
+          )}
+          {isOwn && (
+            <button
+              onClick={() => { onDelete(story.id); if (group.length === 1) onClose(); else goNextSlide(); }}
+              className="text-white/60 hover:text-red-400 transition-colors ml-1"
+            >
+              <Trash2 size={16} />
+            </button>
+          )}
+          <button onClick={onClose} className="text-white/60 hover:text-white transition-colors ml-1">
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* ── Content ── */}
+        <div className="absolute inset-0 flex items-center justify-center">
+          {story.type === 'text' && (
+            <p
+              className="text-white px-8 text-xl leading-snug break-words w-full"
+              style={{
+                fontWeight: story.font_style === 'bold' ? 700 : 400,
+                fontStyle: story.font_style === 'italic' ? 'italic' : 'normal',
+                textAlign: story.text_align as 'left' | 'center' | 'right',
+              }}
+            >
+              {story.content}
+            </p>
+          )}
+          {story.type === 'image' && story.media_url && (
+            <img
+              src={story.media_url}
+              alt=""
+              className="w-full h-full object-cover"
+              draggable={false}
+            />
+          )}
+          {story.type === 'video' && story.media_url && (
+            <video
+              src={story.media_url}
+              className="w-full h-full object-cover"
+              autoPlay
+              muted={false}
+              playsInline
+              loop={false}
+              onEnded={goNextSlide}
+            />
+          )}
+          {story.type === 'audio' && story.media_url && (
+            <div className="flex flex-col items-center gap-5 px-8">
+              <div className="w-24 h-24 rounded-full bg-white/10 flex items-center justify-center">
+                <Music size={40} className="text-white/70" />
+              </div>
+              {story.content && (
+                <p className="text-white/80 text-sm text-center">{story.content}</p>
+              )}
+              <audio
+                src={story.media_url}
+                autoPlay
+                controls
+                className="w-full"
+                onEnded={goNextSlide}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* ── Caption overlay (image/video) ── */}
+        {(story.type === 'image' || story.type === 'video') && story.content && (
+          <div className="absolute bottom-16 left-0 right-0 px-5">
+            <p className="text-white text-sm text-center bg-black/40 rounded-xl px-3 py-2 backdrop-blur-sm">
+              {story.content}
+            </p>
+          </div>
+        )}
+
+        {/* ── Tap zones (prev / next slide) ── */}
+        <button
+          className="absolute left-0 top-0 w-1/3 h-full z-10 opacity-0"
+          onClick={e => { e.stopPropagation(); goPrevSlide(); }}
+          aria-label="Précédent"
+        />
+        <button
+          className="absolute right-0 top-0 w-1/3 h-full z-10 opacity-0"
+          onClick={e => { e.stopPropagation(); goNextSlide(); }}
+          aria-label="Suivant"
+        />
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// ── Stories Bar ───────────────────────────────────────────────────────────────
+function StoriesBar({ currentUser, stories: initialStories }: {
+  currentUser: LocalUser;
+  stories: Story[];
+}) {
+  const { t } = useTranslation();
+  const [stories, setStories]         = useState<Story[]>(initialStories);
+  const [showCreator, setShowCreator] = useState(false);
+  const [viewerInfo, setViewerInfo]   = useState<{ groupIdx: number } | null>(null);
+
+  // Group stories by user (own first, then others)
+  const ownStories   = stories.filter(s => s.user_id === currentUser.id);
+  const otherStories = stories.filter(s => s.user_id !== currentUser.id);
+
+  // Build groups: each user's stories as one group
+  const userIds = [...new Set(otherStories.map(s => s.user_id))];
+  const otherGroups: Story[][] = userIds.map(uid => otherStories.filter(s => s.user_id === uid));
+
+  // All groups: own stories first (if any), then others sorted by unseen
+  const allGroups: Story[][] = [
+    ...(ownStories.length > 0 ? [ownStories] : []),
+    ...otherGroups.sort((a, b) => {
+      const aUnseen = a.some(s => !s.seen) ? 0 : 1;
+      const bUnseen = b.some(s => !s.seen) ? 0 : 1;
+      return aUnseen - bUnseen;
+    }),
   ];
 
-  const openStory = (story: Story) => {
-    if (story.isOwn) return; // handle add story
-    setActiveStory(story);
-    setStoryProgress(0);
-    progressRef.current = setInterval(() => {
-      setStoryProgress(p => {
-        if (p >= 100) {
-          closeStory();
-          return 100;
-        }
-        return p + 2;
-      });
-    }, 60);
+  const openViewer = (groupIdx: number) => setViewerInfo({ groupIdx });
+
+  const handleCreated = (story: Story) => {
+    setStories(prev => [story, ...prev]);
   };
 
-  const closeStory = () => {
-    setActiveStory(null);
-    setStoryProgress(0);
-    if (progressRef.current) clearInterval(progressRef.current);
+  const handleViewed = (storyId: number) => {
+    setStories(prev => prev.map(s => s.id === storyId ? { ...s, seen: true } : s));
+    fetch(`/stories/${storyId}/view`, {
+      method: 'POST',
+      headers: { 'X-CSRF-TOKEN': getCsrf() },
+    }).catch(() => {});
   };
+
+  const handleDelete = (storyId: number) => {
+    fetch(`/stories/${storyId}`, {
+      method: 'DELETE',
+      headers: { 'X-CSRF-TOKEN': getCsrf() },
+    })
+      .then(r => { if (r.ok) setStories(prev => prev.filter(s => s.id !== storyId)); })
+      .catch(() => {});
+  };
+
+  // Build the "bubbles" list for the bar
+  const bubbles = [
+    // Current user bubble
+    {
+      key: 'own',
+      user: currentUser,
+      hasStories: ownStories.length > 0,
+      allSeen: ownStories.every(s => s.seen),
+      isOwn: true,
+      groupIdx: ownStories.length > 0 ? 0 : -1,
+    },
+    // Other users
+    ...allGroups
+      .filter(g => g[0].user_id !== currentUser.id)
+      .map((group, i) => ({
+        key: `group-${group[0].user_id}`,
+        user: group[0].user,
+        hasStories: true,
+        allSeen: group.every(s => s.seen),
+        isOwn: false,
+        groupIdx: ownStories.length > 0 ? i + 1 : i,
+      })),
+  ];
 
   return (
     <>
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
         <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide pb-1">
-          {/* Add story (own) */}
-          <div
-            className="flex flex-col items-center gap-1.5 cursor-pointer group shrink-0"
-            onClick={() => {/* open story creator */}}
-          >
-            <div className="relative">
-              <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-dashed border-primary/30 group-hover:border-primary transition-colors">
-                <img src={getAvatar(currentUser)} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-              </div>
-              <div className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-primary border-2 border-white flex items-center justify-center">
-                <Plus size={10} className="text-white" />
-              </div>
-            </div>
-            <span className="text-[10px] text-gray-500 font-medium w-14 text-center truncate">
-              {t('feed.myStory', 'Ma story')}
-            </span>
-          </div>
-
-          {/* Other stories */}
-          {stories.filter(s => !s.isOwn).map((story) => (
+          {bubbles.map(({ key, user, hasStories, allSeen, isOwn: bubbleIsOwn, groupIdx: gi }) => (
             <div
-              key={story.id}
-              className="flex flex-col items-center gap-1.5 cursor-pointer shrink-0"
-              onClick={() => openStory(story)}
+              key={key}
+              className="flex flex-col items-center gap-1.5 cursor-pointer shrink-0 group"
+              onClick={() => {
+                if (bubbleIsOwn && !hasStories) {
+                  setShowCreator(true);
+                } else if (gi >= 0) {
+                  openViewer(gi);
+                }
+              }}
             >
-              <div
-                className={`w-14 h-14 rounded-full p-[2px] ${
-                  story.seen
-                    ? 'bg-gray-200'
-                    : 'bg-gradient-to-tr from-primary via-secondary to-amber-400'
-                }`}
-              >
-                <div className="w-full h-full rounded-full overflow-hidden border-2 border-white">
-                  <img src={getAvatar(story.user)} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              <div className="relative">
+                <div
+                  className={`w-14 h-14 rounded-full p-[2px] ${
+                    bubbleIsOwn && !hasStories
+                      ? 'border-2 border-dashed border-primary/40 group-hover:border-primary transition-colors'
+                      : allSeen
+                        ? 'bg-gray-200'
+                        : 'bg-gradient-to-tr from-primary via-blue-400 to-amber-400'
+                  }`}
+                >
+                  <div className="w-full h-full rounded-full overflow-hidden border-2 border-white">
+                    <img src={getAvatar(user)} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  </div>
                 </div>
+                {bubbleIsOwn && (
+                  <div
+                    className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-primary border-2 border-white flex items-center justify-center cursor-pointer"
+                    onClick={e => { e.stopPropagation(); setShowCreator(true); }}
+                  >
+                    <Plus size={10} className="text-white" />
+                  </div>
+                )}
               </div>
-              <span className={`text-[10px] font-medium w-14 text-center truncate ${story.seen ? 'text-gray-400' : 'text-gray-700'}`}>
-                {story.user.name.split(' ')[0]}
+              <span className={`text-[10px] font-medium w-14 text-center truncate ${allSeen && hasStories ? 'text-gray-400' : 'text-gray-700'}`}>
+                {bubbleIsOwn ? t('feed.myStory', 'Ma story') : user.name.split(' ')[0]}
               </span>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Story viewer modal */}
       <AnimatePresence>
-        {activeStory && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm"
-            onClick={closeStory}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="relative w-80 h-[560px] rounded-3xl overflow-hidden"
-              onClick={e => e.stopPropagation()}
-              style={{ background: activeStory.previewColor ?? '#1a1a2e' }}
-            >
-              {/* Progress bar */}
-              <div className="absolute top-3 left-3 right-3 h-0.5 bg-white/20 rounded-full z-10">
-                <div
-                  className="h-full bg-white rounded-full transition-none"
-                  style={{ width: `${storyProgress}%` }}
-                />
-              </div>
-              {/* Header */}
-              <div className="absolute top-6 left-3 right-3 flex items-center gap-2 z-10">
-                <img src={getAvatar(activeStory.user)} alt="" className="w-8 h-8 rounded-full border border-white/30" />
-                <span className="text-sm font-bold text-white">{activeStory.user.name}</span>
-                <span className="text-[11px] text-white/60 ml-auto">il y a 2h</span>
-                <button onClick={closeStory} className="text-white/70 hover:text-white ml-2">
-                  <X size={18} />
-                </button>
-              </div>
-              {/* Content placeholder */}
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="text-center">
-                  <div className="w-24 h-24 rounded-full bg-white/10 flex items-center justify-center mx-auto mb-4">
-                    <Play size={36} className="text-white/50 ml-1" />
-                  </div>
-                  <p className="text-white/50 text-sm">{t('feed.storyContent', 'Contenu de la story')}</p>
-                </div>
-              </div>
-              {/* Bottom reply */}
-              <div className="absolute bottom-4 left-3 right-3">
-                <div className="flex items-center gap-2 bg-white/10 rounded-full px-4 py-2 border border-white/20">
-                  <input
-                    className="flex-1 bg-transparent text-white text-sm placeholder-white/40 outline-none"
-                    placeholder={t('feed.replyStory', 'Répondre...')}
-                  />
-                  <Send size={16} className="text-white/60 shrink-0" />
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
+        {showCreator && (
+          <StoryCreator
+            currentUser={currentUser}
+            onClose={() => setShowCreator(false)}
+            onCreated={handleCreated}
+          />
+        )}
+        {viewerInfo && allGroups.length > 0 && (
+          <StoryViewer
+            groups={allGroups}
+            startGroupIndex={viewerInfo.groupIdx}
+            currentUserId={currentUser.id}
+            onClose={() => setViewerInfo(null)}
+            onViewed={handleViewed}
+            onDelete={handleDelete}
+          />
         )}
       </AnimatePresence>
     </>
@@ -539,9 +1072,9 @@ export function ComposeBox({ currentUser, canAnnounce }: { currentUser: LocalUse
 
         {/* Header : avatar + textarea */}
         <div className="flex items-start gap-3">
-          <img
+          <ClickableAvatar
             src={getAvatar(currentUser)}
-            alt=""
+            userName={currentUser.name}
             className="w-9 h-9 rounded-full shrink-0 ring-2 ring-blue-100"
             referrerPolicy="no-referrer"
           />
@@ -934,12 +1467,12 @@ function PostCard({ post, currentUser, onSendBravoClick }: { post: Post; current
         <div className="flex items-start justify-between px-4 pt-4 pb-2">
           <div className="flex items-center gap-3">
             <div className="relative">
-              <img src={getAvatar(post.user)} alt="" className="w-10 h-10 rounded-full" referrerPolicy="no-referrer" />
+              <ClickableAvatar src={getAvatar(post.user)} userName={post.user.name} className="w-10 h-10 rounded-full" referrerPolicy="no-referrer" />
               {/* Online indicator — real data needed */}
               <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-green-400 border-2 border-white" />
             </div>
             <div>
-              <p className="text-sm font-bold text-gray-800">{post.user.name}</p>
+              <UserLink userId={post.user.id} className="text-sm font-bold text-gray-800">{post.user.name}</UserLink>
               <p className="text-[11px] text-gray-400">
                 {post.user.role}
                 {post.user.department ? ` · ${post.user.department}` : ''}
@@ -1035,14 +1568,14 @@ function PostCard({ post, currentUser, onSendBravoClick }: { post: Post; current
                   </div>
                 )}
                 <div className="flex items-start gap-3 pb-3 border-b border-gray-200">
-                  <img
+                  <ClickableAvatar
                     src={getAvatar(post.original_post.user)}
-                    alt=""
+                    userName={post.original_post.user.name}
                     className="w-10 h-10 rounded-full"
                     referrerPolicy="no-referrer"
                   />
                   <div>
-                    <p className="text-sm font-bold text-gray-800">{post.original_post.user.name}</p>
+                    <UserLink userId={post.original_post.user.id} className="text-sm font-bold text-gray-800">{post.original_post.user.name}</UserLink>
                     <p className="text-[11px] text-gray-400">
                       {post.original_post.user.role}
                       {post.original_post.user.department ? ` · ${post.original_post.user.department}` : ''}
@@ -1148,14 +1681,17 @@ function PostCard({ post, currentUser, onSendBravoClick }: { post: Post; current
                 <div className="px-4 pt-3 pb-1 space-y-2">
                   {comments.map(c => (
                     <div key={c.id} className="flex items-start gap-2 group">
-                      <img
+                      <ClickableAvatar
                         src={c.user ? getAvatar(c.user) : `https://ui-avatars.com/api/?name=?&background=e5e7eb&color=6b7280&size=32`}
-                        alt=""
+                        userName={c.user?.name}
                         className="w-7 h-7 rounded-full shrink-0 mt-0.5"
                         referrerPolicy="no-referrer"
                       />
                       <div className="flex-1 bg-white rounded-xl px-3 py-2 text-xs shadow-sm border border-gray-100">
-                        <span className="font-semibold text-gray-700">{c.user?.name ?? 'Unknown'}</span>
+                        {c.user
+                          ? <UserLink userId={c.user.id} className="font-semibold text-gray-700">{c.user.name}</UserLink>
+                          : <span className="font-semibold text-gray-700">Unknown</span>
+                        }
                         <span className="text-gray-500 ml-2">{c.content}</span>
                         <span className="block text-[10px] text-gray-400 mt-0.5">{c.created_at}</span>
                       </div>
@@ -1172,7 +1708,7 @@ function PostCard({ post, currentUser, onSendBravoClick }: { post: Post; current
                 </div>
               )}
               <div className="px-4 py-3 flex items-center gap-2">
-                <img src={getAvatar(currentUser)} alt="" className="w-7 h-7 rounded-full shrink-0" referrerPolicy="no-referrer" />
+                <ClickableAvatar src={getAvatar(currentUser)} userName={currentUser.name} className="w-7 h-7 rounded-full shrink-0" referrerPolicy="no-referrer" />
                 <div className="flex-1 flex items-center bg-white rounded-full px-3 py-1.5 border border-gray-200 gap-2 focus-within:border-primary/40 transition-colors">
                   <input
                     placeholder={t('dashboard.commentPlaceholder')}
@@ -1231,7 +1767,7 @@ function Leaderboard({ users }: { users: AppUser[] }) {
             }`}>
               {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}`}
             </span>
-            <img src={getAvatar(u)} alt="" className="w-7 h-7 rounded-full" referrerPolicy="no-referrer" />
+            <ClickableAvatar src={getAvatar(u)} userName={u.name} className="w-7 h-7 rounded-full" referrerPolicy="no-referrer" />
             <div className="flex-1 min-w-0">
               <p className="text-xs font-semibold text-gray-700 truncate">{u.name}</p>
               <p className="text-[10px] text-gray-400 truncate">{u.department}</p>
@@ -1247,7 +1783,14 @@ function Leaderboard({ users }: { users: AppUser[] }) {
 function SuggestedPeople({ users, currentUser }: { users: AppUser[]; currentUser: AppUser }) {
   const { t } = useTranslation();
   const suggestions = users.filter(u => u.id !== currentUser.id).slice(0, 4);
-  const [followed, setFollowed] = useState<number[]>([]);
+  const [followed, setFollowed] = useState<number[]>(() =>
+    suggestions.filter(u => u.is_following).map(u => u.id)
+  );
+
+  function toggleFollow(userId: number) {
+    setFollowed(f => f.includes(userId) ? f.filter(id => id !== userId) : [...f, userId]);
+    router.post(`/users/${userId}/follow`, {}, { preserveScroll: true });
+  }
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
@@ -1255,13 +1798,13 @@ function SuggestedPeople({ users, currentUser }: { users: AppUser[]; currentUser
       <div className="space-y-3">
         {suggestions.map(u => (
           <div key={u.id} className="flex items-center gap-2.5">
-            <img src={getAvatar(u)} alt="" className="w-8 h-8 rounded-full" referrerPolicy="no-referrer" />
+            <ClickableAvatar src={getAvatar(u)} userName={u.name} className="w-8 h-8 rounded-full" referrerPolicy="no-referrer" />
             <div className="flex-1 min-w-0">
               <p className="text-xs font-semibold text-gray-700 truncate">{u.name}</p>
               <p className="text-[10px] text-gray-400 truncate">{u.role}</p>
             </div>
             <button
-              onClick={() => setFollowed(f => f.includes(u.id) ? f.filter(id => id !== u.id) : [...f, u.id])}
+              onClick={() => toggleFollow(u.id)}
               className={`text-[11px] font-bold px-2.5 py-1 rounded-full border transition-all cursor-pointer ${
                 followed.includes(u.id)
                   ? 'bg-primary/10 text-primary border-primary/20'
@@ -1648,7 +2191,7 @@ function FindColleague() {
 }
 
 // ── Main Feed Page ────────────────────────────────────────────────────────────
-export default function Feed({ posts, currentUser, users, activeChallenge, bravoCount, bravoValues, announcements = [] }: FeedProps) {
+export default function Feed({ posts, currentUser, users, activeChallenge, bravoCount, bravoValues, announcements = [], stories = [] }: FeedProps) {
   const { t, i18n } = useTranslation();
   const locale = i18n.language?.startsWith('fr') ? 'fr-FR' : 'en-US';
   const canAnnounce = ['admin', 'manager'].includes(currentUser.permission);
@@ -1716,7 +2259,7 @@ export default function Feed({ posts, currentUser, users, activeChallenge, bravo
         <div className="absolute right-0 inset-y-0 w-1/3 hidden lg:flex items-center justify-end pr-8 pointer-events-none">
           <div className="absolute inset-0 bg-gradient-to-l from-transparent to-[#1a1a2e]" />
           <div className="relative z-10">
-            <img src={getAvatar(sortedUsers[0])} alt="" className="w-20 h-20 rounded-2xl border-2 border-secondary/40 opacity-70" referrerPolicy="no-referrer" />
+            <ClickableAvatar src={getAvatar(sortedUsers[0])} userName={sortedUsers[0].name} className="w-20 h-20 rounded-2xl border-2 border-secondary/40 opacity-70" referrerPolicy="no-referrer" />
             <div className="absolute -top-2 -right-2 w-8 h-8 bg-secondary rounded-full flex items-center justify-center">
               <Trophy size={14} className="text-white" />
             </div>
@@ -1866,7 +2409,7 @@ export default function Feed({ posts, currentUser, users, activeChallenge, bravo
             {ann.length > 0 && <AnnouncementBanner announcements={ann} />}
 
             {/* Stories */}
-            <StoriesBar currentUser={currentUser} users={users} />
+            <StoriesBar currentUser={currentUser} stories={stories} />
 
             {/* Compose */}
             <ComposeBox currentUser={currentUser} canAnnounce={canAnnounce} />

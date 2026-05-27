@@ -10,6 +10,8 @@ import { Card } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import { Bravo, BravoComment, User, BadgeStat, UserBadge } from './types';
 import { MOCK_REWARDS, BADGES } from './constants';
+import { ClickableAvatar } from '@/components/clickable-avatar';
+import { UserLink } from '@/components/user-link';
 
 interface HistoryProps {
   bravos: Bravo[];
@@ -324,9 +326,9 @@ export default function History({ bravos, currentUserId, currentUser, pointsGive
                             return (
                               <div className="flex items-center shrink-0">
                                 <div className="relative">
-                                  <img
+                                  <ClickableAvatar
                                     src={bravo.sender ? getAvatar(bravo.sender) : `https://ui-avatars.com/api/?name=?&background=e5e7eb&color=6b7280&size=64`}
-                                    alt=""
+                                    userName={bravo.sender?.name}
                                     className="w-10 h-10 rounded-xl ring-2 ring-white shadow-sm z-0"
                                     referrerPolicy="no-referrer"
                                   />
@@ -336,11 +338,10 @@ export default function History({ bravos, currentUserId, currentUser, pointsGive
                                 </div>
                                 <div className="flex -ml-2">
                                   {shown.map((r, i) => (
-                                    <img
+                                    <ClickableAvatar
                                       key={r.id}
                                       src={getAvatar(r)}
-                                      alt={r.name}
-                                      title={r.name}
+                                      userName={r.name}
                                       className="w-14 h-14 rounded-2xl ring-4 ring-white shadow-md relative"
                                       style={{ marginLeft: i > 0 ? '-20px' : undefined, zIndex: 10 + i }}
                                       referrerPolicy="no-referrer"
@@ -366,10 +367,14 @@ export default function History({ bravos, currentUserId, currentUser, pointsGive
                                   ? bravo.receivers
                                   : bravo.receiver ? [bravo.receiver] : [];
                                 if (receivers.length === 0) return <span className="font-bold text-gray-800">—</span>;
-                                if (receivers.length === 1) return <span className="font-bold text-gray-800">{receivers[0].name}</span>;
-                                const names = receivers.slice(0, -1).map(r => r.name).join(', ');
-                                const last = receivers[receivers.length - 1].name;
-                                return <><span className="font-bold text-gray-800">{names}</span> <span className="text-gray-400">&</span> <span className="font-bold text-gray-800">{last}</span></>;
+                                if (receivers.length === 1) return <UserLink userId={receivers[0].id} className="font-bold text-gray-800">{receivers[0].name}</UserLink>;
+                                return <>
+                                  {receivers.slice(0, -1).map((r, i) => (
+                                    <span key={r.id}>{i > 0 ? ', ' : ''}<UserLink userId={r.id} className="font-bold text-gray-800">{r.name}</UserLink></span>
+                                  ))}
+                                  {' '}<span className="text-gray-400">&</span>{' '}
+                                  <UserLink userId={receivers[receivers.length - 1].id} className="font-bold text-gray-800">{receivers[receivers.length - 1].name}</UserLink>
+                                </>;
                               })()}
                             </p>
                             {bravo.message && (
@@ -398,9 +403,9 @@ export default function History({ bravos, currentUserId, currentUser, pointsGive
                             <span className="text-xs text-gray-500">
                               From <span className="font-medium text-gray-700">{bravo.sender?.name ?? '—'}</span>
                             </span>
-                            <img
+                            <ClickableAvatar
                               src={bravo.sender ? getAvatar(bravo.sender) : `https://ui-avatars.com/api/?name=?&background=e5e7eb&color=6b7280&size=64`}
-                              alt=""
+                              userName={bravo.sender?.name}
                               className="w-7 h-7 rounded-full border-2 border-gray-100 shadow-sm"
                               referrerPolicy="no-referrer"
                             />
@@ -442,9 +447,9 @@ export default function History({ bravos, currentUserId, currentUser, pointsGive
                                 <div className="px-4 pb-2 space-y-2">
                                   {(commentLists[bravo.id] ?? []).map(c => (
                                     <div key={c.id} className="flex items-start gap-2 group">
-                                      <img
+                                      <ClickableAvatar
                                         src={c.user ? getAvatar(c.user) : `https://ui-avatars.com/api/?name=?&background=e5e7eb&color=6b7280&size=32`}
-                                        alt=""
+                                        userName={c.user?.name}
                                         className="w-6 h-6 rounded-full shrink-0 mt-0.5"
                                         referrerPolicy="no-referrer"
                                       />
@@ -477,9 +482,9 @@ export default function History({ bravos, currentUserId, currentUser, pointsGive
 
                         {/* Input commentaire */}
                         <div className="px-4 pb-3 flex items-center gap-2">
-                          <img
+                          <ClickableAvatar
                             src={getAvatar(currentUser)}
-                            alt=""
+                            userName={currentUser.name}
                             className="w-7 h-7 rounded-full shrink-0"
                             referrerPolicy="no-referrer"
                           />

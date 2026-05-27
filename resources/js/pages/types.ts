@@ -60,6 +60,7 @@ export interface User {
   points_total: number;
   monthly_points_allowance?: number;
   monthly_points_remaining?: number;
+  is_following?: boolean;
 }
 
 export interface BravoValue {
@@ -177,6 +178,22 @@ export interface TopUser {
 export interface Department {
   id: number;
   name: string;
+}
+
+export interface Story {
+  id: number;
+  user_id: number;
+  type: 'text' | 'image' | 'video' | 'audio';
+  content: string | null;
+  media_url: string | null;
+  background_color: string;
+  font_style: 'normal' | 'bold' | 'italic';
+  text_align: 'left' | 'center' | 'right';
+  views_count: number;
+  expires_at: string;
+  created_at: string;
+  seen: boolean;
+  user: { id: number; name: string; avatar?: string | null; role: string; department?: string | null };
 }
 
 export interface PostComment {

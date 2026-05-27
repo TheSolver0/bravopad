@@ -27,7 +27,6 @@ import {
   FolderOpen,
   ChevronDown,
   Search,
-  Zap,
   MoreHorizontal,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -435,7 +434,7 @@ export default function Sidebar({ collapsed = false, onCollapseToggle, onClose, 
             collapsed ? 'w-9 h-9 p-0' : 'w-full py-2.5 px-4'
           }`}
         >
-          <Zap size={15} className="shrink-0" />
+          <Award size={15} className="shrink-0" />
           {!collapsed && <span>{t('nav.sendBravo', 'Envoyer un Bravo')}</span>}
         </Button>
       </div>

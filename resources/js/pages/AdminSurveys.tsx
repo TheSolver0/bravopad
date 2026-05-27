@@ -14,6 +14,7 @@ import {
   Trash2,
   Users,
   X,
+  Zap,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -40,6 +41,7 @@ type Survey = {
   is_active: boolean;
   starts_at?: string | null;
   ends_at?: string | null;
+  auto_bravo_points: number;
   responses_count: number;
   created_at: string;
 };
@@ -319,6 +321,15 @@ function SurveyCard({
               ? `${survey.questions!.length} questions`
               : `${survey.options?.length ?? 0} options`}
           </span>
+          {survey.auto_bravo_points > 0 && (
+            <>
+              <span className="opacity-30">·</span>
+              <span className="flex items-center gap-1 text-primary">
+                <Zap size={10} />
+                {survey.auto_bravo_points} pts
+              </span>
+            </>
+          )}
         </div>
       </div>
     </a>

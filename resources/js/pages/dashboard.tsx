@@ -26,6 +26,8 @@ import { Button } from '../components/ui/button';
 import { User, Bravo, BravoComment, Challenge, BravoValue, Celebration } from './types';
 import { BADGES } from './constants';
 import CreateBravo from './CreateBravo';
+import { ClickableAvatar } from '@/components/clickable-avatar';
+import { UserLink } from '@/components/user-link';
 
 interface DashboardProps {
   bravos: Bravo[];
@@ -276,9 +278,9 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
                               return (
                                 <div className="flex items-center shrink-0">
                                   <div className="relative">
-                                    <img
+                                    <ClickableAvatar
                                       src={bravo.sender ? getAvatar(bravo.sender) : `https://ui-avatars.com/api/?name=?&background=e5e7eb&color=6b7280&size=64`}
-                                      alt=""
+                                      userName={bravo.sender?.name}
                                       className="w-10 h-10 rounded-xl ring-2 ring-white shadow-sm z-0"
                                       referrerPolicy="no-referrer"
                                     />
@@ -288,11 +290,10 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
                                   </div>
                                   <div className="flex -ml-2">
                                     {shown.map((r, i) => (
-                                      <img
+                                      <ClickableAvatar
                                         key={r.id}
                                         src={getAvatar(r)}
-                                        alt={r.name}
-                                        title={r.name}
+                                        userName={r.name}
                                         className="w-14 h-14 rounded-2xl ring-4 ring-white shadow-md relative"
                                         style={{ marginLeft: i > 0 ? '-20px' : undefined, zIndex: 10 + i }}
                                         referrerPolicy="no-referrer"
@@ -318,10 +319,14 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
                                     ? bravo.receivers
                                     : bravo.receiver ? [bravo.receiver] : [];
                                   if (receivers.length === 0) return <span className="font-bold text-gray-800">—</span>;
-                                  if (receivers.length === 1) return <span className="font-bold text-gray-800">{receivers[0].name}</span>;
-                                  const names = receivers.slice(0, -1).map(r => r.name).join(', ');
-                                  const last = receivers[receivers.length - 1].name;
-                                  return <><span className="font-bold text-gray-800">{names}</span> <span className="text-gray-400">&</span> <span className="font-bold text-gray-800">{last}</span></>;
+                                  if (receivers.length === 1) return <UserLink userId={receivers[0].id} className="font-bold text-gray-800">{receivers[0].name}</UserLink>;
+                                  return <>
+                                    {receivers.slice(0, -1).map((r, i) => (
+                                      <span key={r.id}>{i > 0 ? ', ' : ''}<UserLink userId={r.id} className="font-bold text-gray-800">{r.name}</UserLink></span>
+                                    ))}
+                                    {' '}<span className="text-gray-400">&</span>{' '}
+                                    <UserLink userId={receivers[receivers.length - 1].id} className="font-bold text-gray-800">{receivers[receivers.length - 1].name}</UserLink>
+                                  </>;
                                 })()}
                               </p>
                               {bravo.message && (
@@ -348,11 +353,15 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
                             <span className="text-xs text-gray-400">{new Date(bravo.created_at).toLocaleDateString(locale)}</span>
                             <div className="flex items-center gap-2">
                               <span className="text-xs text-gray-500">
-                                From <span className="font-medium text-gray-700">{bravo.sender?.name ?? '—'}</span>
+                                From{' '}
+                                {bravo.sender
+                                  ? <UserLink userId={bravo.sender.id} className="font-medium text-gray-700">{bravo.sender.name}</UserLink>
+                                  : <span className="font-medium text-gray-700">—</span>
+                                }
                               </span>
-                              <img
+                              <ClickableAvatar
                                 src={bravo.sender ? getAvatar(bravo.sender) : `https://ui-avatars.com/api/?name=?&background=e5e7eb&color=6b7280&size=64`}
-                                alt=""
+                                userName={bravo.sender?.name}
                                 className="w-7 h-7 rounded-full border-2 border-gray-100 shadow-sm"
                                 referrerPolicy="no-referrer"
                               />
@@ -391,9 +400,9 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
                                   <div className="px-4 pb-2 space-y-2">
                                     {bravoComments.map(c => (
                                       <div key={c.id} className="flex items-start gap-2 group">
-                                        <img
+                                        <ClickableAvatar
                                           src={c.user ? getAvatar(c.user) : `https://ui-avatars.com/api/?name=?&background=e5e7eb&color=6b7280&size=32`}
-                                          alt=""
+                                          userName={c.user?.name}
                                           className="w-6 h-6 rounded-full shrink-0 mt-0.5"
                                           referrerPolicy="no-referrer"
                                         />
@@ -420,9 +429,9 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
 
                           {/* Input commentaire */}
                           <div className="px-4 pb-3 flex items-center gap-2">
-                            <img
+                            <ClickableAvatar
                               src={getAvatar(currentUser)}
-                              alt=""
+                              userName={currentUser.name}
                               className="w-7 h-7 rounded-full shrink-0"
                               referrerPolicy="no-referrer"
                             />
@@ -540,21 +549,21 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
                   <div className="flex items-end justify-around pb-2">
                     <div className="flex flex-col items-center gap-2">
                       <div className="relative">
-                        <img src={getAvatar(topUsers[1])} alt="" className="w-12 h-12 rounded-full border-2 border-white/30" referrerPolicy="no-referrer" />
+                        <ClickableAvatar src={getAvatar(topUsers[1])} userName={topUsers[1].name} className="w-12 h-12 rounded-full border-2 border-white/30" referrerPolicy="no-referrer" />
                         <div className="absolute -top-1 -right-1 w-5 h-5 bg-surface-container-high rounded-full flex items-center justify-center text-[10px] font-bold text-on-surface border-2 border-white">2</div>
                       </div>
                       <span className="text-[10px] font-bold opacity-80 truncate w-16 text-center">{topUsers[1].name.split(' ')[0]}</span>
                     </div>
                     <div className="flex flex-col items-center gap-2 scale-110">
                       <div className="relative">
-                        <img src={getAvatar(topUsers[0])} alt="" className="w-16 h-16 rounded-full border-4 border-secondary shadow-lg" referrerPolicy="no-referrer" />
+                        <ClickableAvatar src={getAvatar(topUsers[0])} userName={topUsers[0].name} className="w-16 h-16 rounded-full border-4 border-secondary shadow-lg" referrerPolicy="no-referrer" />
                         <div className="absolute -top-1 -right-1 w-6 h-6 bg-secondary rounded-full flex items-center justify-center text-[10px] font-extrabold text-white border-2 border-white">1</div>
                       </div>
                       <span className="text-[10px] font-bold truncate w-16 text-center">{topUsers[0].name.split(' ')[0]}</span>
                     </div>
                     <div className="flex flex-col items-center gap-2">
                       <div className="relative">
-                        <img src={getAvatar(topUsers[2])} alt="" className="w-12 h-12 rounded-full border-2 border-white/30" referrerPolicy="no-referrer" />
+                        <ClickableAvatar src={getAvatar(topUsers[2])} userName={topUsers[2].name} className="w-12 h-12 rounded-full border-2 border-white/30" referrerPolicy="no-referrer" />
                         <div className="absolute -top-1 -right-1 w-5 h-5 bg-secondary/50 rounded-full flex items-center justify-center text-[10px] font-bold text-white border-2 border-white">3</div>
                       </div>
                       <span className="text-[10px] font-bold opacity-80 truncate w-16 text-center">{topUsers[2].name.split(' ')[0]}</span>
@@ -568,7 +577,7 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
                       <div key={user.id} className="flex items-center justify-between p-4 hover:bg-primary/5 transition-colors cursor-pointer group">
                         <div className="flex items-center gap-4">
                           <span className={`text-[10px] font-black w-3 ${globalIndex < 3 ? 'text-primary' : 'text-on-surface-variant'}`}>{globalIndex + 1}</span>
-                          <img src={getAvatar(user)} alt="" className="w-10 h-10 rounded-xl bg-surface-container-low" referrerPolicy="no-referrer" />
+                          <ClickableAvatar src={getAvatar(user)} userName={user.name} className="w-10 h-10 rounded-xl bg-surface-container-low" referrerPolicy="no-referrer" />
                           <div>
                             <p className="text-sm font-bold group-hover:text-primary transition-colors">{user.name}</p>
                             <p className="text-[10px] font-semibold text-on-surface-variant uppercase tracking-wide">{user.department}</p>

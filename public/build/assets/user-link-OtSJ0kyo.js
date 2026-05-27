@@ -1,0 +1,1 @@
+import{n as e,t}from"./jsx-runtime-DVQnjiVI.js";import{r as n}from"./dist-Cv7jA3Lt.js";var r=e(),i=t();function a(e){let t=(0,r.c)(4),{userId:a,children:o,className:s}=e,c=`/users/${a}`,l=`hover:underline cursor-pointer ${s??``}`,u;return t[0]!==o||t[1]!==c||t[2]!==l?(u=(0,i.jsx)(n,{href:c,className:l,children:o}),t[0]=o,t[1]=c,t[2]=l,t[3]=u):u=t[3],u}export{a as t};

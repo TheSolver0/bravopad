@@ -98,7 +98,7 @@ function MessagesPanel() {
       </div>
 
       {/* List */}
-      <div className="flex-1 overflow-y-auto scrollbar-hide px-2 pb-3">
+      <div className="flex-1 overflow-y-auto nav-scrollbar overflow-x-hidden px-2 pb-3">
         {/* DMs */}
         {(tab === 'all' || tab === 'unread') && (
           <div className="space-y-0.5">
@@ -233,7 +233,7 @@ function GroupsPanel() {
       </div>
 
       {/* Groups list */}
-      <div className="flex-1 overflow-y-auto scrollbar-hide px-2 pb-3">
+      <div className="flex-1 overflow-y-auto nav-scrollbar overflow-x-hidden px-2 pb-3">
         <p className="px-2 pb-2 text-[10px] font-black uppercase tracking-wider text-on-surface-variant/50">
           Mes espaces ({filtered.length})
         </p>

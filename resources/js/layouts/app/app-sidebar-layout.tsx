@@ -3,7 +3,7 @@ import { usePage, router } from '@inertiajs/react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X } from 'lucide-react';
 import type { BreadcrumbItem } from '@/types';
-import NavRail from './NavRail';
+import NavRail, { RAIL_W_COLLAPSED, RAIL_W_EXPANDED } from './NavRail';
 import ContextPanel from './ContextPanel';
 import TopBar from './TopBar';
 import MobileNav from './MobileNav';
@@ -39,34 +39,36 @@ export default function AppSidebarLayout({ children }: AppSidebarLayoutProps) {
   const bravoValues: BravoValue[] = (page.props.bravoValues as BravoValue[]) ?? [];
   const bravoInsights = page.props.bravoInsights ?? defaultBravoInsights;
 
+  const [navExpanded, setNavExpanded] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
+  const navRailWidth = navExpanded ? RAIL_W_EXPANDED : RAIL_W_COLLAPSED;
+
   return (
-    /*
-     * Layout 3-colonnes :
-     *  [TopBar — full-width, sticky, h-14]
-     *  [NavRail 72px] | [ContextPanel 0-280px] | [Main flex-1]
-     *  [MobileNav — fixed bottom, mobile only]
-     */
     <div className="flex flex-col h-screen bg-surface-container-lowest overflow-hidden">
 
-      {/* ── TopBar ── */}
+      {/* ── TopBar (full-width, zone logo synchronisée avec NavRail) ── */}
       <TopBar
+        navRailWidth={navRailWidth}
         onMenuOpen={() => setDrawerOpen(true)}
         onCreateBravo={() => setShowCreateModal(true)}
       />
 
-      {/* ── Corps principal ── */}
+      {/* ── Corps : Rail | ContextPanel | Contenu ── */}
       <div className="flex flex-1 overflow-hidden">
 
-        {/* NavRail — desktop uniquement */}
-        <NavRail onCreateBravo={() => setShowCreateModal(true)} />
+        {/* NavRail — desktop uniquement, contrôlé par le layout */}
+        <NavRail
+          expanded={navExpanded}
+          onToggle={() => setNavExpanded(v => !v)}
+          onCreateBravo={() => setShowCreateModal(true)}
+        />
 
-        {/* ContextPanel — apparaît sur /messages et /groups */}
+        {/* ContextPanel — slide in/out sur /messages et /groups */}
         <ContextPanel />
 
-        {/* Zone de contenu */}
+        {/* Zone de contenu principale */}
         <div className="flex-1 flex flex-col overflow-hidden">
 
           {/* Flash messages */}
@@ -95,7 +97,7 @@ export default function AppSidebarLayout({ children }: AppSidebarLayoutProps) {
             )}
           </AnimatePresence>
 
-          {/* Page content */}
+          {/* Contenu de la page */}
           <main className="flex-1 overflow-y-auto pb-20 md:pb-0">
             {children}
           </main>
@@ -105,7 +107,7 @@ export default function AppSidebarLayout({ children }: AppSidebarLayoutProps) {
       {/* ── Mobile bottom nav ── */}
       <MobileNav onCreateBravo={() => setShowCreateModal(true)} />
 
-      {/* ── Mobile drawer (hamburger) ── */}
+      {/* ── Drawer mobile (hamburger) ── */}
       <MobileDrawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}

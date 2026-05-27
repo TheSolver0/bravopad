@@ -1,6 +1,4 @@
-import { type MouseEvent, type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { router, usePage } from '@inertiajs/react';
-import { AnimatePresence, motion } from 'motion/react';
 import {
     ArrowLeft,
     Bell,
@@ -16,14 +14,21 @@ import {
     Pencil,
     Phone,
     PhoneOff,
+    Plus,
     Search,
     Send,
     ThumbsUp,
     Trash2,
+    UserMinus,
+    UserPlus,
+    Users,
     Video,
     VideoOff,
     X,
 } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { MouseEvent, RefObject } from 'react';
 import { toast } from 'sonner';
 import { useMessengerPresence } from '@/hooks/useMessengerPresence';
 import { getEcho } from '@/lib/echo';
@@ -52,7 +57,9 @@ type MessengerMessage = {
 
 type MessengerConversation = {
     id: number;
-    type: 'direct';
+    type: 'direct' | 'group';
+    name?: string | null;
+    is_creator?: boolean;
     other_user: MessengerUser | null;
     participants: MessengerUser[];
     last_message: MessengerMessage | null;
@@ -102,14 +109,26 @@ type MessengerCall = {
     id: number;
     conversation_id: number;
     started_by: number;
-    callee_id: number;
+    callee_id: number | null;
     type: 'audio' | 'video';
     status: 'ringing' | 'accepted' | 'declined' | 'ended';
+    room_key?: string | null;
+    joined_count?: number | null;
+    max_participants?: number | null;
     accepted_at?: string | null;
     ended_at?: string | null;
     created_at?: string | null;
     starter: MessengerUser;
-    callee: MessengerUser;
+    callee: MessengerUser | null;
+    participants?: Record<string, MessengerCallParticipant>;
+};
+
+type MessengerCallParticipant = {
+    user_id: number;
+    status: 'invited' | 'joined' | 'declined' | 'left';
+    joined_at?: string | null;
+    left_at?: string | null;
+    user: MessengerUser | null;
 };
 
 type CallUpdatedPayload = {
@@ -118,17 +137,33 @@ type CallUpdatedPayload = {
 
 type WebRtcSessionPayload = {
     from: number;
+    target?: number;
     sdp: RTCSessionDescriptionInit;
 };
 
 type WebRtcIcePayload = {
     from: number;
+    target?: number;
     candidate: RTCIceCandidateInit;
+};
+
+type MeshReadyPayload = {
+    from: number;
+    target?: number;
+};
+
+type CallIceServer = {
+    urls: string | string[];
+    username?: string | null;
+    credential?: string | null;
 };
 
 type PageProps = {
     auth?: {
         user?: MessengerUser;
+    };
+    messenger?: {
+        call_ice_servers?: CallIceServer[];
     };
 };
 
@@ -145,7 +180,7 @@ type MessengerWidgetProps = {
 };
 
 export default function MessengerWidget({ variant = 'floating' }: MessengerWidgetProps) {
-    const { auth } = usePage<PageProps>().props;
+    const { auth, messenger } = usePage<PageProps>().props;
     const fullscreen = variant === 'fullscreen';
     const currentUser = auth?.user;
     const onlineUserIds = useMessengerPresence(Boolean(currentUser?.id));
@@ -165,8 +200,17 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
     const [sendError, setSendError] = useState<string | null>(null);
     const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
     const [editingBody, setEditingBody] = useState('');
-    const [typingName, setTypingName] = useState<string | null>(null);
+    const [typingUsers, setTypingUsers] = useState<Record<number, string>>({});
     const [messageMenu, setMessageMenu] = useState<MessageMenuState | null>(null);
+    const [groupComposerOpen, setGroupComposerOpen] = useState(false);
+    const [groupName, setGroupName] = useState('');
+    const [groupSearch, setGroupSearch] = useState('');
+    const [groupSearchResults, setGroupSearchResults] = useState<MessengerUser[]>([]);
+    const [groupSearching, setGroupSearching] = useState(false);
+    const [groupError, setGroupError] = useState<string | null>(null);
+    const [selectedGroupUsers, setSelectedGroupUsers] = useState<MessengerUser[]>([]);
+    const [groupManageOpen, setGroupManageOpen] = useState(false);
+    const [groupSaving, setGroupSaving] = useState(false);
     const [incomingCall, setIncomingCall] = useState<MessengerCall | null>(null);
     const [activeCall, setActiveCall] = useState<MessengerCall | null>(null);
     const [callStatus, setCallStatus] = useState<'idle' | 'ringing' | 'connecting' | 'connected' | 'ended'>('idle');
@@ -175,23 +219,31 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
     const [cameraOff, setCameraOff] = useState(false);
     const [localStream, setLocalStream] = useState<MediaStream | null>(null);
     const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+    const [remoteStreams, setRemoteStreams] = useState<Record<number, MediaStream>>({});
     const [desktopNotificationPermission, setDesktopNotificationPermission] = useState<DesktopNotificationPermission>(() => getDesktopNotificationPermission());
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
     const localVideoRef = useRef<HTMLVideoElement | null>(null);
     const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
     const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
     const notifiedMessageIds = useRef<Set<number>>(new Set());
-    const typingTimeoutRef = useRef<number | null>(null);
+    const typingTimeoutsRef = useRef<Record<number, number>>({});
     const lastTypingWhisperRef = useRef(0);
     const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+    const groupPeerConnectionsRef = useRef<Record<number, RTCPeerConnection>>({});
     const localStreamRef = useRef<MediaStream | null>(null);
     const pendingIceCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
+    const pendingGroupIceCandidatesRef = useRef<Record<number, RTCIceCandidateInit[]>>({});
     const startedOfferForCallRef = useRef<number | null>(null);
+    const startedGroupOffersRef = useRef<Set<number>>(new Set());
     const ringtoneContextRef = useRef<AudioContext | null>(null);
     const ringtoneTimerRef = useRef<number | null>(null);
 
     const activeId = activeConversation?.id ?? null;
     const activeCallRef = useRef<MessengerCall | null>(null);
+    const iceServers = useMemo<RTCIceServer[]>(
+        () => normalizeIceServers(messenger?.call_ice_servers),
+        [messenger?.call_ice_servers],
+    );
 
     useEffect(() => {
         activeCallRef.current = activeCall;
@@ -455,27 +507,40 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
             }
 
             if (!payload.is_typing) {
-                setTypingName(null);
+                setTypingUsers((current) => {
+                    const next = { ...current };
+                    delete next[payload.user_id];
+
+                    return next;
+                });
+
                 return;
             }
 
-            setTypingName(payload.name || 'Someone');
+            setTypingUsers((current) => ({
+                ...current,
+                [payload.user_id]: payload.name || 'Someone',
+            }));
 
-            if (typingTimeoutRef.current) {
-                window.clearTimeout(typingTimeoutRef.current);
+            if (typingTimeoutsRef.current[payload.user_id]) {
+                window.clearTimeout(typingTimeoutsRef.current[payload.user_id]);
             }
 
-            typingTimeoutRef.current = window.setTimeout(() => {
-                setTypingName(null);
+            typingTimeoutsRef.current[payload.user_id] = window.setTimeout(() => {
+                setTypingUsers((current) => {
+                    const next = { ...current };
+                    delete next[payload.user_id];
+
+                    return next;
+                });
+                delete typingTimeoutsRef.current[payload.user_id];
             }, 2500);
         });
 
         return () => {
-            if (typingTimeoutRef.current) {
-                window.clearTimeout(typingTimeoutRef.current);
-                typingTimeoutRef.current = null;
-            }
-            setTypingName(null);
+            Object.values(typingTimeoutsRef.current).forEach((timeout) => window.clearTimeout(timeout));
+            typingTimeoutsRef.current = {};
+            setTypingUsers({});
             echo.leave(channelName);
         };
     }, [activeId, currentUser?.id, fetchConversations, markRead, open]);
@@ -514,10 +579,26 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
             void handleCallReady(payload);
         });
 
+        channel.listenForWhisper('mesh-ready', (payload: MeshReadyPayload) => {
+            void handleMeshReady(payload);
+        });
+
+        channel.listenForWhisper('mesh-offer', (payload: WebRtcSessionPayload) => {
+            void handleMeshOffer(payload);
+        });
+
+        channel.listenForWhisper('mesh-answer', (payload: WebRtcSessionPayload) => {
+            void handleMeshAnswer(payload);
+        });
+
+        channel.listenForWhisper('mesh-ice-candidate', (payload: WebRtcIcePayload) => {
+            void handleMeshIceCandidate(payload);
+        });
+
         return () => {
             echo.leave(channelName);
         };
-    }, [activeCall?.id, currentUser?.id]);
+    }, [activeCall?.id, currentUser?.id, iceServers]);
 
     useEffect(() => {
         if (localVideoRef.current) {
@@ -558,6 +639,7 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
             setSearchResults([]);
             setSearching(false);
             setSearchError(null);
+
             return;
         }
 
@@ -573,6 +655,7 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
 
                 if (!response.ok) {
                     setSearchError('Unable to search people');
+
                     return;
                 }
 
@@ -587,6 +670,39 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
     }, [open, search]);
 
     useEffect(() => {
+        const term = groupSearch.trim();
+
+        if (!open || (!groupComposerOpen && !groupManageOpen) || term.length < 1) {
+            setGroupSearchResults([]);
+            setGroupSearching(false);
+
+            return;
+        }
+
+        const timeout = window.setTimeout(async () => {
+            setGroupSearching(true);
+
+            try {
+                const response = await fetch(`/messenger/users?search=${encodeURIComponent(term)}`, {
+                    headers: { Accept: 'application/json' },
+                    credentials: 'same-origin',
+                });
+
+                if (!response.ok) {
+                    return;
+                }
+
+                const data = (await response.json()) as UsersResponse;
+                setGroupSearchResults(data.users ?? []);
+            } finally {
+                setGroupSearching(false);
+            }
+        }, 250);
+
+        return () => window.clearTimeout(timeout);
+    }, [groupComposerOpen, groupManageOpen, groupSearch, open]);
+
+    useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
     }, [messages.length, activeId]);
 
@@ -599,9 +715,10 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
         [...messages].reverse().find((message) => message.sender_id === currentUser?.id && !message.is_deleted)?.id ?? null
     ), [currentUser?.id, messages]);
 
-    const otherReadAt = activeConversation?.other_user?.id
+    const otherReadAt = activeConversation?.type === 'direct' && activeConversation.other_user?.id
         ? activeConversation.read_at_by_user?.[String(activeConversation.other_user.id)] ?? null
         : null;
+    const typingText = typingIndicatorText(Object.values(typingUsers));
 
     const menuMessage = messageMenu
         ? messages.find((message) => message.id === messageMenu.messageId) ?? null
@@ -617,6 +734,7 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
 
         if (!response.ok) {
             setSearchError(await responseError(response, 'Unable to open this conversation'));
+
             return;
         }
 
@@ -626,6 +744,184 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
         setSearch('');
         setSearchResults([]);
         await loadMessages(data.conversation);
+    }
+
+    function resetGroupComposer() {
+        setGroupComposerOpen(false);
+        setGroupName('');
+        setGroupSearch('');
+        setGroupSearchResults([]);
+        setSelectedGroupUsers([]);
+        setGroupError(null);
+    }
+
+    function toggleSelectedGroupUser(user: MessengerUser) {
+        setSelectedGroupUsers((current) => (
+            current.some((selected) => selected.id === user.id)
+                ? current.filter((selected) => selected.id !== user.id)
+                : [...current, user]
+        ));
+    }
+
+    async function createGroupConversation() {
+        const name = groupName.trim();
+
+        if (!name || selectedGroupUsers.length === 0 || groupSaving) {
+            setGroupError(!name ? 'Group name is required' : 'Select at least one teammate');
+
+            return;
+        }
+
+        setGroupSaving(true);
+        setGroupError(null);
+
+        try {
+            const response = await fetch('/messenger/conversations/groups', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: csrfHeaders({ 'Content-Type': 'application/json' }),
+                body: JSON.stringify({
+                    name,
+                    user_ids: selectedGroupUsers.map((user) => user.id),
+                }),
+            });
+
+            if (!response.ok) {
+                setGroupError(await responseError(response, 'Unable to create this group'));
+
+                return;
+            }
+
+            const data = (await response.json()) as { conversation: MessengerConversation; unread_total: number };
+            setConversations((current) => upsertConversation(current, data.conversation));
+            setUnreadTotal(data.unread_total ?? 0);
+            resetGroupComposer();
+            await loadMessages(data.conversation);
+        } finally {
+            setGroupSaving(false);
+        }
+    }
+
+    async function renameGroupConversation(name: string) {
+        if (!activeConversation || activeConversation.type !== 'group') {
+            return;
+        }
+
+        setGroupSaving(true);
+        setGroupError(null);
+
+        try {
+            const response = await fetch(`/messenger/conversations/${activeConversation.id}/group`, {
+                method: 'PATCH',
+                credentials: 'same-origin',
+                headers: csrfHeaders({ 'Content-Type': 'application/json' }),
+                body: JSON.stringify({ name: name.trim() }),
+            });
+
+            if (!response.ok) {
+                setGroupError(await responseError(response, 'Unable to rename this group'));
+
+                return;
+            }
+
+            const data = (await response.json()) as { conversation: MessengerConversation };
+            setConversations((current) => upsertConversation(current, data.conversation));
+            setActiveConversation(data.conversation);
+        } finally {
+            setGroupSaving(false);
+        }
+    }
+
+    async function addGroupMember(user: MessengerUser) {
+        if (!activeConversation || activeConversation.type !== 'group' || groupSaving) {
+            return;
+        }
+
+        setGroupSaving(true);
+        setGroupError(null);
+
+        try {
+            const response = await fetch(`/messenger/conversations/${activeConversation.id}/members`, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: csrfHeaders({ 'Content-Type': 'application/json' }),
+                body: JSON.stringify({ user_ids: [user.id] }),
+            });
+
+            if (!response.ok) {
+                setGroupError(await responseError(response, 'Unable to add this member'));
+
+                return;
+            }
+
+            const data = (await response.json()) as { conversation: MessengerConversation };
+            setConversations((current) => upsertConversation(current, data.conversation));
+            setActiveConversation(data.conversation);
+            setGroupSearch('');
+            setGroupSearchResults([]);
+        } finally {
+            setGroupSaving(false);
+        }
+    }
+
+    async function removeGroupMember(user: MessengerUser) {
+        if (!activeConversation || activeConversation.type !== 'group' || groupSaving) {
+            return;
+        }
+
+        setGroupSaving(true);
+        setGroupError(null);
+
+        try {
+            const response = await fetch(`/messenger/conversations/${activeConversation.id}/members/${user.id}`, {
+                method: 'DELETE',
+                credentials: 'same-origin',
+                headers: csrfHeaders(),
+            });
+
+            if (!response.ok) {
+                setGroupError(await responseError(response, 'Unable to remove this member'));
+
+                return;
+            }
+
+            const data = (await response.json()) as { conversation: MessengerConversation };
+            setConversations((current) => upsertConversation(current, data.conversation));
+            setActiveConversation(data.conversation);
+        } finally {
+            setGroupSaving(false);
+        }
+    }
+
+    async function deleteGroupConversation() {
+        if (!activeConversation || activeConversation.type !== 'group' || groupSaving || !window.confirm('Delete this group for everyone?')) {
+            return;
+        }
+
+        setGroupSaving(true);
+        setGroupError(null);
+
+        try {
+            const response = await fetch(`/messenger/conversations/${activeConversation.id}`, {
+                method: 'DELETE',
+                credentials: 'same-origin',
+                headers: csrfHeaders(),
+            });
+
+            if (!response.ok) {
+                setGroupError(await responseError(response, 'Unable to delete this group'));
+
+                return;
+            }
+
+            const deletedId = activeConversation.id;
+            setConversations((current) => current.filter((conversation) => conversation.id !== deletedId));
+            setActiveConversation(null);
+            setMessages([]);
+            setGroupManageOpen(false);
+        } finally {
+            setGroupSaving(false);
+        }
     }
 
     async function sendMessage(quickBody?: string) {
@@ -648,6 +944,7 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
 
             if (!response.ok) {
                 setSendError(await responseError(response, 'Unable to send this message'));
+
                 return;
             }
 
@@ -688,6 +985,7 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
 
         if (!response.ok) {
             toast.error(await responseError(response, 'Unable to edit this message'));
+
             return;
         }
 
@@ -711,6 +1009,7 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
 
         if (!response.ok) {
             toast.error(await responseError(response, 'Unable to delete this message'));
+
             return;
         }
 
@@ -785,6 +1084,7 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
         if (supportError) {
             setCallError(supportError);
             toast.error(supportError);
+
             return;
         }
 
@@ -798,18 +1098,29 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
 
             if (!response.ok) {
                 toast.error(await responseError(response, 'Unable to start this call'));
+
                 return;
             }
 
             const data = (await response.json()) as { call: MessengerCall };
             getEcho()?.private(`messenger.call.${data.call.id}`);
             setActiveCall(data.call);
-            setCallStatus('ringing');
+            setCallStatus(isGroupCall(data.call) ? 'connecting' : 'ringing');
             await waitForCallSubscription(data.call.id);
-            startRingtone('outgoing');
+
+            if (!isGroupCall(data.call)) {
+                startRingtone('outgoing');
+            }
 
             try {
-                await preparePeerConnection(data.call);
+                if (isGroupCall(data.call)) {
+                    await prepareGroupCall(data.call);
+                    whisperCall(data.call.id, 'mesh-ready', {});
+                    createOffersForJoinedPeers(data.call);
+                    setCallStatus('connected');
+                } else {
+                    await preparePeerConnection(data.call);
+                }
             } catch (error) {
                 const message = callErrorMessage(error);
                 setCallError(message);
@@ -818,7 +1129,7 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
                     method: 'PATCH',
                     credentials: 'same-origin',
                     headers: csrfHeaders({ 'Content-Type': 'application/json' }),
-                    body: JSON.stringify({ status: 'ended' }),
+                    body: JSON.stringify({ status: isGroupCall(data.call) ? 'left' : 'ended' }),
                 });
                 cleanupCallMedia();
             }
@@ -843,18 +1154,25 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
             toast.error(supportError);
             await declineCall(call);
             cleanupCallMedia();
+
             return;
         }
 
         try {
             await waitForCallSubscription(call.id);
-            await preparePeerConnection(call);
+
+            if (isGroupCall(call)) {
+                await prepareGroupCall(call);
+            } else {
+                await preparePeerConnection(call);
+            }
         } catch (error) {
             const message = callErrorMessage(error);
             setCallError(message);
             toast.error(message);
             await declineCall(call);
             cleanupCallMedia();
+
             return;
         }
 
@@ -868,13 +1186,21 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
 
             if (!response.ok) {
                 toast.error(await responseError(response, 'Unable to accept this call'));
+
                 return;
             }
 
             const data = (await response.json()) as { call: MessengerCall };
             setActiveCall(data.call);
             setCallStatus('connecting');
-            whisperCall(data.call.id, 'call-ready', {});
+
+            if (isGroupCall(data.call)) {
+                whisperCall(data.call.id, 'mesh-ready', {});
+                createOffersForJoinedPeers(data.call);
+                setCallStatus('connected');
+            } else {
+                whisperCall(data.call.id, 'call-ready', {});
+            }
         } catch (error) {
             setCallError(callErrorMessage(error));
         }
@@ -904,6 +1230,22 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
             method: 'PATCH',
             credentials: 'same-origin',
             headers: csrfHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({ status: isGroupCall(call) ? 'left' : 'ended' }),
+        });
+    }
+
+    async function endCallForEveryone() {
+        const call = activeCallRef.current;
+        cleanupCallMedia();
+
+        if (!call || !currentUser?.id || call.started_by !== currentUser.id || !isGroupCall(call)) {
+            return;
+        }
+
+        await fetch(`/messenger/conversations/${call.conversation_id}/calls/${call.id}`, {
+            method: 'PATCH',
+            credentials: 'same-origin',
+            headers: csrfHeaders({ 'Content-Type': 'application/json' }),
             body: JSON.stringify({ status: 'ended' }),
         });
     }
@@ -915,6 +1257,36 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
 
         const currentCall = activeCallRef.current;
 
+        if (isGroupCall(call)) {
+            const currentParticipant = call.participants?.[String(currentUser.id)];
+
+            if (call.status === 'accepted' && currentParticipant?.status === 'invited' && !currentCall) {
+                setIncomingCall(call);
+                startRingtone('incoming');
+                toast.message(`${call.starter.name} started a group ${call.type} call`, {
+                    description: `${call.joined_count ?? 1}/${call.max_participants ?? 0} participants joined`,
+                    action: {
+                        label: 'Join',
+                        onClick: () => void acceptCall(call),
+                    },
+                });
+
+                return;
+            }
+
+            if (currentCall?.id !== call.id) {
+                return;
+            }
+
+            setActiveCall(call);
+
+            if (call.status === 'ended') {
+                cleanupCallMedia();
+            }
+
+            return;
+        }
+
         if (call.status === 'ringing' && call.callee_id === currentUser.id && !currentCall) {
             setIncomingCall(call);
             startRingtone('incoming');
@@ -925,6 +1297,7 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
                     onClick: () => void acceptCall(call),
                 },
             });
+
             return;
         }
 
@@ -956,16 +1329,9 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
             return peerConnectionRef.current;
         }
 
-        if (!navigator.mediaDevices?.getUserMedia) {
-            throw new Error('Calls are not available in this browser.');
-        }
-
-        const stream = await navigator.mediaDevices.getUserMedia({
-            audio: true,
-            video: call.type === 'video',
-        });
+        const stream = await getLocalCallStream(call);
         const peerConnection = new RTCPeerConnection({
-            iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+            iceServers,
         });
 
         stream.getTracks().forEach((track) => {
@@ -1002,6 +1368,88 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
         return peerConnection;
     }
 
+    async function getLocalCallStream(call: MessengerCall): Promise<MediaStream> {
+        if (localStreamRef.current) {
+            return localStreamRef.current;
+        }
+
+        if (!navigator.mediaDevices?.getUserMedia) {
+            throw new Error('Calls are not available in this browser.');
+        }
+
+        const stream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+            video: call.type === 'video',
+        });
+
+        localStreamRef.current = stream;
+        setLocalStream(stream);
+        setCallMuted(false);
+        setCameraOff(false);
+
+        return stream;
+    }
+
+    async function prepareGroupCall(call: MessengerCall): Promise<void> {
+        await getLocalCallStream(call);
+    }
+
+    async function prepareGroupPeerConnection(call: MessengerCall, peerId: number): Promise<RTCPeerConnection> {
+        const existing = groupPeerConnectionsRef.current[peerId];
+
+        if (existing) {
+            return existing;
+        }
+
+        const stream = await getLocalCallStream(call);
+        const peerConnection = new RTCPeerConnection({ iceServers });
+
+        stream.getTracks().forEach((track) => {
+            peerConnection.addTrack(track, stream);
+        });
+
+        peerConnection.onicecandidate = (event) => {
+            if (event.candidate) {
+                whisperCall(call.id, 'mesh-ice-candidate', {
+                    target: peerId,
+                    candidate: event.candidate.toJSON(),
+                });
+            }
+        };
+
+        peerConnection.ontrack = (event) => {
+            const [stream] = event.streams;
+
+            if (stream) {
+                setRemoteStreams((current) => ({
+                    ...current,
+                    [peerId]: stream,
+                }));
+                setCallStatus('connected');
+            }
+        };
+
+        peerConnection.onconnectionstatechange = () => {
+            if (peerConnection.connectionState === 'connected') {
+                setCallStatus('connected');
+            }
+
+            if (['failed', 'closed', 'disconnected'].includes(peerConnection.connectionState)) {
+                setRemoteStreams((current) => {
+                    const next = { ...current };
+                    delete next[peerId];
+
+                    return next;
+                });
+            }
+        };
+
+        groupPeerConnectionsRef.current[peerId] = peerConnection;
+        pendingGroupIceCandidatesRef.current[peerId] = pendingGroupIceCandidatesRef.current[peerId] ?? [];
+
+        return peerConnection;
+    }
+
     async function createAndSendOffer(call: MessengerCall) {
         const peerConnection = await preparePeerConnection(call);
         startedOfferForCallRef.current = call.id;
@@ -1033,6 +1481,7 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
         if (peerConnection.localDescription) {
             whisperCall(call.id, 'webrtc-answer', { sdp: peerConnection.localDescription });
         }
+
         setCallStatus('connecting');
     }
 
@@ -1055,6 +1504,7 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
 
         if (!peerConnection?.remoteDescription) {
             pendingIceCandidatesRef.current.push(payload.candidate);
+
             return;
         }
 
@@ -1075,12 +1525,137 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
         await createAndSendOffer(call);
     }
 
+    async function handleMeshReady(payload: MeshReadyPayload) {
+        if (!currentUser?.id || payload.from === currentUser.id || (payload.target && payload.target !== currentUser.id)) {
+            return;
+        }
+
+        const call = activeCallRef.current;
+
+        if (!call || !isGroupCall(call) || call.status !== 'accepted') {
+            return;
+        }
+
+        const participant = call.participants?.[String(currentUser.id)];
+
+        if (participant?.status !== 'joined') {
+            return;
+        }
+
+        if (currentUser.id < payload.from) {
+            await createAndSendMeshOffer(call, payload.from);
+        }
+    }
+
+    async function createAndSendMeshOffer(call: MessengerCall, peerId: number) {
+        if (startedGroupOffersRef.current.has(peerId)) {
+            return;
+        }
+
+        startedGroupOffersRef.current.add(peerId);
+        const peerConnection = await prepareGroupPeerConnection(call, peerId);
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+
+        if (peerConnection.localDescription) {
+            whisperCall(call.id, 'mesh-offer', {
+                target: peerId,
+                sdp: peerConnection.localDescription,
+            });
+        }
+    }
+
+    async function handleMeshOffer(payload: WebRtcSessionPayload) {
+        if (!currentUser?.id || payload.from === currentUser.id || payload.target !== currentUser.id) {
+            return;
+        }
+
+        const call = activeCallRef.current;
+
+        if (!call || !isGroupCall(call)) {
+            return;
+        }
+
+        const peerConnection = await prepareGroupPeerConnection(call, payload.from);
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+        await flushPendingGroupIceCandidates(peerConnection, payload.from);
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+
+        if (peerConnection.localDescription) {
+            whisperCall(call.id, 'mesh-answer', {
+                target: payload.from,
+                sdp: peerConnection.localDescription,
+            });
+        }
+    }
+
+    async function handleMeshAnswer(payload: WebRtcSessionPayload) {
+        if (!currentUser?.id || payload.from === currentUser.id || payload.target !== currentUser.id) {
+            return;
+        }
+
+        const peerConnection = groupPeerConnectionsRef.current[payload.from];
+
+        if (!peerConnection) {
+            return;
+        }
+
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+        await flushPendingGroupIceCandidates(peerConnection, payload.from);
+    }
+
+    async function handleMeshIceCandidate(payload: WebRtcIcePayload) {
+        if (!currentUser?.id || payload.from === currentUser.id || payload.target !== currentUser.id || !payload.candidate) {
+            return;
+        }
+
+        const peerConnection = groupPeerConnectionsRef.current[payload.from];
+
+        if (!peerConnection?.remoteDescription) {
+            pendingGroupIceCandidatesRef.current[payload.from] = [
+                ...(pendingGroupIceCandidatesRef.current[payload.from] ?? []),
+                payload.candidate,
+            ];
+
+            return;
+        }
+
+        await peerConnection.addIceCandidate(new RTCIceCandidate(payload.candidate));
+    }
+
+    function createOffersForJoinedPeers(call: MessengerCall) {
+        if (!currentUser?.id || !isGroupCall(call)) {
+            return;
+        }
+
+        Object.values(call.participants ?? {}).forEach((participant) => {
+            if (
+                participant.status === 'joined'
+                && participant.user_id !== currentUser.id
+                && currentUser.id < participant.user_id
+            ) {
+                window.setTimeout(() => {
+                    void createAndSendMeshOffer(call, participant.user_id);
+                }, 350);
+            }
+        });
+    }
+
     async function flushPendingIceCandidates(peerConnection: RTCPeerConnection) {
         for (const candidate of pendingIceCandidatesRef.current) {
             await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
         }
 
         pendingIceCandidatesRef.current = [];
+    }
+
+    async function flushPendingGroupIceCandidates(peerConnection: RTCPeerConnection, peerId: number) {
+        for (const candidate of pendingGroupIceCandidatesRef.current[peerId] ?? []) {
+            await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+        }
+
+        pendingGroupIceCandidatesRef.current[peerId] = [];
     }
 
     function whisperCall(callId: number, event: string, payload: Record<string, unknown>) {
@@ -1107,19 +1682,18 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
 
         await new Promise<void>((resolve) => {
             let settled = false;
-            let timeout: number | undefined;
             const finish = () => {
                 if (settled) {
                     return;
                 }
 
                 settled = true;
-                if (timeout) {
-                    window.clearTimeout(timeout);
-                }
+
+                window.clearTimeout(timeout);
+
                 resolve();
             };
-            timeout = window.setTimeout(finish, 700);
+            const timeout = window.setTimeout(finish, 700);
 
             if (typeof channel.subscribed === 'function') {
                 channel.subscribed(finish);
@@ -1194,12 +1768,17 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
         stopRingtone();
         peerConnectionRef.current?.close();
         peerConnectionRef.current = null;
+        Object.values(groupPeerConnectionsRef.current).forEach((peerConnection) => peerConnection.close());
+        groupPeerConnectionsRef.current = {};
         pendingIceCandidatesRef.current = [];
+        pendingGroupIceCandidatesRef.current = {};
         startedOfferForCallRef.current = null;
+        startedGroupOffersRef.current = new Set();
         localStreamRef.current?.getTracks().forEach((track) => track.stop());
         localStreamRef.current = null;
         setLocalStream(null);
         setRemoteStream(null);
+        setRemoteStreams({});
         setActiveCall(null);
         setIncomingCall(null);
         setCallMuted(false);
@@ -1211,18 +1790,21 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
         if (!canUseDesktopNotifications()) {
             setDesktopNotificationPermission('unsupported');
             toast.error('Desktop notifications are unavailable on this browser or URL.');
+
             return;
         }
 
         if (Notification.permission === 'granted') {
             setDesktopNotificationPermission('granted');
             toast.success('Desktop notifications are enabled.');
+
             return;
         }
 
         if (Notification.permission === 'denied') {
             setDesktopNotificationPermission('denied');
             toast.error('Desktop notifications are blocked. Enable them in your browser site settings.');
+
             return;
         }
 
@@ -1245,9 +1827,11 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
             <ChatHeader
                 conversation={activeConversation}
                 calling={Boolean(activeCall)}
+                currentUserId={currentUser.id}
                 onlineUserIds={onlineUserIds}
                 onBack={() => setActiveConversation(null)}
                 onClose={!fullscreen ? () => setOpen(false) : undefined}
+                onManageGroup={activeConversation.type === 'group' && activeConversation.is_creator ? () => setGroupManageOpen(true) : undefined}
                 onStartCall={startCall}
             />
 
@@ -1281,9 +1865,9 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
                 )}
             </div>
 
-            {typingName && (
+            {typingText && (
                 <div className="border-t border-primary/10 bg-white px-4 py-1.5 text-xs font-medium text-gray-400">
-                    {typingName} is typing...
+                    {typingText}
                 </div>
             )}
 
@@ -1337,6 +1921,10 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
                 title={fullscreen ? 'Messages' : 'Discussions'}
                 notificationPermission={desktopNotificationPermission}
                 onEnableNotifications={requestDesktopNotifications}
+                onCreateGroup={() => {
+                    setGroupComposerOpen(true);
+                    setGroupError(null);
+                }}
                 onExpand={!fullscreen ? () => router.visit('/messages') : undefined}
                 onClose={!fullscreen ? () => setOpen(false) : undefined}
             />
@@ -1367,6 +1955,7 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
                     <ConversationList
                         conversations={sortedConversations}
                         activeId={activeId ?? undefined}
+                        currentUserId={currentUser.id}
                         onlineUserIds={onlineUserIds}
                         loading={loadingConversations}
                         onSelect={loadMessages}
@@ -1382,6 +1971,48 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
             y={messageMenu.y}
             onEdit={() => editMenuMessage(menuMessage)}
             onDelete={() => deleteMenuMessage(menuMessage)}
+        />
+    ) : null;
+
+    const groupComposer = groupComposerOpen ? (
+        <GroupComposer
+            name={groupName}
+            search={groupSearch}
+            users={groupSearchResults}
+            selectedUsers={selectedGroupUsers}
+            searching={groupSearching}
+            saving={groupSaving}
+            error={groupError}
+            onlineUserIds={onlineUserIds}
+            onNameChange={setGroupName}
+            onSearchChange={setGroupSearch}
+            onToggleUser={toggleSelectedGroupUser}
+            onCreate={() => void createGroupConversation()}
+            onClose={resetGroupComposer}
+        />
+    ) : null;
+
+    const groupManager = groupManageOpen && activeConversation?.type === 'group' ? (
+        <GroupManager
+            conversation={activeConversation}
+            currentUserId={currentUser.id}
+            search={groupSearch}
+            users={groupSearchResults}
+            searching={groupSearching}
+            saving={groupSaving}
+            error={groupError}
+            onlineUserIds={onlineUserIds}
+            onSearchChange={setGroupSearch}
+            onRename={(name) => void renameGroupConversation(name)}
+            onAddMember={(user) => void addGroupMember(user)}
+            onRemoveMember={(user) => void removeGroupMember(user)}
+            onDelete={() => void deleteGroupConversation()}
+            onClose={() => {
+                setGroupManageOpen(false);
+                setGroupSearch('');
+                setGroupSearchResults([]);
+                setGroupError(null);
+            }}
         />
     ) : null;
 
@@ -1411,9 +2042,11 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
                         remoteVideoRef={remoteVideoRef}
                         remoteAudioRef={remoteAudioRef}
                         remoteStream={remoteStream}
+                        remoteStreams={remoteStreams}
                         onToggleMute={toggleMute}
                         onToggleCamera={toggleCamera}
                         onEnd={() => void endCall()}
+                        onEndAll={activeCall.started_by === currentUser.id && isGroupCall(activeCall) ? () => void endCallForEveryone() : undefined}
                     />
                 )}
             </AnimatePresence>
@@ -1425,6 +2058,8 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
             <div className="relative h-full min-h-0 overflow-hidden rounded-2xl border border-primary/10 bg-white text-gray-900 shadow-sm">
                 {panelContent}
                 {contextMenu}
+                {groupComposer}
+                {groupManager}
                 {callPanels}
             </div>
         );
@@ -1445,6 +2080,8 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
                     >
                         {panelContent}
                         {contextMenu}
+                        {groupComposer}
+                        {groupManager}
                     </motion.div>
                 )}
             </AnimatePresence>
@@ -1474,12 +2111,14 @@ function WidgetHeader({
     title,
     notificationPermission,
     onEnableNotifications,
+    onCreateGroup,
     onExpand,
     onClose,
 }: {
     title: string;
     notificationPermission: DesktopNotificationPermission;
     onEnableNotifications: () => Promise<void>;
+    onCreateGroup: () => void;
     onExpand?: () => void;
     onClose?: () => void;
 }) {
@@ -1492,6 +2131,9 @@ function WidgetHeader({
                 <span>{title}</span>
             </div>
             <div className="flex items-center gap-1">
+                <button type="button" onClick={onCreateGroup} className="flex h-9 w-9 items-center justify-center rounded-full text-gray-500 hover:bg-primary/5 hover:text-primary" aria-label="Create group">
+                    <Plus size={18} />
+                </button>
                 <button
                     type="button"
                     onClick={() => void onEnableNotifications()}
@@ -1536,20 +2178,27 @@ function WidgetHeader({
 function ChatHeader({
     conversation,
     calling,
+    currentUserId,
     onlineUserIds,
     onBack,
     onClose,
+    onManageGroup,
     onStartCall,
 }: {
     conversation: MessengerConversation;
     calling: boolean;
+    currentUserId: number;
     onlineUserIds: Set<number>;
     onBack: () => void;
     onClose?: () => void;
+    onManageGroup?: () => void;
     onStartCall: (type: MessengerCall['type']) => void;
 }) {
     const user = conversation.other_user;
     const online = isMessengerUserOnline(user, onlineUserIds);
+    const isGroup = conversation.type === 'group';
+    const title = conversationTitle(conversation);
+    const subtitle = isGroup ? `${conversation.participants.length} members` : messengerStatusText(user, online);
 
     return (
         <div className="flex h-14 items-center justify-between border-b border-primary/10 bg-white px-3">
@@ -1557,31 +2206,63 @@ function ChatHeader({
                 <button onClick={onBack} className="flex h-8 w-8 items-center justify-center rounded-full text-gray-500 hover:bg-primary/5 hover:text-primary" aria-label="Back to conversations">
                     <ArrowLeft size={16} />
                 </button>
-                <Avatar user={user} online={online} />
+                <ConversationAvatar conversation={conversation} currentUserId={currentUserId} online={online} />
                 <div className="min-w-0">
-                    <div className="truncate text-base font-bold text-gray-900">{user?.name ?? 'Conversation'}</div>
-                    <div className={`truncate text-xs ${online ? 'font-semibold text-green-600' : 'text-gray-400'}`}>{messengerStatusText(user, online)}</div>
+                    <div className="truncate text-base font-bold text-gray-900">{title}</div>
+                    <div className={`truncate text-xs ${online && !isGroup ? 'font-semibold text-green-600' : 'text-gray-400'}`}>{subtitle}</div>
                 </div>
             </div>
             <div className="flex items-center gap-1 text-primary">
-                <button
-                    type="button"
-                    onClick={() => onStartCall('audio')}
-                    disabled={calling}
-                    className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-40"
-                    aria-label="Start audio call"
-                >
-                    <Phone size={18} />
-                </button>
-                <button
-                    type="button"
-                    onClick={() => onStartCall('video')}
-                    disabled={calling}
-                    className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-40"
-                    aria-label="Start video call"
-                >
-                    <Video size={18} />
-                </button>
+                {isGroup ? (
+                    <>
+                        <button
+                            type="button"
+                            onClick={() => onStartCall('audio')}
+                            disabled={calling || conversation.participants.length > 8}
+                            className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-40"
+                            aria-label="Start group audio call"
+                            title={conversation.participants.length > 8 ? 'Audio group calls support up to 8 people' : 'Start group audio call'}
+                        >
+                            <Phone size={18} />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => onStartCall('video')}
+                            disabled={calling || conversation.participants.length > 4}
+                            className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-40"
+                            aria-label="Start group video call"
+                            title={conversation.participants.length > 4 ? 'Video group calls support up to 4 people' : 'Start group video call'}
+                        >
+                            <Video size={18} />
+                        </button>
+                    </>
+                ) : (
+                    <>
+                        <button
+                            type="button"
+                            onClick={() => onStartCall('audio')}
+                            disabled={calling}
+                            className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-40"
+                            aria-label="Start audio call"
+                        >
+                            <Phone size={18} />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => onStartCall('video')}
+                            disabled={calling}
+                            className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-40"
+                            aria-label="Start video call"
+                        >
+                            <Video size={18} />
+                        </button>
+                    </>
+                )}
+                {onManageGroup && (
+                    <button type="button" onClick={onManageGroup} className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-primary/5" aria-label="Manage group">
+                        <MoreHorizontal size={18} />
+                    </button>
+                )}
                 {onClose && (
                     <button type="button" onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-primary/5" aria-label="Close messages">
                         <X size={22} />
@@ -1595,12 +2276,14 @@ function ChatHeader({
 function ConversationList({
     conversations,
     activeId,
+    currentUserId,
     onlineUserIds,
     loading,
     onSelect,
 }: {
     conversations: MessengerConversation[];
     activeId?: number;
+    currentUserId: number;
     onlineUserIds: Set<number>;
     loading: boolean;
     onSelect: (conversation: MessengerConversation) => Promise<void>;
@@ -1617,6 +2300,10 @@ function ConversationList({
         <div className="space-y-1">
             {conversations.map((conversation) => {
                 const online = isMessengerUserOnline(conversation.other_user, onlineUserIds);
+                const title = conversationTitle(conversation);
+                const status = conversation.type === 'group'
+                    ? `${conversation.participants.length} members`
+                    : messengerStatusText(conversation.other_user, online);
 
                 return (
                     <button
@@ -1624,10 +2311,10 @@ function ConversationList({
                         onClick={() => void onSelect(conversation)}
                         className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition hover:bg-primary/5 ${activeId === conversation.id ? 'bg-primary/8' : ''}`}
                     >
-                        <Avatar user={conversation.other_user} size="lg" online={online} />
+                        <ConversationAvatar conversation={conversation} currentUserId={currentUserId} size="lg" online={online} />
                         <div className="min-w-0 flex-1">
                             <div className="flex items-center justify-between gap-2">
-                                <span className="truncate text-[15px] font-semibold text-gray-900">{conversation.other_user?.name ?? 'Conversation'}</span>
+                                <span className="truncate text-[15px] font-semibold text-gray-900">{title}</span>
                                 {conversation.unread_count > 0 && (
                                     <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-black text-white">
                                         {conversation.unread_count > 9 ? '9+' : conversation.unread_count}
@@ -1635,7 +2322,7 @@ function ConversationList({
                                 )}
                             </div>
                             <p className={`mt-0.5 truncate text-sm ${conversation.unread_count > 0 ? 'font-semibold text-primary' : 'text-gray-500'}`}>
-                                <span className={online ? 'text-green-600' : ''}>{messengerStatusText(conversation.other_user, online)}</span>
+                                <span className={online && conversation.type === 'direct' ? 'text-green-600' : ''}>{status}</span>
                                 <span className="text-gray-300"> · </span>
                                 {conversation.last_message?.body ? previewText(conversation.last_message.body) : 'No messages yet'}
                             </p>
@@ -1691,6 +2378,273 @@ function UserSearchResults({
     );
 }
 
+function GroupComposer({
+    name,
+    search,
+    users,
+    selectedUsers,
+    searching,
+    saving,
+    error,
+    onlineUserIds,
+    onNameChange,
+    onSearchChange,
+    onToggleUser,
+    onCreate,
+    onClose,
+}: {
+    name: string;
+    search: string;
+    users: MessengerUser[];
+    selectedUsers: MessengerUser[];
+    searching: boolean;
+    saving: boolean;
+    error: string | null;
+    onlineUserIds: Set<number>;
+    onNameChange: (value: string) => void;
+    onSearchChange: (value: string) => void;
+    onToggleUser: (user: MessengerUser) => void;
+    onCreate: () => void;
+    onClose: () => void;
+}) {
+    const selectedIds = new Set(selectedUsers.map((user) => user.id));
+
+    return (
+        <div className="absolute inset-0 z-[70] bg-white">
+            <div className="flex h-full flex-col">
+                <div className="flex h-14 items-center justify-between border-b border-primary/10 px-3">
+                    <div className="flex items-center gap-2 text-base font-black text-gray-900">
+                        <Users size={18} className="text-primary" />
+                        New group
+                    </div>
+                    <button type="button" onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-full text-gray-500 hover:bg-primary/5" aria-label="Close group creator">
+                        <X size={16} />
+                    </button>
+                </div>
+
+                <div className="space-y-3 border-b border-primary/10 p-3">
+                    <input
+                        value={name}
+                        onChange={(event) => onNameChange(event.target.value.slice(0, 80))}
+                        className="h-10 w-full rounded-xl border border-primary/15 px-3 text-sm font-semibold outline-none focus:border-primary/40"
+                        placeholder="Group name"
+                    />
+                    <label className="flex h-10 items-center gap-2 rounded-xl bg-primary/8 px-3 text-sm text-gray-500 ring-1 ring-primary/10 focus-within:bg-white focus-within:ring-primary/30">
+                        <Search size={16} />
+                        <input
+                            value={search}
+                            onChange={(event) => onSearchChange(event.target.value)}
+                            className="min-w-0 flex-1 bg-transparent text-sm text-gray-900 outline-none placeholder:text-gray-400"
+                            placeholder="Add teammates"
+                        />
+                        {searching && <Loader2 size={14} className="animate-spin" />}
+                    </label>
+                    {selectedUsers.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                            {selectedUsers.map((user) => (
+                                <button
+                                    key={user.id}
+                                    type="button"
+                                    onClick={() => onToggleUser(user)}
+                                    className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary hover:bg-primary/15"
+                                >
+                                    {user.name}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                    {error && <div className="rounded-lg bg-red-500/10 px-3 py-2 text-xs font-medium text-red-500">{error}</div>}
+                </div>
+
+                <div className="min-h-0 flex-1 overflow-y-auto p-2">
+                    {search.trim().length === 0 ? (
+                        <div className="px-6 py-12 text-center text-sm text-gray-400">Search teammates to add them</div>
+                    ) : users.length === 0 && !searching ? (
+                        <div className="px-6 py-12 text-center text-sm text-gray-400">No matching teammates</div>
+                    ) : (
+                        <div className="space-y-1">
+                            {users.map((user) => {
+                                const selected = selectedIds.has(user.id);
+                                const online = isMessengerUserOnline(user, onlineUserIds);
+
+                                return (
+                                    <button key={user.id} type="button" onClick={() => onToggleUser(user)} className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left hover:bg-primary/5">
+                                        <Avatar user={user} size="lg" online={online} />
+                                        <div className="min-w-0 flex-1">
+                                            <div className="truncate text-sm font-bold text-gray-900">{user.name}</div>
+                                            <div className={`truncate text-xs ${online ? 'font-semibold text-green-600' : 'text-gray-400'}`}>{messengerStatusText(user, online)}</div>
+                                        </div>
+                                        <span className={`flex h-6 w-6 items-center justify-center rounded-full ${selected ? 'bg-primary text-white' : 'bg-primary/8 text-primary'}`}>
+                                            {selected ? <Check size={14} /> : <Plus size={14} />}
+                                        </span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+
+                <div className="border-t border-primary/10 p-3">
+                    <button
+                        type="button"
+                        onClick={onCreate}
+                        disabled={saving || name.trim().length === 0 || selectedUsers.length === 0}
+                        className="flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-primary text-sm font-bold text-white shadow-lg shadow-primary/20 hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                        {saving ? <Loader2 size={16} className="animate-spin" /> : <Users size={16} />}
+                        Create group
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function GroupManager({
+    conversation,
+    currentUserId,
+    search,
+    users,
+    searching,
+    saving,
+    error,
+    onlineUserIds,
+    onSearchChange,
+    onRename,
+    onAddMember,
+    onRemoveMember,
+    onDelete,
+    onClose,
+}: {
+    conversation: MessengerConversation;
+    currentUserId: number;
+    search: string;
+    users: MessengerUser[];
+    searching: boolean;
+    saving: boolean;
+    error: string | null;
+    onlineUserIds: Set<number>;
+    onSearchChange: (value: string) => void;
+    onRename: (name: string) => void;
+    onAddMember: (user: MessengerUser) => void;
+    onRemoveMember: (user: MessengerUser) => void;
+    onDelete: () => void;
+    onClose: () => void;
+}) {
+    const [name, setName] = useState(conversation.name ?? '');
+    const participantIds = new Set(conversation.participants.map((user) => user.id));
+    const candidates = users.filter((user) => !participantIds.has(user.id));
+
+    return (
+        <div className="absolute inset-0 z-[70] bg-white">
+            <div className="flex h-full flex-col">
+                <div className="flex h-14 items-center justify-between border-b border-primary/10 px-3">
+                    <div className="flex items-center gap-2 text-base font-black text-gray-900">
+                        <Users size={18} className="text-primary" />
+                        Group settings
+                    </div>
+                    <button type="button" onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-full text-gray-500 hover:bg-primary/5" aria-label="Close group settings">
+                        <X size={16} />
+                    </button>
+                </div>
+
+                <div className="min-h-0 flex-1 overflow-y-auto p-3">
+                    <div className="space-y-2">
+                        <div className="text-xs font-bold uppercase text-gray-400">Name</div>
+                        <div className="flex gap-2">
+                            <input
+                                value={name}
+                                onChange={(event) => setName(event.target.value.slice(0, 80))}
+                                className="h-10 min-w-0 flex-1 rounded-xl border border-primary/15 px-3 text-sm font-semibold outline-none focus:border-primary/40"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => onRename(name)}
+                                disabled={saving || name.trim().length === 0 || name.trim() === (conversation.name ?? '')}
+                                className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-white disabled:cursor-not-allowed disabled:opacity-40"
+                                aria-label="Rename group"
+                            >
+                                {saving ? <Loader2 size={15} className="animate-spin" /> : <Check size={16} />}
+                            </button>
+                        </div>
+                    </div>
+
+                    {error && <div className="mt-3 rounded-lg bg-red-500/10 px-3 py-2 text-xs font-medium text-red-500">{error}</div>}
+
+                    <div className="mt-5 space-y-2">
+                        <div className="text-xs font-bold uppercase text-gray-400">Members</div>
+                        <div className="space-y-1">
+                            {conversation.participants.map((user) => {
+                                const removable = user.id !== currentUserId;
+
+                                return (
+                                    <div key={user.id} className="flex items-center gap-2 rounded-xl px-2 py-2">
+                                        <Avatar user={user} online={isMessengerUserOnline(user, onlineUserIds)} />
+                                        <div className="min-w-0 flex-1">
+                                            <div className="truncate text-sm font-bold text-gray-900">{user.name}</div>
+                                            <div className="truncate text-xs text-gray-400">{user.id === currentUserId ? 'Creator' : 'Member'}</div>
+                                        </div>
+                                        {removable && (
+                                            <button
+                                                type="button"
+                                                onClick={() => onRemoveMember(user)}
+                                                disabled={saving}
+                                                className="flex h-8 w-8 items-center justify-center rounded-full text-red-500 hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-40"
+                                                aria-label={`Remove ${user.name}`}
+                                            >
+                                                <UserMinus size={15} />
+                                            </button>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    <div className="mt-5 space-y-2">
+                        <div className="text-xs font-bold uppercase text-gray-400">Add members</div>
+                        <label className="flex h-10 items-center gap-2 rounded-xl bg-primary/8 px-3 text-sm text-gray-500 ring-1 ring-primary/10 focus-within:bg-white focus-within:ring-primary/30">
+                            <Search size={16} />
+                            <input
+                                value={search}
+                                onChange={(event) => onSearchChange(event.target.value)}
+                                className="min-w-0 flex-1 bg-transparent text-sm text-gray-900 outline-none placeholder:text-gray-400"
+                                placeholder="Search teammates"
+                            />
+                            {searching && <Loader2 size={14} className="animate-spin" />}
+                        </label>
+                        {search.trim().length > 0 && (
+                            <div className="space-y-1">
+                                {candidates.length === 0 && !searching ? (
+                                    <div className="px-4 py-4 text-center text-sm text-gray-400">No new teammate found</div>
+                                ) : candidates.map((user) => (
+                                    <button key={user.id} type="button" onClick={() => onAddMember(user)} disabled={saving} className="flex w-full items-center gap-2 rounded-xl px-2 py-2 text-left hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-50">
+                                        <Avatar user={user} online={isMessengerUserOnline(user, onlineUserIds)} />
+                                        <span className="min-w-0 flex-1 truncate text-sm font-bold text-gray-900">{user.name}</span>
+                                        <UserPlus size={16} className="text-primary" />
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <div className="border-t border-primary/10 p-3">
+                    <button
+                        type="button"
+                        onClick={onDelete}
+                        disabled={saving}
+                        className="flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-red-50 text-sm font-bold text-red-600 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                        <Trash2 size={16} />
+                        Delete group
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 function IncomingCallCard({
     call,
     currentUserId,
@@ -1703,6 +2657,7 @@ function IncomingCallCard({
     onDecline: () => void;
 }) {
     const caller = callParticipant(call, currentUserId);
+    const group = isGroupCall(call);
 
     return (
         <motion.div
@@ -1717,7 +2672,7 @@ function IncomingCallCard({
                 <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-black text-gray-900">{caller.name}</div>
                     <div className="text-xs font-semibold text-primary">
-                        Incoming {call.type === 'video' ? 'video' : 'audio'} call
+                        Incoming {group ? 'group ' : ''}{call.type === 'video' ? 'video' : 'audio'} call
                     </div>
                 </div>
             </div>
@@ -1754,9 +2709,11 @@ function CallWindow({
     remoteVideoRef,
     remoteAudioRef,
     remoteStream,
+    remoteStreams,
     onToggleMute,
     onToggleCamera,
     onEnd,
+    onEndAll,
 }: {
     call: MessengerCall;
     currentUserId: number;
@@ -1768,12 +2725,20 @@ function CallWindow({
     remoteVideoRef: RefObject<HTMLVideoElement | null>;
     remoteAudioRef: RefObject<HTMLAudioElement | null>;
     remoteStream: MediaStream | null;
+    remoteStreams: Record<number, MediaStream>;
     onToggleMute: () => void;
     onToggleCamera: () => void;
     onEnd: () => void;
+    onEndAll?: () => void;
 }) {
     const otherUser = callParticipant(call, currentUserId);
     const isVideo = call.type === 'video';
+    const group = isGroupCall(call);
+    const participants = group
+        ? Object.values(call.participants ?? {})
+            .filter((participant) => participant.status === 'joined')
+            .sort((first, second) => first.user_id - second.user_id)
+        : [];
     const statusText = error ?? (
         status === 'ringing'
             ? 'Ringing...'
@@ -1794,8 +2759,12 @@ function CallWindow({
                 <div className="flex items-center gap-3">
                     <Avatar user={otherUser} />
                     <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-black">{otherUser.name}</div>
-                        <div className="text-xs font-medium text-white/75">{statusText}</div>
+                        <div className="truncate text-sm font-black">
+                            {group ? 'Group call' : otherUser.name}
+                        </div>
+                        <div className="text-xs font-medium text-white/75">
+                            {group ? `${call.joined_count ?? participants.length}/${call.max_participants ?? participants.length} joined` : statusText}
+                        </div>
                     </div>
                     <div className="rounded-full bg-white/15 px-2.5 py-1 text-xs font-bold">
                         {isVideo ? 'Video' : 'Audio'}
@@ -1804,8 +2773,35 @@ function CallWindow({
             </div>
 
             <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-primary/8">
-                {!isVideo && <audio ref={remoteAudioRef} autoPlay className="hidden" />}
-                {isVideo && remoteStream ? (
+                {!group && !isVideo && <audio ref={remoteAudioRef} autoPlay className="hidden" />}
+                {group ? (
+                    <div className={`grid h-full w-full gap-2 p-2 ${isVideo ? 'grid-cols-2' : 'grid-cols-1 content-center'}`}>
+                        {participants.map((participant) => {
+                            const user = participant.user;
+                            const isLocal = participant.user_id === currentUserId;
+                            const stream = isLocal ? null : remoteStreams[participant.user_id];
+
+                            return (
+                                <div key={participant.user_id} className="relative flex min-h-0 items-center justify-center overflow-hidden rounded-2xl bg-white/75 ring-1 ring-primary/10">
+                                    {!isLocal && stream && isVideo ? (
+                                        <MediaStreamVideo stream={stream} className="h-full w-full object-cover" />
+                                    ) : (
+                                        <div className="flex flex-col items-center gap-2 p-2 text-center">
+                                            <Avatar user={user} size="lg" />
+                                            <div className="max-w-full truncate text-xs font-black text-gray-900">
+                                                {isLocal ? 'You' : user?.name ?? 'Participant'}
+                                            </div>
+                                            <div className="text-[11px] font-semibold text-gray-500">
+                                                {isLocal ? 'Local' : stream ? 'Connected' : 'Connecting'}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {!isLocal && stream && !isVideo && <MediaStreamAudio stream={stream} />}
+                                </div>
+                            );
+                        })}
+                    </div>
+                ) : isVideo && remoteStream ? (
                     <video ref={remoteVideoRef} autoPlay playsInline className="h-full w-full object-cover" />
                 ) : (
                     <div className="flex flex-col items-center gap-3 text-center">
@@ -1857,13 +2853,49 @@ function CallWindow({
                     type="button"
                     onClick={onEnd}
                     className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500 text-white shadow-lg shadow-red-500/25 transition hover:bg-red-600"
-                    aria-label="End call"
+                    aria-label={group ? 'Leave call' : 'End call'}
                 >
                     <PhoneOff size={19} />
                 </button>
+                {onEndAll && (
+                    <button
+                        type="button"
+                        onClick={onEndAll}
+                        className="rounded-full bg-red-50 px-3 py-2 text-xs font-black text-red-600 transition hover:bg-red-100"
+                    >
+                        End all
+                    </button>
+                )}
             </div>
         </motion.div>
     );
+}
+
+function MediaStreamVideo({ stream, className }: { stream: MediaStream; className?: string }) {
+    const ref = useRef<HTMLVideoElement | null>(null);
+
+    useEffect(() => {
+        if (ref.current) {
+            ref.current.srcObject = stream;
+        }
+    }, [stream]);
+
+    return <video ref={ref} autoPlay playsInline className={className} />;
+}
+
+function MediaStreamAudio({ stream }: { stream: MediaStream }) {
+    const ref = useRef<HTMLAudioElement | null>(null);
+
+    useEffect(() => {
+        if (!ref.current) {
+            return;
+        }
+
+        ref.current.srcObject = stream;
+        void ref.current.play().catch(() => undefined);
+    }, [stream]);
+
+    return <audio ref={ref} autoPlay className="hidden" />;
 }
 
 function MessageBubble({
@@ -1981,13 +3013,47 @@ function MessageContextMenu({
     );
 }
 
+function ConversationAvatar({
+    conversation,
+    currentUserId,
+    size = 'md',
+    online = false,
+}: {
+    conversation: MessengerConversation;
+    currentUserId: number;
+    size?: 'md' | 'lg';
+    online?: boolean;
+}) {
+    if (conversation.type === 'direct') {
+        return <Avatar user={conversation.other_user} size={size} online={online} />;
+    }
+
+    const members = conversation.participants
+        .filter((user) => user.id !== currentUserId)
+        .slice(0, 3);
+    const sizeClass = size === 'lg' ? 'h-12 w-12' : 'h-9 w-9';
+
+    return (
+        <div className={`relative grid ${sizeClass} shrink-0 grid-cols-2 grid-rows-2 overflow-hidden rounded-full bg-primary/10 ring-1 ring-primary/10`}>
+            {members.length === 0 ? (
+                <div className="col-span-2 row-span-2 flex items-center justify-center text-primary">
+                    <Users size={size === 'lg' ? 20 : 16} />
+                </div>
+            ) : members.map((member) => (
+                <div key={member.id} className={`${members.length === 1 ? 'col-span-2 row-span-2' : ''} flex items-center justify-center overflow-hidden bg-primary/10 text-[10px] font-black text-primary`}>
+                    {member.avatar ? (
+                        <img src={member.avatar} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                        memberInitials(member.name)
+                    )}
+                </div>
+            ))}
+        </div>
+    );
+}
+
 function Avatar({ user, size = 'md', online = false }: { user?: MessengerUser | null; size?: 'md' | 'lg'; online?: boolean }) {
-    const initials = (user?.name ?? '?')
-        .split(' ')
-        .map((part) => part[0])
-        .join('')
-        .slice(0, 2)
-        .toUpperCase();
+    const initials = memberInitials(user?.name ?? '?');
     const sizeClass = size === 'lg' ? 'h-12 w-12 text-sm' : 'h-9 w-9 text-xs';
     const indicatorClass = size === 'lg' ? 'h-3.5 w-3.5 border-[3px]' : 'h-2.5 w-2.5 border-2';
 
@@ -2003,6 +3069,23 @@ function Avatar({ user, size = 'md', online = false }: { user?: MessengerUser | 
             {online && <span className={`absolute right-0 bottom-0 rounded-full border-white bg-green-500 ${indicatorClass}`} />}
         </div>
     );
+}
+
+function memberInitials(name: string): string {
+    return name
+        .split(' ')
+        .map((part) => part[0])
+        .join('')
+        .slice(0, 2)
+        .toUpperCase();
+}
+
+function conversationTitle(conversation: MessengerConversation): string {
+    if (conversation.type === 'group') {
+        return conversation.name?.trim() || 'Group conversation';
+    }
+
+    return conversation.other_user?.name ?? 'Conversation';
 }
 
 function isMessengerUserOnline(user: MessengerUser | null | undefined, onlineUserIds: Set<number>): boolean {
@@ -2081,8 +3164,46 @@ function messageReadStatus(message: MessengerMessage, otherReadAt: string | null
     return new Date(otherReadAt).getTime() >= new Date(message.created_at).getTime() ? 'Seen' : 'Sent';
 }
 
+function typingIndicatorText(names: string[]): string | null {
+    if (names.length === 0) {
+        return null;
+    }
+
+    if (names.length === 1) {
+        return `${names[0]} is typing...`;
+    }
+
+    if (names.length === 2) {
+        return `${names[0]} and ${names[1]} are typing...`;
+    }
+
+    return 'Several people are typing...';
+}
+
 function callParticipant(call: MessengerCall, currentUserId: number): MessengerUser {
-    return call.started_by === currentUserId ? call.callee : call.starter;
+    if (isGroupCall(call)) {
+        return call.starter;
+    }
+
+    return call.started_by === currentUserId ? (call.callee ?? call.starter) : call.starter;
+}
+
+function isGroupCall(call: MessengerCall): boolean {
+    return call.callee_id === null;
+}
+
+function normalizeIceServers(servers: CallIceServer[] | undefined): RTCIceServer[] {
+    if (!servers?.length) {
+        return [{ urls: 'stun:stun.l.google.com:19302' }];
+    }
+
+    return servers
+        .filter((server) => Boolean(server.urls))
+        .map((server) => ({
+            urls: server.urls,
+            ...(server.username ? { username: server.username } : {}),
+            ...(server.credential ? { credential: server.credential } : {}),
+        }));
 }
 
 function callErrorMessage(error: unknown): string {

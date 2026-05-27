@@ -3,6 +3,7 @@
 namespace App\Events;
 
 use App\Models\MessengerCall;
+use App\Models\MessengerCallParticipant;
 use App\Models\User;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
@@ -20,11 +21,24 @@ class MessengerCallUpdated implements ShouldBroadcastNow
 
     public function broadcastOn(): array
     {
-        return [
+        $channels = [
             new PrivateChannel('messenger.call.'.$this->call->id),
             new PrivateChannel('messenger.user.'.$this->call->started_by),
-            new PrivateChannel('messenger.user.'.$this->call->callee_id),
         ];
+
+        if ($this->call->callee_id !== null) {
+            $channels[] = new PrivateChannel('messenger.user.'.$this->call->callee_id);
+
+            return $channels;
+        }
+
+        $this->call->loadMissing('participants');
+
+        foreach ($this->call->participants as $participant) {
+            $channels[] = new PrivateChannel('messenger.user.'.$participant->user_id);
+        }
+
+        return $channels;
     }
 
     public function broadcastAs(): string
@@ -38,6 +52,7 @@ class MessengerCallUpdated implements ShouldBroadcastNow
             'conversation.participants:id,name,email,avatar,role,last_seen_at',
             'starter:id,name,email,avatar,role,last_seen_at',
             'callee:id,name,email,avatar,role,last_seen_at',
+            'participants.user:id,name,email,avatar,role,last_seen_at',
         ]);
 
         return [
@@ -48,11 +63,26 @@ class MessengerCallUpdated implements ShouldBroadcastNow
                 'callee_id' => $this->call->callee_id,
                 'type' => $this->call->type,
                 'status' => $this->call->status,
+                'room_key' => $this->call->room_key,
+                'joined_count' => $this->call->isGroupCall() ? $this->call->participants->where('status', 'joined')->count() : null,
+                'max_participants' => $this->call->isGroupCall() ? $this->call->participantLimit() : null,
                 'accepted_at' => $this->call->accepted_at?->toIso8601String(),
                 'ended_at' => $this->call->ended_at?->toIso8601String(),
                 'created_at' => $this->call->created_at?->toIso8601String(),
                 'starter' => $this->userPayload($this->call->starter),
-                'callee' => $this->userPayload($this->call->callee),
+                'callee' => $this->call->callee ? $this->userPayload($this->call->callee) : null,
+                'participants' => $this->call->isGroupCall()
+                    ? $this->call->participants
+                        ->mapWithKeys(fn (MessengerCallParticipant $participant) => [
+                            (string) $participant->user_id => [
+                                'user_id' => $participant->user_id,
+                                'status' => $participant->status,
+                                'joined_at' => $participant->joined_at?->toIso8601String(),
+                                'left_at' => $participant->left_at?->toIso8601String(),
+                                'user' => $participant->user ? $this->userPayload($participant->user) : null,
+                            ],
+                        ])
+                    : [],
             ],
         ];
     }

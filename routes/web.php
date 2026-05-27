@@ -88,6 +88,11 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/users', [MessengerController::class, 'users'])->name('users.index');
         Route::post('/presence/heartbeat', [MessengerController::class, 'heartbeat'])->name('presence.heartbeat');
         Route::post('/conversations/direct', [MessengerController::class, 'direct'])->name('conversations.direct');
+        Route::post('/conversations/groups', [MessengerController::class, 'group'])->name('conversations.groups.store');
+        Route::patch('/conversations/{conversation}/group', [MessengerController::class, 'updateGroup'])->name('conversations.groups.update');
+        Route::post('/conversations/{conversation}/members', [MessengerController::class, 'addMembers'])->name('conversations.members.store');
+        Route::delete('/conversations/{conversation}/members/{member}', [MessengerController::class, 'removeMember'])->name('conversations.members.destroy');
+        Route::delete('/conversations/{conversation}', [MessengerController::class, 'deleteConversation'])->name('conversations.destroy');
         Route::get('/conversations/{conversation}/messages', [MessengerController::class, 'messages'])->name('conversations.messages');
         Route::post('/conversations/{conversation}/messages', [MessengerController::class, 'sendMessage'])->name('conversations.messages.store');
         Route::patch('/conversations/{conversation}/messages/{message}', [MessengerController::class, 'updateMessage'])->name('conversations.messages.update');

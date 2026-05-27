@@ -39,6 +39,8 @@ export default function AppSidebarLayout({ children }: AppSidebarLayoutProps) {
   const bravoValues: BravoValue[] = (page.props.bravoValues as BravoValue[]) ?? [];
   const bravoInsights = page.props.bravoInsights ?? defaultBravoInsights;
 
+  const isMessages = page.url.startsWith('/messages');
+
   const [navExpanded, setNavExpanded] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);

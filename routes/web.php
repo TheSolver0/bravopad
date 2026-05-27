@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AdminConfigController;
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\UserProfileController;
 use App\Http\Controllers\AdminRolesController;
 use App\Http\Controllers\AdminUsersController;
 use App\Http\Controllers\AiController;
@@ -16,6 +17,7 @@ use App\Http\Controllers\MessengerController;
 use App\Http\Controllers\NotificationCenterController;
 use App\Http\Controllers\PostController;
 use App\Http\Controllers\RewardController;
+use App\Http\Controllers\StoryController;
 use App\Http\Controllers\StatsController;
 use App\Models\Direction;
 use App\Models\User;
@@ -27,6 +29,12 @@ Route::middleware(['auth'])->group(function () {
     // Dashboard
     Route::get('/', fn () => redirect()->route('feed'))->name('home');
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+
+    // Stories
+    Route::get('/stories', [StoryController::class, 'index'])->name('stories.index');
+    Route::post('/stories', [StoryController::class, 'store'])->name('stories.store');
+    Route::delete('/stories/{story}', [StoryController::class, 'destroy'])->name('stories.destroy');
+    Route::post('/stories/{story}/view', [StoryController::class, 'markViewed'])->name('stories.view');
 
     // Fil social — Posts & Actualités
     Route::get('/feed', [PostController::class, 'index'])->name('feed');
@@ -116,7 +124,13 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('/audit', [AuditLogController::class, 'index'])->name('audit.index');
 
+    // Profil public (bureau)
+    Route::get('/users/{user}', [UserProfileController::class, 'show'])->name('users.show');
+    Route::post('/users/{user}/follow', [UserProfileController::class, 'follow'])->name('users.follow');
+
     Route::get('/team', function () {
+        $authUser = auth()->user();
+
         $users = User::query()
             ->where('is_automation', false)
             ->with(['direction:id,name', 'department:id,name'])
@@ -125,6 +139,7 @@ Route::middleware(['auth'])->group(function () {
             ->withQueryString();
 
         $departments = Direction::orderBy('code')->pluck('code');
+        $followingIds = $authUser ? $authUser->following()->pluck('users.id')->toArray() : [];
 
         return Inertia::render('Team', [
             'users' => $users->map(fn ($u) => [
@@ -136,6 +151,8 @@ Route::middleware(['auth'])->group(function () {
                 'points_total' => $u->points_total,
             ]),
             'departments' => $departments,
+            'followingIds' => $followingIds,
+            'authUserId' => $authUser?->id,
             'pagination' => [
                 'current_page' => $users->currentPage(),
                 'last_page' => $users->lastPage(),

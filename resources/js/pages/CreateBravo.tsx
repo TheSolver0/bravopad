@@ -3,7 +3,7 @@ import { useForm, router, usePage } from '@inertiajs/react';
 import { useTranslation } from 'react-i18next';
 import {
   Search, X, Star, Smile, Paperclip, HelpCircle,
-  Sparkles, Loader2, Lightbulb, CheckCircle, RotateCcw, Mic, MicOff,
+  Sparkles, Loader2, Lightbulb, CheckCircle, RotateCcw, Mic, MicOff, Award,
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { User, BravoValue } from './types';
@@ -406,9 +406,13 @@ export default function CreateBravo({ users, bravoValues, bravoInsights = emptyI
         {/* Soumettre */}
         <Button
           type="submit"
-          className="w-full py-3 text-sm font-semibold"
+          className="w-full py-3 text-sm font-semibold gap-2"
           disabled={processing || data.receiver_ids.length === 0 || !data.badge || pointsAfter < 0}
         >
+          {processing
+            ? <Loader2 size={16} className="animate-spin" />
+            : <Award size={16} />
+          }
           {processing
             ? t('bravo.sending')
             : selectedRecipients.length > 1

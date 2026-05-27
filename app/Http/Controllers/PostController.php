@@ -8,6 +8,7 @@ use App\Models\Challenge;
 use App\Models\Post;
 use App\Models\PostComment;
 use App\Models\PostMedia;
+use App\Models\Story;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -73,15 +74,54 @@ class PostController extends Controller
 
             
 
+        $followingIds = $currentUser->following()->pluck('following_id')->toArray();
+
         $users = User::query()
             ->where('is_automation', false)
             ->orderByDesc('points_total')
-            ->get(['id', 'name', 'avatar', 'role', 'points_total']);
+            ->get(['id', 'name', 'avatar', 'role', 'points_total', 'direction_id'])
+            ->map(fn ($user) => [
+                'id'           => $user->id,
+                'name'         => $user->name,
+                'avatar'       => $user->avatar,
+                'role'         => $user->role,
+                'points_total' => $user->points_total,
+                'direction_id'   => $user->direction_id,
+                'is_following' => in_array($user->id, $followingIds),
+            ]);
 
         $activeChallenge = Challenge::where('status', 'active')
             ->where('start_date', '<=', now())
             ->where('end_date', '>=', now())
             ->first();
+
+        // Stories actives (24h), groupées : les propres d'abord, les autres ensuite
+        $allStories = Story::active()
+            ->with('user:id,name,avatar,role')
+            ->withCount('views')
+            ->orderByDesc('created_at')
+            ->get()
+            ->map(fn ($s) => [
+                'id'               => $s->id,
+                'user_id'          => $s->user_id,
+                'type'             => $s->type,
+                'content'          => $s->content,
+                'media_url'        => $s->media_url,
+                'background_color' => $s->background_color,
+                'font_style'       => $s->font_style,
+                'text_align'       => $s->text_align,
+                'views_count'      => $s->views_count,
+                'expires_at'       => $s->expires_at->toIso8601String(),
+                'created_at'       => $s->created_at->diffForHumans(),
+                'seen'             => $s->isViewedBy($currentUser->id),
+                'user' => [
+                    'id'         => $s->user->id,
+                    'name'       => $s->user->name,
+                    'avatar'     => $s->user->avatar,
+                    'role'       => $s->user->role,
+                    'department' => null,
+                ],
+            ]);
 
         return Inertia::render('Feed', [
             'posts'           => $posts,
@@ -93,6 +133,7 @@ class PostController extends Controller
             'activeChallenge' => $activeChallenge,
             'bravoCount'      => Bravo::count(),
             'bravoValues'     => BravoValue::where('is_active', true)->get(),
+            'stories'         => $allStories,
         ]);
     }
 

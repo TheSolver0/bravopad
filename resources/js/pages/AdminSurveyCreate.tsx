@@ -123,6 +123,7 @@ export default function AdminSurveyCreate() {
   const [title, setTitle]                 = useState('');
   const [description, setDescription]     = useState('');
   const [endsAt, setEndsAt]               = useState('');
+  const [autoBravoPoints, setAutoBravoPoints] = useState('0');
   const [coverFile, setCoverFile]         = useState<File | null>(null);
   const [coverPreview, setCoverPreview]   = useState<string | null>(null);
   const coverInputRef                     = useRef<HTMLInputElement>(null);
@@ -285,6 +286,7 @@ export default function AdminSurveyCreate() {
         title:       title.trim(),
         description: description.trim() || null,
         ends_at:     endsAt || null,
+        auto_bravo_points: Math.max(0, parseInt(autoBravoPoints, 10) || 0),
         cover_image: coverFile ?? undefined,
         questions:   questions.map((q) => ({
           ...q,
@@ -496,6 +498,20 @@ export default function AdminSurveyCreate() {
                   onChange={(e) => setEndsAt(e.target.value)}
                   className={inputCls(false)}
                 />
+              </Field>
+
+              <Field label="Bravo automatique" hint="(points par participant identifié)">
+                <div className="relative">
+                  <Zap size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-primary/60" />
+                  <input
+                    type="number"
+                    min="0"
+                    max="10000"
+                    value={autoBravoPoints}
+                    onChange={(e) => setAutoBravoPoints(e.target.value)}
+                    className={`${inputCls(false)} pl-9`}
+                  />
+                </div>
               </Field>
 
               <Field label="Image de couverture" hint="(optionnel — max 4 Mo)" error={errors.cover_image}>

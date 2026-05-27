@@ -22,14 +22,16 @@ class HrSurvey extends Model
         'created_by',
         'starts_at',
         'ends_at',
+        'auto_bravo_points',
     ];
 
     protected $casts = [
-        'options'    => 'array',
-        'questions'  => 'array',
-        'is_active'  => 'boolean',
-        'starts_at'  => 'datetime',
-        'ends_at'    => 'datetime',
+        'options' => 'array',
+        'questions' => 'array',
+        'is_active' => 'boolean',
+        'starts_at' => 'datetime',
+        'ends_at' => 'datetime',
+        'auto_bravo_points' => 'integer',
     ];
 
     protected static function booted(): void

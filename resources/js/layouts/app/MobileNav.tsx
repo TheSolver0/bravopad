@@ -1,5 +1,5 @@
 import { router, usePage } from '@inertiajs/react';
-import { Home, Trophy, History, ShoppingBag, PlusCircle } from 'lucide-react';
+import { Home, Trophy, History, ShoppingBag, Award } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 const navItems = [
@@ -51,7 +51,7 @@ export default function MobileNav({ onCreateBravo }: MobileNavProps) {
           aria-label={t('nav.sendBravo')}
         >
           <div className="w-14 h-14 bg-primary rounded-2xl flex items-center justify-center text-white shadow-xl shadow-primary/40 border-4 border-white active:scale-90 transition-transform">
-            <PlusCircle size={26} />
+            <Award size={26} />
           </div>
           <span className="text-[9px] font-black uppercase tracking-widest text-primary mt-1">{t('nav.bravo')}</span>
         </button>

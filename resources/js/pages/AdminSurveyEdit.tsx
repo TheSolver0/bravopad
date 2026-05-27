@@ -12,6 +12,7 @@ import {
   Text,
   Trash2,
   X,
+  Zap,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -36,6 +37,7 @@ type ExistingSurvey = {
   cover_image?: string | null;
   questions: SurveyQuestion[];
   ends_at?: string | null;
+  auto_bravo_points?: number;
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -65,6 +67,7 @@ export default function AdminSurveyEdit({ survey }: { survey: ExistingSurvey }) 
   const [title, setTitle]             = useState(survey.title);
   const [description, setDescription] = useState(survey.description ?? '');
   const [endsAt, setEndsAt]           = useState(survey.ends_at ?? '');
+  const [autoBravoPoints, setAutoBravoPoints] = useState(String(survey.auto_bravo_points ?? 0));
   const [coverFile, setCoverFile]     = useState<File | null>(null);
   const [coverPreview, setCoverPreview] = useState<string | null>(survey.cover_image ?? null);
   const [removeCover, setRemoveCover] = useState(false);
@@ -161,6 +164,7 @@ export default function AdminSurveyEdit({ survey }: { survey: ExistingSurvey }) 
         title:        title.trim(),
         description:  description.trim() || null,
         ends_at:      endsAt || null,
+        auto_bravo_points: Math.max(0, parseInt(autoBravoPoints, 10) || 0),
         remove_cover: removeCover,
         cover_image:  coverFile ?? undefined,
         questions:    questions.map((q) => ({
@@ -237,6 +241,20 @@ export default function AdminSurveyEdit({ survey }: { survey: ExistingSurvey }) 
                 onChange={(e) => setEndsAt(e.target.value)}
                 className={inputCls(false)}
               />
+            </Field>
+
+            <Field label="Bravo automatique" hint="(points par participant identifié)">
+              <div className="relative">
+                <Zap size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-primary/60" />
+                <input
+                  type="number"
+                  min="0"
+                  max="10000"
+                  value={autoBravoPoints}
+                  onChange={(e) => setAutoBravoPoints(e.target.value)}
+                  className={`${inputCls(false)} pl-9`}
+                />
+              </div>
             </Field>
 
             <Field label="Image de couverture" hint="(optionnel — max 4 Mo)" error={errors.cover_image}>

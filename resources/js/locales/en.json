@@ -44,7 +44,15 @@
     "sendBravo": "Send a Bravo",
     "logout": "Logout",
     "bravo": "Bravo",
-    "feed": "Feed"
+    "feed": "Feed",
+    "agenda": "Calendar",
+    "messaging": "Messaging",
+    "messages": "Messages",
+    "chatbot": "AI Assistant",
+    "groups": "Work Groups",
+    "joinGroup": "Join a group",
+    "mainSection": "Main",
+    "more": "More"
   },
   "notifications": {
     "recent": "Recent",

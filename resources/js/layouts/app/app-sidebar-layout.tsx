@@ -33,6 +33,7 @@ export default function AppSidebarLayout({ children }: AppSidebarLayoutProps) {
   }>();
 
   const { flash } = page.props;
+  const isAgenda = page.component === 'Agenda';
   const users: User[] =
     (page.props.users as User[] | undefined) ??
     (page.props.team?.data as User[] | undefined) ?? [];
@@ -48,7 +49,7 @@ export default function AppSidebarLayout({ children }: AppSidebarLayoutProps) {
   const navRailWidth = navExpanded ? RAIL_W_EXPANDED : RAIL_W_COLLAPSED;
 
   return (
-    <div className="flex flex-col h-screen bg-surface-container-lowest overflow-hidden">
+    <div className="flex min-h-screen bg-surface-container-lowest overflow-x-hidden">
 
       {/* ── TopBar (full-width, zone logo synchronisée avec NavRail) ── */}
       <TopBar
@@ -66,12 +67,18 @@ export default function AppSidebarLayout({ children }: AppSidebarLayoutProps) {
           onToggle={() => setNavExpanded(v => !v)}
           onCreateBravo={() => setShowCreateModal(true)}
         />
+      </aside>
 
-        {/* ContextPanel — slide in/out sur /messages et /groups */}
-        <ContextPanel />
+      {/* Zone principale */}
+      <div
+        className={`flex-1 flex flex-col transition-all duration-500 ${
+          collapsed ? 'md:ml-[calc(72px+2rem)]' : 'md:ml-[calc(256px+2rem)]'
+        }`}
+      >
+        {!isDashboard && !isFeed && <Header breadcrumbs={breadcrumbs} />}
 
-        {/* Zone de contenu principale */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Bottom nav mobile — visible sur toutes les pages */}
+        <MobileNav onCreateBravo={() => setShowCreateModal(true)} />
 
           {/* Flash messages */}
           <AnimatePresence>
@@ -99,11 +106,21 @@ export default function AppSidebarLayout({ children }: AppSidebarLayoutProps) {
             )}
           </AnimatePresence>
 
-          {/* Contenu de la page */}
-          <main className="flex-1 overflow-y-auto pb-20 md:pb-0">
-            {children}
-          </main>
-        </div>
+        <main className={
+          isAgenda
+            ? 'flex-1 flex flex-col min-h-0 overflow-hidden'
+            : `flex-1 overflow-y-auto pb-40 md:pb-24 ${isDashboard || isFeed ? '' : 'p-6 md:p-8'}`
+        }>{children}</main>
+
+        {!isAgenda && (
+          <footer
+            className={`fixed z-30 border-t border-surface-container-high bg-surface-container-lowest/95 px-6 py-4 text-center text-xs text-muted-foreground backdrop-blur-sm bottom-16 left-0 right-0 md:bottom-0 md:px-8 ${
+              collapsed ? 'md:left-[calc(72px+2rem)]' : 'md:left-[calc(256px+2rem)]'
+            }`}
+          >
+            Powered by Kenny LOMIE
+          </footer>
+        )}
       </div>
 
       {/* ── Mobile bottom nav ── */}

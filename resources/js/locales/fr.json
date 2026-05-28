@@ -44,7 +44,15 @@
     "sendBravo": "Envoyer un Bravo",
     "logout": "Déconnexion",
     "bravo": "Bravo",
-    "feed": "Fil d'actualité"
+    "feed": "Fil d'actualité",
+    "agenda": "Agenda",
+    "messaging": "Messagerie",
+    "messages": "Messages",
+    "chatbot": "Assistant IA",
+    "groups": "Groupes de travail",
+    "joinGroup": "Rejoindre un groupe",
+    "mainSection": "Principal",
+    "more": "Plus"
   },
   "notifications": {
     "recent": "Récentes",

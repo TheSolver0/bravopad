@@ -29,6 +29,7 @@ import {
   Search,
   Zap,
   MoreHorizontal,
+  CalendarRange,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -53,6 +54,7 @@ export const navItems: NavItem[] = [
   { href: '/feed', labelKey: 'nav.feed', icon: Home },
   { href: '/dashboard', labelKey: 'nav.home', icon: Award },
   { href: '/history', labelKey: 'nav.myBravos', icon: User },
+  { href: '/agenda', labelKey: 'nav.agenda', icon: CalendarRange },
   { href: '/challenges', labelKey: 'nav.challenges', icon: Trophy },
   { href: '/engagement', labelKey: 'nav.surveys', icon: ClipboardList },
   { href: '/team', labelKey: 'nav.team', icon: Users },

@@ -4,13 +4,16 @@ use App\Http\Controllers\AdminConfigController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AdminRolesController;
 use App\Http\Controllers\AdminUsersController;
+use App\Http\Controllers\AgendaController;
 use App\Http\Controllers\AiController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\BravoController;
+use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\ChallengeController;
 use App\Http\Controllers\CommentController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EngagementController;
+use App\Http\Controllers\EventController;
 use App\Http\Controllers\HrDashboardController;
 use App\Http\Controllers\MessengerController;
 use App\Http\Controllers\NotificationCenterController;
@@ -117,6 +120,29 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/admin/surveys/{survey}/report', [EngagementController::class, 'surveyReport'])->name('admin.surveys.report');
 
     Route::get('/audit', [AuditLogController::class, 'index'])->name('audit.index');
+
+    // ── Agenda professionnel ──────────────────────────────────────────────────
+    Route::prefix('agenda')->name('agenda.')->group(function () {
+        // Dashboard principal
+        Route::get('/', [AgendaController::class, 'index'])->name('index');
+
+        // Événements (API JSON)
+        Route::get('/events', [EventController::class, 'index'])->name('events.index');
+        Route::post('/events', [EventController::class, 'store'])->name('events.store');
+        Route::put('/events/{event}', [EventController::class, 'update'])->name('events.update');
+        Route::delete('/events/{event}', [EventController::class, 'destroy'])->name('events.destroy');
+        Route::post('/events/{event}/rsvp', [EventController::class, 'rsvp'])->name('events.rsvp');
+        Route::post('/events/{event}/checkin', [EventController::class, 'checkIn'])->name('events.checkin');
+        Route::get('/free-slots', [EventController::class, 'freeSlots'])->name('free-slots');
+
+        // Calendriers (API JSON)
+        Route::get('/calendars', [CalendarController::class, 'index'])->name('calendars.index');
+        Route::post('/calendars', [CalendarController::class, 'store'])->name('calendars.store');
+        Route::put('/calendars/{calendar}', [CalendarController::class, 'update'])->name('calendars.update');
+        Route::delete('/calendars/{calendar}', [CalendarController::class, 'destroy'])->name('calendars.destroy');
+        Route::post('/calendars/{calendar}/members', [CalendarController::class, 'addMember'])->name('calendars.members.add');
+        Route::delete('/calendars/{calendar}/members', [CalendarController::class, 'removeMember'])->name('calendars.members.remove');
+    });
 
     Route::get('/team', function () {
         $users = User::query()

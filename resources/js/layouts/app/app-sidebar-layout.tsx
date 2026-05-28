@@ -33,6 +33,7 @@ export default function AppSidebarLayout({ breadcrumbs = [], children }: AppSide
   const isDashboard = page.component === 'dashboard';
   const isFeed = page.component === 'Feed';
   const isMessages = page.component === 'Messages';
+  const isAgenda = page.component === 'Agenda';
   const users: User[] =
     (page.props.users as User[] | undefined) ?? (page.props.team?.data as User[] | undefined) ?? [];
   const bravoValues: BravoValue[] = (page.props.bravoValues as BravoValue[]) ?? [];
@@ -42,7 +43,7 @@ export default function AppSidebarLayout({ breadcrumbs = [], children }: AppSide
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   return (
-    <div className="flex min-h-screen bg-surface-container-lowest overflow-x-hidden">
+    <div className={`flex bg-surface-container-lowest ${isAgenda ? 'h-screen overflow-hidden' : 'min-h-screen overflow-x-hidden'}`}>
 
       {/* Sidebar desktop floating */}
       <aside
@@ -65,7 +66,7 @@ export default function AppSidebarLayout({ breadcrumbs = [], children }: AppSide
 
       {/* Zone principale */}
       <div
-        className={`flex-1 flex flex-col transition-all duration-500 ${
+        className={`flex-1 flex flex-col transition-all duration-500 ${isAgenda ? 'min-h-0 overflow-hidden' : ''} ${
           collapsed ? 'md:ml-[calc(72px+2rem)]' : 'md:ml-[calc(256px+2rem)]'
         }`}
       >
@@ -98,15 +99,21 @@ export default function AppSidebarLayout({ breadcrumbs = [], children }: AppSide
           )}
         </AnimatePresence>
 
-        <main className={`flex-1 overflow-y-auto pb-40 md:pb-24 ${isDashboard || isFeed ? '' : 'p-6 md:p-8'}`}>{children}</main>
+        <main className={
+          isAgenda
+            ? 'flex-1 flex flex-col min-h-0 overflow-hidden'
+            : `flex-1 overflow-y-auto pb-40 md:pb-24 ${isDashboard || isFeed ? '' : 'p-6 md:p-8'}`
+        }>{children}</main>
 
-        <footer
-          className={`fixed z-30 border-t border-surface-container-high bg-surface-container-lowest/95 px-6 py-4 text-center text-xs text-muted-foreground backdrop-blur-sm bottom-16 left-0 right-0 md:bottom-0 md:px-8 ${
-            collapsed ? 'md:left-[calc(72px+2rem)]' : 'md:left-[calc(256px+2rem)]'
-          }`}
-        >
-          Powered by Kenny LOMIE
-        </footer>
+        {!isAgenda && (
+          <footer
+            className={`fixed z-30 border-t border-surface-container-high bg-surface-container-lowest/95 px-6 py-4 text-center text-xs text-muted-foreground backdrop-blur-sm bottom-16 left-0 right-0 md:bottom-0 md:px-8 ${
+              collapsed ? 'md:left-[calc(72px+2rem)]' : 'md:left-[calc(256px+2rem)]'
+            }`}
+          >
+            Powered by Kenny LOMIE
+          </footer>
+        )}
       </div>
 
       {/* ── Modal Créer un Bravo — rendu au niveau racine pour éviter le stacking context de la sidebar ── */}

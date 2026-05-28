@@ -34,8 +34,8 @@ interface PageUser {
 
 /* ── Quick nav links pour la recherche ── */
 const NAV_LINKS = [
-  { href: '/feed',          label: "Fil d'actualité",  icon: Home },
-  { href: '/dashboard',     label: 'Dashboard',         icon: LayoutDashboard },
+  { href: '/feed',          label: "Fil d'actualité",   icon: Home },
+  { href: '/dashboard',     label: 'Mur de Bravos',     icon: Trophy },
   { href: '/messages',      label: 'Messages',          icon: MessageCircle },
   { href: '/groups',        label: 'Espaces',           icon: Hash },
   { href: '/team',          label: 'Équipe',            icon: Users },
@@ -45,7 +45,7 @@ const NAV_LINKS = [
   { href: '/shop',          label: 'Boutique',          icon: ShoppingBag },
   { href: '/chatbot',       label: 'Assistant IA',      icon: Bot },
   { href: '/notifications', label: 'Notifications',     icon: Bell },
-  { href: '/settings/profile', label: 'Paramètres',    icon: Trophy },
+  { href: '/settings/profile', label: 'Paramètres',     icon: Trophy },
 ];
 
 /* ── Titre de notification ── */

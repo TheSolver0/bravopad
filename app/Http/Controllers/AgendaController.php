@@ -101,10 +101,16 @@ class AgendaController extends Controller
             ->get();
 
         // Anniversaires : utilisateur courant + toute l'équipe (adapté à l'année courante et suivante)
-        $allUsers = $teamMembers->push($user->only(['id', 'name', 'avatar', 'email', 'birth_date']) + ['birth_date' => $user->birth_date]);
+        $allUsersForBirthdays = $teamMembers->concat([(object) [
+            'id'         => $user->id,
+            'name'       => $user->name,
+            'avatar'     => $user->avatar,
+            'birth_date' => $user->birth_date,
+            'is_me'      => true,
+        ]]);
         $birthdays = collect();
         foreach ([$currentYear, $currentYear + 1] as $yr) {
-            foreach ($teamMembers->push((object)['id' => $user->id, 'name' => $user->name, 'avatar' => $user->avatar, 'birth_date' => $user->birth_date, 'is_me' => true]) as $u) {
+            foreach ($allUsersForBirthdays as $u) {
                 $bd = is_array($u) ? ($u['birth_date'] ?? null) : ($u->birth_date ?? null);
                 if (!$bd) continue;
                 $bdCarbon = \Carbon\Carbon::parse($bd);

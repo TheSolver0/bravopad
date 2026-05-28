@@ -8,8 +8,6 @@ import {
     List, CalendarDays, CalendarRange, Grid3x3, PanelLeft, PanelLeftClose,
     Globe, Building2, Cake,
 } from 'lucide-react';
-import AppLayout from '@/layouts/app-layout';
-import type { BreadcrumbItem } from '@/types';
 import type {
     AgendaCalendar, AgendaEventData, HolidayData, BirthdayData,
     TeamMember, AgendaStats, AgendaView, EventFormData,
@@ -22,8 +20,6 @@ import {
     formatDateLabel, formatTimeLabel, toDateInputValue,
     eventsOnDay, EVENT_TYPE_LABELS, EVENT_STATUS_LABELS, EVENT_PRIORITY_LABELS,
 } from '@/types/agenda';
-
-const breadcrumbs: BreadcrumbItem[] = [{ title: 'Agenda', href: '/agenda' }];
 
 interface AgendaProps {
     calendars: AgendaCalendar[];
@@ -1375,8 +1371,8 @@ export default function Agenda({ calendars, holidays, birthdays, teamMembers, st
     const upcomingHolidays = holidays.filter(h => new Date(h.date) >= new Date()).slice(0, 4);
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
-            <div className="flex flex-1 min-h-0 bg-white dark:bg-zinc-950 overflow-hidden">
+        <>
+        <div className="flex flex-1 min-h-0 bg-white dark:bg-zinc-950 overflow-hidden">
 
                 {/* ── Calendrier (zone principale) ── */}
                 <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
@@ -1605,6 +1601,6 @@ export default function Agenda({ calendars, holidays, birthdays, teamMembers, st
                         onDeleted={id => { setEvents(prev=>prev.filter(e=>e.id!==id)); setSelected(null); }} />
                 )}
             </AnimatePresence>
-        </AppLayout>
+        </>
     );
 }

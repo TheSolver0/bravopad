@@ -80,7 +80,7 @@ class EventController extends Controller
         $calendar = Calendar::where('id', $validated['calendar_id'])
             ->where(function ($q) use ($user) {
                 $q->where('owner_id', $user->id)
-                  ->orWhereHas('members', fn ($m) => $m->where('user_id', $user->id)->whereIn('permission', ['edit', 'admin']));
+                  ->orWhereHas('members', fn ($m) => $m->where('user_id', $user->id)->whereIn('calendar_user.permission', ['edit', 'admin']));
             })
             ->firstOrFail();
 
@@ -281,7 +281,7 @@ class EventController extends Controller
     {
         $canEdit = $event->organizer_id === $userId
             || Calendar::where('id', $event->calendar_id)
-                ->whereHas('members', fn ($m) => $m->where('user_id', $userId)->whereIn('permission', ['edit', 'admin']))
+                ->whereHas('members', fn ($m) => $m->where('user_id', $userId)->whereIn('calendar_user.permission', ['edit', 'admin']))
                 ->exists();
 
         abort_unless($canEdit, 403, 'Action non autorisée.');

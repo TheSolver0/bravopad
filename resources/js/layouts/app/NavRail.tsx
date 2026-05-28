@@ -4,7 +4,7 @@ import {
   Home, MessageCircle, Users, Trophy, Award,
   ShoppingBag, Bell, Bot, Hash, Settings,
   UserCog, ClipboardCheck, ClipboardList, KeyRound, Shield,
-  BarChart3, History, ChevronLeft, ChevronRight,
+  BarChart3, History, ChevronLeft, ChevronRight, CalendarDays,
 } from 'lucide-react';
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
@@ -140,7 +140,7 @@ export default function NavRail({ expanded, onToggle, onCreateBravo }: NavRailPr
 
   return (
     <aside
-      className={`hidden md:flex flex-col shrink-0 bg-background border-r border-border relative overflow-hidden transition-[width] duration-[250ms] ease-[cubic-bezier(0.4,0,0.2,1)] ${
+      className={`hidden md:flex flex-col shrink-0 h-full bg-background border-r border-border relative overflow-hidden transition-[width] duration-[250ms] ease-[cubic-bezier(0.4,0,0.2,1)] ${
         expanded ? 'w-[240px]' : 'w-[72px]'
       }`}
     >
@@ -192,6 +192,7 @@ export default function NavRail({ expanded, onToggle, onCreateBravo }: NavRailPr
 
         <RailDivider expanded={expanded} label="Plus" />
 
+        <RailItem href="/agenda" icon={CalendarDays} label={t('nav.agenda', 'Agenda')} active={isActive(path, '/agenda')} expanded={expanded} />
         <RailItem href="/shop" icon={ShoppingBag} label={t('nav.shop', 'Boutique')} active={isActive(path, '/shop')} expanded={expanded} />
         <RailItem href="/notifications" icon={Bell} label={t('nav.notifications', 'Notifications')} active={isActive(path, '/notifications')} badge={unread} expanded={expanded} />
         <RailItem href="/chatbot" icon={Bot} label="Assistant IA" active={isActive(path, '/chatbot')} expanded={expanded} />

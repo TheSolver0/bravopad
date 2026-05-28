@@ -33,7 +33,10 @@ export default function AppSidebarLayout({ children }: AppSidebarLayoutProps) {
   }>();
 
   const { flash } = page.props;
-  const isAgenda = page.component === 'Agenda';
+  const isAgenda    = page.component === 'Agenda';
+  const isDashboard = page.component === 'Dashboard';
+  const isFeed      = page.component === 'Feed';
+
   const users: User[] =
     (page.props.users as User[] | undefined) ??
     (page.props.team?.data as User[] | undefined) ?? [];
@@ -49,9 +52,9 @@ export default function AppSidebarLayout({ children }: AppSidebarLayoutProps) {
   const navRailWidth = navExpanded ? RAIL_W_EXPANDED : RAIL_W_COLLAPSED;
 
   return (
-    <div className="flex min-h-screen bg-surface-container-lowest overflow-x-hidden">
+    <div className="flex flex-col h-screen bg-surface-container-lowest overflow-hidden">
 
-      {/* ── TopBar (full-width, zone logo synchronisée avec NavRail) ── */}
+      {/* ── TopBar pleine largeur ── */}
       <TopBar
         navRailWidth={navRailWidth}
         onMenuOpen={() => setDrawerOpen(true)}
@@ -61,24 +64,18 @@ export default function AppSidebarLayout({ children }: AppSidebarLayoutProps) {
       {/* ── Corps : Rail | ContextPanel | Contenu ── */}
       <div className="flex flex-1 overflow-hidden">
 
-        {/* NavRail — desktop uniquement, contrôlé par le layout */}
+        {/* NavRail — desktop uniquement */}
         <NavRail
           expanded={navExpanded}
           onToggle={() => setNavExpanded(v => !v)}
           onCreateBravo={() => setShowCreateModal(true)}
         />
-      </aside>
 
-      {/* Zone principale */}
-      <div
-        className={`flex-1 flex flex-col transition-all duration-500 ${
-          collapsed ? 'md:ml-[calc(72px+2rem)]' : 'md:ml-[calc(256px+2rem)]'
-        }`}
-      >
-        {!isDashboard && !isFeed && <Header breadcrumbs={breadcrumbs} />}
+        {/* ContextPanel (messages / groupes) */}
+        <ContextPanel />
 
-        {/* Bottom nav mobile — visible sur toutes les pages */}
-        <MobileNav onCreateBravo={() => setShowCreateModal(true)} />
+        {/* Zone principale */}
+        <div className={`flex-1 flex flex-col min-w-0 ${isMessages ? '' : 'pl-6'}`}>
 
           {/* Flash messages */}
           <AnimatePresence>
@@ -106,21 +103,21 @@ export default function AppSidebarLayout({ children }: AppSidebarLayoutProps) {
             )}
           </AnimatePresence>
 
-        <main className={
-          isAgenda
-            ? 'flex-1 flex flex-col min-h-0 overflow-hidden'
-            : `flex-1 overflow-y-auto pb-40 md:pb-24 ${isDashboard || isFeed ? '' : 'p-6 md:p-8'}`
-        }>{children}</main>
+          <main className={
+            isAgenda || isMessages
+              ? 'flex-1 flex flex-col min-h-0 overflow-hidden'
+              : `flex-1 overflow-y-auto pb-40 md:pb-24 ${isDashboard || isFeed ? '' : 'p-6 md:p-8'}`
+          }>{children}</main>
 
-        {!isAgenda && (
-          <footer
-            className={`fixed z-30 border-t border-surface-container-high bg-surface-container-lowest/95 px-6 py-4 text-center text-xs text-muted-foreground backdrop-blur-sm bottom-16 left-0 right-0 md:bottom-0 md:px-8 ${
-              collapsed ? 'md:left-[calc(72px+2rem)]' : 'md:left-[calc(256px+2rem)]'
-            }`}
-          >
-            Powered by Kenny LOMIE
-          </footer>
-        )}
+          {!isAgenda && !isMessages && (
+            <footer className={`fixed z-30 border-t border-surface-container-high bg-surface-container-lowest/95 px-6 py-4 text-center text-xs text-muted-foreground backdrop-blur-sm bottom-16 left-0 right-0 md:bottom-0 md:px-8 transition-[left] duration-[250ms] ease-[cubic-bezier(0.4,0,0.2,1)] ${
+              navExpanded ? 'md:left-[240px]' : 'md:left-[72px]'
+            }`}>
+              Powered by Kenny LOMIE
+            </footer>
+          )}
+        </div>
+
       </div>
 
       {/* ── Mobile bottom nav ── */}

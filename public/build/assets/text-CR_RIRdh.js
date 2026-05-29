@@ -1,1 +1,0 @@
-import{t as e}from"./createLucideIcon-BXB7MuhK.js";var t=e(`Text`,[[`path`,{d:`M17 6.1H3`,key:`wptmhv`}],[`path`,{d:`M21 12.1H3`,key:`1j38uz`}],[`path`,{d:`M15.1 18H3`,key:`1nb16a`}]]);export{t};

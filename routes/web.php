@@ -58,6 +58,11 @@ Route::middleware(['auth'])->group(function () {
     // IA
     Route::post('/ai/rephrase', [AiController::class, 'rephrase']);
 
+    // Chatbot documentaire
+    Route::post('/chatbot/ask',     [\App\Http\Controllers\ChatbotController::class, 'ask']);
+    Route::get('/chatbot/history',  [\App\Http\Controllers\ChatbotController::class, 'history']);
+    Route::delete('/chatbot/clear', [\App\Http\Controllers\ChatbotController::class, 'clear']);
+
     // Stats
     Route::get('/stats', [StatsController::class, 'index']);
 

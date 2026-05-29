@@ -1,0 +1,14 @@
+{
+  "PD-ABP-01": {
+    "title": "Achat de biens, services et travaux par BC < 5M",
+    "file": "PD-ABP-01_Achat de biens, services et travaux par BC inferieur à 5millions.pdf",
+    "keywords": [
+      "achat", "achats", "commande", "bon de commande", "BC",
+      "fournisseur", "fournisseurs", "approvisionnement", "procurement",
+      "5 millions", "marché", "marche", "prestation", "bien", "biens",
+      "service", "travaux", "livraison", "facture", "devis", "consultation",
+      "demande d'achat", "validation", "responsable", "bordereau"
+    ],
+    "categories": ["procedure", "achat", "finance", "commande"]
+  }
+}

@@ -14,7 +14,7 @@ use App\Models\User;
 use App\Models\Challenge;
 use App\Models\Redemption;
 use App\Models\Reward;
-use App\Models\User;
+// use App\Models\User;
 use App\Policies\BravoValuePolicy;
 use App\Policies\ChallengePolicy;
 use App\Policies\RedemptionPolicy;

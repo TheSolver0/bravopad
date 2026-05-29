@@ -2,9 +2,10 @@ import { Link, usePage } from '@inertiajs/react';
 import { useTranslation } from 'react-i18next';
 import {
   Home, MessageCircle, Users, Trophy, Award,
-  ShoppingBag, Bell, Bot, Hash, Settings,
+  ShoppingBag, Bell, Hash, Settings,
   UserCog, ClipboardCheck, ClipboardList, KeyRound, Shield,
   BarChart3, History, ChevronLeft, ChevronRight, CalendarDays,
+  HandCoins,
 } from 'lucide-react';
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
@@ -193,9 +194,9 @@ export default function NavRail({ expanded, onToggle, onCreateBravo }: NavRailPr
         <RailDivider expanded={expanded} label="Plus" />
 
         <RailItem href="/agenda" icon={CalendarDays} label={t('nav.agenda', 'Agenda')} active={isActive(path, '/agenda')} expanded={expanded} />
+        <RailItem href="/event-contributions" icon={HandCoins} label={t('nav.eventContributions', 'Cotisations')} active={isActive(path, '/event-contributions')} expanded={expanded} />
         <RailItem href="/shop" icon={ShoppingBag} label={t('nav.shop', 'Boutique')} active={isActive(path, '/shop')} expanded={expanded} />
         <RailItem href="/notifications" icon={Bell} label={t('nav.notifications', 'Notifications')} active={isActive(path, '/notifications')} badge={unread} expanded={expanded} />
-        <RailItem href="/chatbot" icon={Bot} label="Assistant IA" active={isActive(path, '/chatbot')} expanded={expanded} />
 
         {hasAdmin && (
           <>

@@ -9,7 +9,6 @@ import TopBar from './TopBar';
 import MobileNav from './MobileNav';
 import MobileDrawer from './MobileDrawer';
 import CreateBravo from '@/pages/CreateBravo';
-import ChatbotWidget from '@/components/ChatbotWidget';
 import { User, BravoValue } from '@/pages/types';
 
 interface AppSidebarLayoutProps {
@@ -37,12 +36,6 @@ export default function AppSidebarLayout({ children }: AppSidebarLayoutProps) {
   const isDashboard = page.component === 'Dashboard';
   const isFeed      = page.component === 'Feed';
 
-  const headerBreadcrumbs =
-    breadcrumbs.length > 0
-      ? breadcrumbs
-      : isAgenda
-        ? [{ title: 'Agenda', href: '/agenda' }]
-        : breadcrumbs;
   const users: User[] =
     (page.props.users as User[] | undefined) ??
     (page.props.team?.data as User[] | undefined) ?? [];
@@ -176,7 +169,6 @@ export default function AppSidebarLayout({ children }: AppSidebarLayoutProps) {
         )}
       </AnimatePresence>
 
-      <ChatbotWidget />
     </div>
   );
 }

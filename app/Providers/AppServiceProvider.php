@@ -8,6 +8,9 @@ use App\Listeners\RecordAuthAudit;
 use App\Listeners\RecordBravoSentAudit;
 use App\Listeners\SendBravoNotification;
 use App\Models\BravoValue;
+use App\Services\Chatbot\GroqProvider;
+use App\Services\Chatbot\LLMProviderInterface;
+use App\Models\User;
 use App\Models\Challenge;
 use App\Models\Redemption;
 use App\Models\Reward;
@@ -35,7 +38,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->bind(LLMProviderInterface::class, GroqProvider::class);
     }
 
     /**

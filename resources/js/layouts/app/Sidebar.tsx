@@ -237,7 +237,7 @@ function MessagingSection({ collapsed }: { collapsed: boolean }) {
             <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-red-500" />
           )}
         </Link>
-        <Link
+        {/* <Link
           href="/chatbot"
           title="Assistant IA"
           className={`w-full flex items-center justify-center p-2 rounded-xl transition-all ${
@@ -247,7 +247,7 @@ function MessagingSection({ collapsed }: { collapsed: boolean }) {
           }`}
         >
           <Bot size={17} />
-        </Link>
+        </Link> */}
       </div>
     );
   }
@@ -290,7 +290,7 @@ function MessagingSection({ collapsed }: { collapsed: boolean }) {
               </Link>
 
               {/* Assistant IA */}
-              <Link
+              {/* <Link
                 href="/chatbot"
                 className={`w-full flex items-center gap-3 px-2.5 py-2 rounded-xl transition-all group ${
                   isLinkActive(path, '/chatbot')
@@ -303,7 +303,7 @@ function MessagingSection({ collapsed }: { collapsed: boolean }) {
                 <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-primary/10 text-primary">
                   Beta
                 </span>
-              </Link>
+              </Link> */}
 
               {/* Groupes de travail */}
               <div className="pt-2">

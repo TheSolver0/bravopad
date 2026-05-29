@@ -9,7 +9,7 @@ import TopBar from './TopBar';
 import MobileNav from './MobileNav';
 import MobileDrawer from './MobileDrawer';
 import CreateBravo from '@/pages/CreateBravo';
-import MessengerWidget from '@/components/MessengerWidget';
+import ChatbotWidget from '@/components/ChatbotWidget';
 import { User, BravoValue } from '@/pages/types';
 
 interface AppSidebarLayoutProps {
@@ -176,7 +176,7 @@ export default function AppSidebarLayout({ children }: AppSidebarLayoutProps) {
         )}
       </AnimatePresence>
 
-      {!isMessages && <MessengerWidget />}
+      <ChatbotWidget />
     </div>
   );
 }

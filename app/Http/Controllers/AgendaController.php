@@ -6,6 +6,7 @@ use App\Models\AgendaEvent;
 use App\Models\Calendar;
 use App\Models\Holiday;
 use App\Models\User;
+use App\Services\Agenda\AgendaNetworkService;
 use App\Services\AvailabilityService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -15,7 +16,10 @@ use Inertia\Response;
 
 class AgendaController extends Controller
 {
-    public function __construct(private readonly AvailabilityService $availabilityService) {}
+    public function __construct(
+        private readonly AvailabilityService $availabilityService,
+        private readonly AgendaNetworkService $networkService,
+    ) {}
 
     public function index(Request $request): Response
     {
@@ -25,9 +29,9 @@ class AgendaController extends Controller
         $defaultCalendar = Calendar::firstOrCreate(
             ['owner_id' => $user->id, 'is_default' => true],
             [
-                'name'       => 'Mon Agenda',
-                'color'      => '#3B82F6',
-                'type'       => 'personal',
+                'name' => 'Mon Agenda',
+                'color' => '#3B82F6',
+                'type' => 'personal',
                 'visibility' => 'private',
             ]
         );
@@ -41,15 +45,15 @@ class AgendaController extends Controller
             ->with('owner:id,name,avatar')
             ->get()
             ->map(fn (Calendar $cal) => [
-                'id'          => $cal->id,
-                'name'        => $cal->name,
-                'color'       => $cal->color,
-                'type'        => $cal->type,
-                'visibility'  => $cal->visibility,
-                'is_default'  => $cal->is_default,
-                'owner_id'    => $cal->owner_id,
-                'owner_name'  => $cal->owner->name,
-                'is_mine'     => $cal->owner_id === $user->id,
+                'id' => $cal->id,
+                'name' => $cal->name,
+                'color' => $cal->color,
+                'type' => $cal->type,
+                'visibility' => $cal->visibility,
+                'is_default' => $cal->is_default,
+                'owner_id' => $cal->owner_id,
+                'owner_name' => $cal->owner->name,
+                'is_mine' => $cal->owner_id === $user->id,
             ]);
 
         // Jours fériés : année courante + suivante (navigation fluide)
@@ -59,16 +63,16 @@ class AgendaController extends Controller
             ->whereIn('year', [$currentYear, $currentYear + 1])
             ->where(function ($q) {
                 $q->where('country_code', 'CM')
-                  ->orWhere('country_code', 'INTL');
+                    ->orWhere('country_code', 'INTL');
             })
             ->orderBy('date')
             ->get()
             ->map(fn (Holiday $h) => [
-                'id'           => $h->id,
-                'name'         => $h->name,
-                'name_en'      => $h->name_en,
-                'date'         => $h->date->toDateString(),
-                'type'         => $h->type,
+                'id' => $h->id,
+                'name' => $h->name,
+                'name_en' => $h->name_en,
+                'date' => $h->date->toDateString(),
+                'type' => $h->type,
                 'country_code' => $h->country_code,
             ]);
 
@@ -92,68 +96,65 @@ class AgendaController extends Controller
             ->where('start_at', '>=', $now)
             ->count();
 
-        // Membres de l'équipe pour la vue planning
-        $teamMembers = User::query()
-            ->where('id', '!=', $user->id)
-            ->where('is_automation', false)
-            ->select('id', 'name', 'avatar', 'email', 'birth_date')
-            ->orderBy('name')
-            ->get();
+        $networkUsers = $this->networkService->connectedUsers($user);
 
-        // Anniversaires : utilisateur courant + toute l'équipe (adapté à l'année courante et suivante)
-        $allUsersForBirthdays = $teamMembers->concat([(object) [
-            'id'         => $user->id,
-            'name'       => $user->name,
-            'avatar'     => $user->avatar,
-            'birth_date' => $user->birth_date,
-            'is_me'      => true,
-        ]]);
+        // Membres liés (réseau) pour invitations et planning
+        $teamMembers = $networkUsers
+            ->reject(fn (User $member) => (int) $member->id === (int) $user->id)
+            ->values();
+
+        // Anniversaires : soi + personnes du réseau uniquement
+        $birthdaySources = $networkUsers->map(fn (User $member) => (object) [
+            'id' => $member->id,
+            'name' => $member->name,
+            'avatar' => $member->avatar,
+            'birth_date' => $member->birth_date,
+            'is_me' => (int) $member->id === (int) $user->id,
+        ]);
+
         $birthdays = collect();
         foreach ([$currentYear, $currentYear + 1] as $yr) {
-            foreach ($allUsersForBirthdays as $u) {
-                $bd = is_array($u) ? ($u['birth_date'] ?? null) : ($u->birth_date ?? null);
-                if (!$bd) continue;
-                $bdCarbon = \Carbon\Carbon::parse($bd);
-                // Gérer le 29 fév sur année non-bissextile
-                $day   = $bdCarbon->day;
+            foreach ($birthdaySources as $u) {
+                $bd = $u->birth_date ?? null;
+                if (! $bd) {
+                    continue;
+                }
+                $bdCarbon = Carbon::parse($bd);
+                $day = $bdCarbon->day;
                 $month = $bdCarbon->month;
-                if ($month === 2 && $day === 29 && !\Carbon\Carbon::create($yr)->isLeapYear()) {
+                if ($month === 2 && $day === 29 && ! Carbon::create($yr)->isLeapYear()) {
                     $day = 28;
                 }
                 try {
-                    $dateStr = \Carbon\Carbon::create($yr, $month, $day)->toDateString();
+                    $dateStr = Carbon::create($yr, $month, $day)->toDateString();
                 } catch (\Exception $e) {
                     continue;
                 }
-                $age    = $yr - $bdCarbon->year;
-                $userId = is_array($u) ? ($u['id'] ?? null) : ($u->id ?? null);
-                $name   = is_array($u) ? ($u['name'] ?? '') : ($u->name ?? '');
-                $avatar = is_array($u) ? ($u['avatar'] ?? null) : ($u->avatar ?? null);
-                $isMe   = is_array($u) ? false : (($u->is_me ?? false) || $userId === $user->id);
                 $birthdays->push([
-                    'user_id' => $userId,
-                    'name'    => $name,
-                    'avatar'  => $avatar,
-                    'date'    => $dateStr,
-                    'age'     => $age,
-                    'is_me'   => $isMe,
+                    'user_id' => $u->id,
+                    'name' => $u->name,
+                    'avatar' => $u->avatar,
+                    'date' => $dateStr,
+                    'age' => $yr - $bdCarbon->year,
+                    'is_me' => (bool) ($u->is_me ?? false),
                 ]);
             }
         }
 
         return Inertia::render('Agenda', [
-            'calendars'    => $calendars,
-            'holidays'     => $holidays,
-            'birthdays'    => $birthdays->unique(fn ($b) => $b['user_id'].'-'.$b['date'])->values(),
-            'teamMembers'  => $teamMembers->map(fn ($m) => [
-                'id'     => $m->id,
-                'name'   => $m->name,
+            'calendars' => $calendars,
+            'holidays' => $holidays,
+            'birthdays' => $birthdays->unique(fn ($b) => $b['user_id'].'-'.$b['date'])->values(),
+            'teamMembers' => $teamMembers->map(fn (User $m) => [
+                'id' => $m->id,
+                'name' => $m->name,
                 'avatar' => $m->avatar,
-                'email'  => $m->email,
-            ]),
-            'stats'        => [
-                'today'   => $todayEvents,
-                'week'    => $weekEvents,
+                'email' => $m->email,
+            ])->values(),
+            'network_count' => $networkUsers->count(),
+            'stats' => [
+                'today' => $todayEvents,
+                'week' => $weekEvents,
                 'pending' => $pendingEvents,
             ],
         ]);

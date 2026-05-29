@@ -37,6 +37,12 @@ export default function AppSidebarLayout({ children }: AppSidebarLayoutProps) {
   const isDashboard = page.component === 'Dashboard';
   const isFeed      = page.component === 'Feed';
 
+  const headerBreadcrumbs =
+    breadcrumbs.length > 0
+      ? breadcrumbs
+      : isAgenda
+        ? [{ title: 'Agenda', href: '/agenda' }]
+        : breadcrumbs;
   const users: User[] =
     (page.props.users as User[] | undefined) ??
     (page.props.team?.data as User[] | undefined) ?? [];

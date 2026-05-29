@@ -47,6 +47,8 @@ class HandleInertiaRequests extends Middleware
                 'admin_users' => Gate::forUser($user)->allows('manage-users'),
                 'admin_roles' => Gate::forUser($user)->allows('manage-roles-permissions'),
                 'audit' => Gate::forUser($user)->allows('view-audit-log'),
+                'event_contributions_stats' => Gate::forUser($user)->allows('view-event-contribution-stats'),
+                'event_contributions_notifications' => Gate::forUser($user)->allows('view-event-contribution-stats'),
                 'admin_surveys' => $user->isHr(),
                 'admin_challenges' => $user->isHr(),
             ]
@@ -56,6 +58,8 @@ class HandleInertiaRequests extends Middleware
                 'admin_users' => false,
                 'admin_roles' => false,
                 'audit' => false,
+                'event_contributions_stats' => false,
+                'event_contributions_notifications' => false,
                 'admin_surveys' => false,
                 'admin_challenges' => false,
             ];
@@ -87,9 +91,6 @@ class HandleInertiaRequests extends Middleware
             'flash' => [
                 'success' => $request->session()->get('success'),
                 'error' => $request->session()->get('error'),
-            ],
-            'messenger' => [
-                'call_ice_servers' => config('messenger.calls.ice_servers'),
             ],
             // Partagé globalement pour le modal "Envoyer un Bravo" accessible depuis toutes les pages
             'bravoValues' => fn () => BravoValue::where('is_active', true)->get(),

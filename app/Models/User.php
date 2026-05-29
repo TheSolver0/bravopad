@@ -95,6 +95,16 @@ class User extends Authenticatable
         return $this->hasMany(MessengerCallParticipant::class);
     }
 
+    public function eventContributions(): HasMany
+    {
+        return $this->hasMany(EventContribution::class, 'creator_id');
+    }
+
+    public function eventContributionPayments(): HasMany
+    {
+        return $this->hasMany(EventContributionPayment::class, 'contributor_user_id');
+    }
+
     // -------------------------------------------------------------------------
     // Helpers rôles
     // -------------------------------------------------------------------------

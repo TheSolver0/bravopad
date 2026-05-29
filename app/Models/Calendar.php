@@ -15,7 +15,7 @@ class Calendar extends Model
     ];
 
     protected $casts = [
-        'is_default'  => 'boolean',
+        'is_default' => 'boolean',
         'is_archived' => 'boolean',
     ];
 
@@ -38,8 +38,21 @@ class Calendar extends Model
 
     public function scopeForUser($query, int $userId)
     {
-        return $query->where('owner_id', $userId)
-            ->orWhereHas('members', fn ($q) => $q->where('users.id', $userId));
+        return $query->where(function ($q) use ($userId) {
+            $q->where('owner_id', $userId)
+                ->orWhereHas('members', fn ($m) => $m->where('users.id', $userId));
+        });
+    }
+
+    /** Calendriers où l'utilisateur peut créer / modifier des événements */
+    public function scopeWritableBy($query, int $userId)
+    {
+        return $query->where(function ($q) use ($userId) {
+            $q->where('owner_id', $userId)
+                ->orWhereHas('members', fn ($m) => $m
+                    ->where('users.id', $userId)
+                    ->whereIn('calendar_user.permission', ['edit', 'admin']));
+        });
     }
 
     public function scopeActive($query)

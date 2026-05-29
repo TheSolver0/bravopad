@@ -1,19 +1,22 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { usePage } from '@inertiajs/react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 import {
     ChevronLeft, ChevronRight, Plus, Clock, MapPin, Users, Video,
-    Trash2, Edit3, Check, X, Bell, Loader2,
+    Trash2, Edit3, Check, X, Bell, Loader2, Search, CheckCircle2,
     List, CalendarDays, CalendarRange, Grid3x3, PanelLeft, PanelLeftClose,
     Globe, Building2, Cake,
 } from 'lucide-react';
+import { useInitials } from '@/hooks/use-initials';
 import type {
     AgendaCalendar, AgendaEventData, HolidayData, BirthdayData,
     TeamMember, AgendaStats, AgendaView, EventFormData,
     EventType, EventStatus, EventPriority, AttendeeStatus,
+    AgendaDisplayFilter,
 } from '@/types/agenda';
 import {
+    AGENDA_DISPLAY_FILTERS,
     DAYS_FR, MONTHS_FR,
     isSameDay, isToday, addDays, addMonths,
     getMonthGrid, getWeekDays,
@@ -27,6 +30,7 @@ interface AgendaProps {
     birthdays: BirthdayData[];
     teamMembers: TeamMember[];
     stats: AgendaStats;
+    network_count: number;
 }
 
 // ── Constantes ────────────────────────────────────────────────────────────────
@@ -785,11 +789,13 @@ function EventDetailPanel({ event, onClose, onEdit }: {
                         {event.description}
                     </p>
                 )}
-                {event.attendees.length > 0 && (
-                    <div>
-                        <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-2">
-                            Participants ({event.attendees.length})
-                        </p>
+                <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-2">
+                        Participants ({event.attendees.length})
+                    </p>
+                    {event.attendees.length === 0 ? (
+                        <p className="text-[11px] text-zinc-400">Aucun participant invité.</p>
+                    ) : (
                         <div className="space-y-1.5">
                             {event.attendees.map(a => (
                                 <div key={a.id} className="flex items-center gap-2">
@@ -803,8 +809,8 @@ function EventDetailPanel({ event, onClose, onEdit }: {
                                 </div>
                             ))}
                         </div>
-                    </div>
-                )}
+                    )}
+                </div>
                 {event.tags && event.tags.length > 0 && (
                     <div className="flex gap-1.5 flex-wrap">
                         {event.tags.map(tag => (
@@ -853,9 +859,25 @@ function EventModal({
     const [deleting, setDel]      = useState(false);
     const [tagInput, setTagInput] = useState('');
     const [tab, setTab]           = useState<ModalTab>('details');
+    const [participantSearch, setParticipantSearch] = useState('');
+    const getInitials = useInitials();
+
+    const filteredTeamMembers = useMemo(() => {
+        const q = participantSearch.trim().toLowerCase();
+        if (!q) return teamMembers;
+        return teamMembers.filter(m =>
+            `${m.name} ${m.email}`.toLowerCase().includes(q),
+        );
+    }, [teamMembers, participantSearch]);
+
+    const selectedMembers = useMemo(
+        () => teamMembers.filter(m => form.attendee_ids.includes(m.id)),
+        [teamMembers, form.attendee_ids],
+    );
 
     useEffect(() => {
         if (!open) return;
+        setParticipantSearch('');
         if (event) {
             setForm({
                 title:event.title, description:event.description??'',
@@ -889,7 +911,12 @@ function EventModal({
             const url=event?`/agenda/events/${event.id}`:'/agenda/events';
             const method=event?'PUT':'POST';
             const res=await fetch(url,{method,headers:{'Content-Type':'application/json','X-CSRF-TOKEN':(document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement)?.content??'','Accept':'application/json'},body:JSON.stringify(form)});
-            if (!res.ok){const err=await res.json();toast.error(err.message??'Erreur');return;}
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                const msg = err.message ?? err.errors?.attendee_ids?.[0] ?? 'Erreur lors de l\'enregistrement';
+                toast.error(msg);
+                return;
+            }
             const data=await res.json();
             const saved=event?data:data.event;
             if(data.conflicts?.length) toast.warning(`Conflit avec ${data.conflicts.length} événement(s).`);
@@ -1130,27 +1157,123 @@ function EventModal({
 
                     {/* ── Participants ── */}
                     {tab==='attendees' && (
-                        <div className="px-5 py-4 space-y-2">
-                            {teamMembers.map(m=>{
-                                const sel=form.attendee_ids.includes(m.id);
-                                return (
-                                    <button key={m.id} type="button"
-                                        onClick={()=>up({attendee_ids:sel?form.attendee_ids.filter(id=>id!==m.id):[...form.attendee_ids,m.id]})}
-                                        className={cx('w-full flex items-center gap-3 p-2.5 rounded-2xl transition-all text-left',
-                                            sel?'bg-zinc-900 dark:bg-zinc-100':'hover:bg-zinc-50 dark:hover:bg-zinc-900 border border-transparent hover:border-zinc-100 dark:hover:border-zinc-800')}>
-                                        <div className="size-8 rounded-full overflow-hidden shrink-0 flex items-center justify-center"
-                                            style={{backgroundColor:`${accent}20`}}>
-                                            {m.avatar?<img src={m.avatar} alt={m.name} className="size-full object-cover"/>
-                                                :<span className="text-[13px] font-bold" style={{color:accent}}>{m.name[0]}</span>}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className={cx('text-[13px] font-medium truncate',sel?'text-white dark:text-zinc-900':'text-zinc-800 dark:text-zinc-200')}>{m.name}</p>
-                                            <p className={cx('text-[11px] truncate',sel?'text-zinc-300 dark:text-zinc-500':'text-zinc-400')}>{m.email}</p>
-                                        </div>
-                                        {sel&&<Check size={14} className="shrink-0 text-white dark:text-zinc-900"/>}
-                                    </button>
-                                );
-                            })}
+                        <div className="px-5 py-4 space-y-3">
+                            <p className="text-[11px] text-zinc-500 leading-relaxed">
+                                Personnes avec lesquelles vous avez un lien (Bravo, messagerie, calendrier partagé…).
+                            </p>
+
+                            <div className="flex items-center justify-between gap-2">
+                                <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">
+                                    Participants
+                                </span>
+                                <span className="text-[11px] font-semibold text-zinc-500">
+                                    {selectedMembers.length} sélectionné{selectedMembers.length > 1 ? 's' : ''}
+                                </span>
+                            </div>
+
+                            {selectedMembers.length > 0 && (
+                                <div className="flex flex-wrap gap-1.5">
+                                    {selectedMembers.map(m => (
+                                        <button key={m.id} type="button"
+                                            onClick={() => up({ attendee_ids: form.attendee_ids.filter(id => id !== m.id) })}
+                                            className="inline-flex items-center gap-1.5 rounded-full pl-1 pr-2 py-0.5 text-[11px] font-semibold transition"
+                                            style={{ backgroundColor: `${accent}18`, color: accent }}>
+                                            <span className="flex size-6 items-center justify-center rounded-full text-[9px] font-black text-white"
+                                                style={{ backgroundColor: accent }}>
+                                                {getInitials(m.name)}
+                                            </span>
+                                            {m.name}
+                                            <X size={11} />
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+
+                            <div className="rounded-2xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+                                <div className="flex items-center gap-2 p-2 border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50/80 dark:bg-zinc-900/40">
+                                    <div className="relative flex-1">
+                                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" />
+                                        <input
+                                            className={cx(mIn, 'pl-9 h-10')}
+                                            placeholder="Rechercher dans votre réseau…"
+                                            value={participantSearch}
+                                            onChange={e => setParticipantSearch(e.target.value)}
+                                        />
+                                    </div>
+                                    {teamMembers.length > 0 && (
+                                        <button type="button"
+                                            onClick={() => up({ attendee_ids: filteredTeamMembers.map(m => m.id) })}
+                                            className="shrink-0 px-2.5 h-10 rounded-xl border border-zinc-200 dark:border-zinc-700 text-[11px] font-semibold text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">
+                                            Tout
+                                        </button>
+                                    )}
+                                </div>
+
+                                <div className="max-h-52 overflow-y-auto p-2 space-y-1">
+                                    {filteredTeamMembers.map(m => {
+                                        const sel = form.attendee_ids.includes(m.id);
+                                        return (
+                                            <button key={m.id} type="button"
+                                                onClick={() => up({
+                                                    attendee_ids: sel
+                                                        ? form.attendee_ids.filter(id => id !== m.id)
+                                                        : [...form.attendee_ids, m.id],
+                                                })}
+                                                className={cx(
+                                                    'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition',
+                                                    sel
+                                                        ? 'bg-zinc-900 dark:bg-zinc-100'
+                                                        : 'hover:bg-zinc-50 dark:hover:bg-zinc-900 border border-transparent',
+                                                )}>
+                                                <span className={cx(
+                                                    'flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-black',
+                                                    sel ? 'bg-white/20 text-white dark:bg-zinc-900 dark:text-zinc-100' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600',
+                                                )}>
+                                                    {m.avatar
+                                                        ? <img src={m.avatar} alt="" className="size-full rounded-full object-cover" />
+                                                        : getInitials(m.name)}
+                                                </span>
+                                                <span className="min-w-0 flex-1">
+                                                    <span className={cx('block text-[13px] font-semibold truncate', sel ? 'text-white dark:text-zinc-900' : 'text-zinc-800 dark:text-zinc-200')}>
+                                                        {m.name}
+                                                    </span>
+                                                    <span className={cx('block text-[11px] truncate', sel ? 'text-zinc-300 dark:text-zinc-500' : 'text-zinc-400')}>
+                                                        {m.email}
+                                                    </span>
+                                                </span>
+                                                <span className={cx(
+                                                    'h-5 w-5 rounded-md border-2 flex items-center justify-center shrink-0',
+                                                    sel ? 'border-white bg-white dark:border-zinc-900 dark:bg-zinc-900' : 'border-zinc-300 dark:border-zinc-600',
+                                                )}>
+                                                    {sel && <CheckCircle2 size={14} className="text-zinc-900 dark:text-white" />}
+                                                </span>
+                                            </button>
+                                        );
+                                    })}
+                                    {teamMembers.length === 0 && (
+                                        <p className="text-[12px] text-zinc-500 text-center py-8 px-4 leading-relaxed">
+                                            Aucune personne dans votre réseau pour l&apos;instant.
+                                            Envoyez un Bravo ou démarrez une conversation pour pouvoir inviter quelqu&apos;un.
+                                        </p>
+                                    )}
+                                    {teamMembers.length > 0 && filteredTeamMembers.length === 0 && (
+                                        <p className="text-[12px] text-zinc-500 text-center py-6">Aucun résultat pour cette recherche.</p>
+                                    )}
+                                </div>
+
+                                {teamMembers.length > 0 && (
+                                    <div className="px-3 py-2 border-t border-zinc-100 dark:border-zinc-800 flex justify-between bg-zinc-50/50 dark:bg-zinc-900/30">
+                                        <button type="button" className="text-[11px] font-semibold hover:underline" style={{ color: accent }}
+                                            onClick={() => up({ attendee_ids: teamMembers.map(m => m.id) })}>
+                                            Sélectionner tout ({teamMembers.length})
+                                        </button>
+                                        <button type="button" className="text-[11px] font-semibold text-zinc-500 hover:underline"
+                                            onClick={() => up({ attendee_ids: [] })}>
+                                            Effacer
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     )}
 
@@ -1213,7 +1336,49 @@ function EventModal({
 }
 
 // ── Page principale ───────────────────────────────────────────────────────────
-export default function Agenda({ calendars, holidays, birthdays, teamMembers, stats }: AgendaProps) {
+function toggleDisplayFilter(
+    current: Set<AgendaDisplayFilter>,
+    key: AgendaDisplayFilter,
+): Set<AgendaDisplayFilter> {
+    if (key === 'all') {
+        return new Set(['all']);
+    }
+    const next = new Set(current);
+    next.delete('all');
+    if (next.has(key)) {
+        next.delete(key);
+        if (next.size === 0) {
+            next.add('all');
+        }
+    } else {
+        next.add(key);
+    }
+    return next;
+}
+
+function applyDisplayFilters(
+    events: AgendaEventData[],
+    birthdays: BirthdayData[],
+    holidays: HolidayData[],
+    filters: Set<AgendaDisplayFilter>,
+) {
+    const showAll = filters.has('all') || filters.size === 0;
+
+    return {
+        events: showAll ? events : events.filter((e) => filters.has(e.type)),
+        birthdays: showAll || filters.has('birthday') ? birthdays : [],
+        holidays: showAll || filters.has('public_holiday') ? holidays : [],
+    };
+}
+
+export default function Agenda({
+    calendars = [],
+    holidays = [],
+    birthdays = [],
+    teamMembers = [],
+    stats = { today: 0, week: 0, pending: 0 },
+    network_count = 1,
+}: AgendaProps) {
     const { auth } = usePage<{ auth: { user: { id:number; name:string; avatar?:string } } }>().props;
 
     const [view, setView]               = useState<AgendaView>('week');
@@ -1226,6 +1391,7 @@ export default function Agenda({ calendars, holidays, birthdays, teamMembers, st
     const [selectedDate, setSelDate]    = useState(new Date());
     const [hiddenCals, setHiddenCals]   = useState<Set<number>>(new Set());
     const [sidebarOpen, setSidebar]     = useState(true);
+    const [displayFilters, setDisplayFilters] = useState<Set<AgendaDisplayFilter>>(new Set(['all']));
 
     const defaultCalendarId = calendars.find(c => c.is_default)?.id ?? calendars[0]?.id ?? null;
     const notifiedRef = useRef<Set<string>>(new Set());
@@ -1351,6 +1517,13 @@ export default function Agenda({ calendars, holidays, birthdays, teamMembers, st
     })();
 
     const visibleEvents = events.filter(e => !hiddenCals.has(e.calendar_id));
+    const filtered = useMemo(
+        () => applyDisplayFilters(visibleEvents, birthdays, holidays, displayFilters),
+        [visibleEvents, birthdays, holidays, displayFilters],
+    );
+    const filteredEvents = filtered.events;
+    const filteredBirthdays = filtered.birthdays;
+    const filteredHolidays = filtered.holidays;
 
     const VIEWS: { key:AgendaView; label:string; icon:React.ElementType }[] = [
         { key:'day',    label:'Jour',    icon:CalendarDays },
@@ -1360,7 +1533,7 @@ export default function Agenda({ calendars, holidays, birthdays, teamMembers, st
     ];
 
     // Prochains anniversaires (30 jours)
-    const upcomingBdays = birthdays.filter(b => {
+    const upcomingBdays = filteredBirthdays.filter(b => {
         const d = new Date(b.date + 'T00:00:00');
         const now = new Date();
         const diff = (d.getTime() - now.setHours(0,0,0,0)) / 86400000;
@@ -1368,7 +1541,7 @@ export default function Agenda({ calendars, holidays, birthdays, teamMembers, st
     }).slice(0, 5);
 
     // Prochains fériés
-    const upcomingHolidays = holidays.filter(h => new Date(h.date) >= new Date()).slice(0, 4);
+    const upcomingHolidays = filteredHolidays.filter(h => new Date(h.date) >= new Date()).slice(0, 4);
 
     return (
         <>
@@ -1437,22 +1610,22 @@ export default function Agenda({ calendars, holidays, birthdays, teamMembers, st
                                 transition={{ duration:0.1 }}
                                 className="flex-1 flex flex-col min-h-0 overflow-hidden">
                                 {view==='month' && (
-                                    <MonthView date={currentDate} events={visibleEvents} holidays={holidays} birthdays={birthdays}
+                                    <MonthView date={currentDate} events={filteredEvents} holidays={filteredHolidays} birthdays={filteredBirthdays}
                                         onDayClick={d => { setSelDate(d); setCurrentDate(d); setView('day'); }}
                                         onEventClick={e => setSelected(e)} />
                                 )}
                                 {view==='week' && (
-                                    <WeekView date={currentDate} events={visibleEvents} holidays={holidays} birthdays={birthdays}
+                                    <WeekView date={currentDate} events={filteredEvents} holidays={filteredHolidays} birthdays={filteredBirthdays}
                                         onSlotClick={d => { setSelDate(d); setEditing(null); setModalOpen(true); }}
                                         onEventClick={setSelected} />
                                 )}
                                 {view==='day' && (
-                                    <DayView date={currentDate} events={visibleEvents} holidays={holidays} birthdays={birthdays}
+                                    <DayView date={currentDate} events={filteredEvents} holidays={filteredHolidays} birthdays={filteredBirthdays}
                                         onSlotClick={d => { setSelDate(d); setEditing(null); setModalOpen(true); }}
                                         onEventClick={setSelected} />
                                 )}
                                 {view==='agenda' && (
-                                    <AgendaListView events={visibleEvents} holidays={holidays} birthdays={birthdays} onEventClick={setSelected} />
+                                    <AgendaListView events={filteredEvents} holidays={filteredHolidays} birthdays={filteredBirthdays} onEventClick={setSelected} />
                                 )}
                             </motion.div>
                         </AnimatePresence>
@@ -1475,7 +1648,7 @@ export default function Agenda({ calendars, holidays, birthdays, teamMembers, st
                                 <div className="border-b border-zinc-100 dark:border-zinc-800">
                                     <MiniCalendar selectedDate={selectedDate}
                                         onSelect={d => { setSelDate(d); setCurrentDate(d); }}
-                                        events={visibleEvents} birthdays={birthdays} holidays={holidays} />
+                                        events={filteredEvents} birthdays={filteredBirthdays} holidays={filteredHolidays} />
                                 </div>
 
                                 {/* Résumé */}
@@ -1491,6 +1664,33 @@ export default function Agenda({ calendars, holidays, birthdays, teamMembers, st
                                             <span className={`text-[14px] font-bold ${s.color}`}>{s.value}</span>
                                         </div>
                                     ))}
+                                </div>
+
+                                {/* Filtres par type */}
+                                <div className="px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
+                                    <p className="text-[9px] font-semibold uppercase tracking-widest text-zinc-300 dark:text-zinc-600 mb-2">
+                                        Afficher
+                                    </p>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {AGENDA_DISPLAY_FILTERS.map((f) => {
+                                            const active = displayFilters.has(f.key);
+                                            return (
+                                                <button
+                                                    key={f.key}
+                                                    type="button"
+                                                    onClick={() => setDisplayFilters((prev) => toggleDisplayFilter(prev, f.key))}
+                                                    className={cx(
+                                                        'px-2 py-1 rounded-lg text-[10px] font-semibold border transition-colors',
+                                                        active
+                                                            ? 'bg-[#007AFF]/10 border-[#007AFF]/30 text-[#007AFF]'
+                                                            : 'bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700 text-zinc-500 hover:border-zinc-300',
+                                                    )}
+                                                >
+                                                    {f.label}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
                                 </div>
 
                                 {/* Mes calendriers */}
@@ -1520,11 +1720,14 @@ export default function Agenda({ calendars, holidays, birthdays, teamMembers, st
                                     })}
                                 </div>
 
-                                {/* Prochains anniversaires */}
+                                {/* Prochains anniversaires (réseau) */}
                                 {upcomingBdays.length > 0 && (
                                     <div className="px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
-                                        <p className="text-[9px] font-semibold uppercase tracking-widest text-zinc-300 dark:text-zinc-600 mb-2">
+                                        <p className="text-[9px] font-semibold uppercase tracking-widest text-zinc-300 dark:text-zinc-600 mb-0.5">
                                             Anniversaires à venir
+                                        </p>
+                                        <p className="text-[10px] text-zinc-400 mb-2">
+                                            Votre réseau ({network_count} personne{network_count > 1 ? 's' : ''})
                                         </p>
                                         <div className="space-y-2">
                                             {upcomingBdays.map((b, i) => {

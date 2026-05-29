@@ -3,15 +3,15 @@
 namespace App\Providers;
 
 use App\Events\BravoSent;
-use App\Listeners\RecordAuthAudit;
 use App\Listeners\DetectBravoAnomalies;
+use App\Listeners\RecordAuthAudit;
 use App\Listeners\RecordBravoSentAudit;
 use App\Listeners\SendBravoNotification;
 use App\Models\BravoValue;
-use App\Models\User;
 use App\Models\Challenge;
 use App\Models\Redemption;
 use App\Models\Reward;
+use App\Models\User;
 use App\Policies\BravoValuePolicy;
 use App\Policies\ChallengePolicy;
 use App\Policies\RedemptionPolicy;
@@ -70,6 +70,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('view-audit-log', fn ($user) => $user->isHr());
         Gate::define('manage-users', fn ($user) => $user->isHr());
         Gate::define('manage-roles-permissions', fn ($user) => $user->isAdmin());
+        Gate::define('view-event-contribution-stats', fn ($user) => $user->isAdmin());
     }
 
     protected function registerEvents(): void

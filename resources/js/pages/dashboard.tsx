@@ -85,6 +85,16 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
   // Celebrations dismissal
   const [celebrationsDismissed, setCelebrationsDismissed] = useState(false);
 
+  // Back-to-top button
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  useEffect(() => {
+    const main = document.querySelector('main');
+    if (!main) return;
+    const onScroll = () => setShowScrollTop(main.scrollTop > 300);
+    main.addEventListener('scroll', onScroll, { passive: true });
+    return () => main.removeEventListener('scroll', onScroll);
+  }, []);
+
   // Leaderboard pagination
   const [leaderboardPage, setLeaderboardPage] = useState(0);
   const ITEMS_PER_PAGE = 5;
@@ -666,6 +676,19 @@ export default function Dashboard({ bravos, users, activeChallenge, currentUser,
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Back to top button */}
+      {showScrollTop && (
+        <div className="fixed bottom-4 right-4 z-50 md:right-6">
+          <Button
+            onClick={() => document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' })}
+            className="rounded-full p-3 shadow-lg bg-primary hover:bg-primary/90"
+          >
+            <ChevronUp size={20} className="text-white" />
+          </Button>
+        </div>
+      )}
+
     </div>
   );
 }
@@ -733,16 +756,6 @@ function RecognitionCard({ counts }: RecognitionCardProps) {
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* Back to top button */}
-      <div className="fixed bottom-4 right-4 z-50">
-        <Button
-          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-          className="rounded-full p-3 shadow-lg bg-primary hover:bg-primary/90"
-        >
-          <ChevronUp size={20} className="text-white" />
-        </Button>
-      </div>
 
     </div>
   );

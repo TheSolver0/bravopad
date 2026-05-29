@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
@@ -70,6 +71,16 @@ class User extends Authenticatable
         return $this->belongsToMany(Conversation::class)
             ->withPivot(['joined_at', 'last_read_at'])
             ->withTimestamps();
+    }
+
+    public function eventContributions(): HasMany
+    {
+        return $this->hasMany(EventContribution::class, 'creator_id');
+    }
+
+    public function eventContributionPayments(): HasMany
+    {
+        return $this->hasMany(EventContributionPayment::class, 'contributor_user_id');
     }
 
     // -------------------------------------------------------------------------

@@ -9,3 +9,4 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('bravo:automations')->dailyAt('08:00');
+Schedule::command('event-contributions:send-reminders')->dailyAt('09:00');

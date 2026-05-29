@@ -1,11 +1,12 @@
 import { router, usePage } from '@inertiajs/react';
-import { Home, Trophy, History, ShoppingBag, PlusCircle } from 'lucide-react';
+import { Home, Trophy, History, ShoppingBag, PlusCircle, HandCoins } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 const navItems = [
   { href: '/dashboard',  labelKey: 'nav.home',       icon: Home },
   { href: '/history',    labelKey: 'nav.myBravos',   icon: History },
   { href: '/challenges', labelKey: 'nav.challenges', icon: Trophy },
+  { href: '/event-contributions', labelKey: 'nav.eventContributions', icon: HandCoins },
   { href: '/shop',       labelKey: 'nav.shop',       icon: ShoppingBag },
 ];
 

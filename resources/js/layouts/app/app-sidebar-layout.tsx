@@ -34,6 +34,12 @@ export default function AppSidebarLayout({ breadcrumbs = [], children }: AppSide
   const isFeed = page.component === 'Feed';
   const isMessages = page.component === 'Messages';
   const isAgenda = page.component === 'Agenda';
+  const headerBreadcrumbs =
+    breadcrumbs.length > 0
+      ? breadcrumbs
+      : isAgenda
+        ? [{ title: 'Agenda', href: '/agenda' }]
+        : breadcrumbs;
   const users: User[] =
     (page.props.users as User[] | undefined) ?? (page.props.team?.data as User[] | undefined) ?? [];
   const bravoValues: BravoValue[] = (page.props.bravoValues as BravoValue[]) ?? [];
@@ -70,7 +76,7 @@ export default function AppSidebarLayout({ breadcrumbs = [], children }: AppSide
           collapsed ? 'md:ml-[calc(72px+2rem)]' : 'md:ml-[calc(256px+2rem)]'
         }`}
       >
-        {!isDashboard && !isFeed && <Header breadcrumbs={breadcrumbs} />}
+        {!isDashboard && !isFeed && <Header breadcrumbs={headerBreadcrumbs} />}
 
         {/* Bottom nav mobile — visible sur toutes les pages */}
         <MobileNav onCreateBravo={() => setShowCreateModal(true)} />

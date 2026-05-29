@@ -18,6 +18,7 @@ import {
   Settings,
   UserCog,
   KeyRound,
+  BellRing,
   LogOut,
   User,
   Award,
@@ -30,6 +31,7 @@ import {
   Zap,
   MoreHorizontal,
   CalendarRange,
+  HandCoins,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -56,6 +58,7 @@ export const navItems: NavItem[] = [
   { href: '/history', labelKey: 'nav.myBravos', icon: User },
   { href: '/agenda', labelKey: 'nav.agenda', icon: CalendarRange },
   { href: '/challenges', labelKey: 'nav.challenges', icon: Trophy },
+  { href: '/event-contributions', labelKey: 'nav.eventContributions', icon: HandCoins },
   { href: '/engagement', labelKey: 'nav.surveys', icon: ClipboardList },
   { href: '/team', labelKey: 'nav.team', icon: Users },
   { href: '/shop', labelKey: 'nav.shop', icon: ShoppingBag },
@@ -69,6 +72,7 @@ type AuthNav = {
   audit?: boolean;
   admin_surveys?: boolean;
   admin_challenges?: boolean;
+  event_contributions_notifications?: boolean;
 };
 
 type AuthShared = {
@@ -365,6 +369,7 @@ export default function Sidebar({ collapsed = false, onCollapseToggle, onClose, 
     if (nav.admin_config) links.push({ href: '/admin/config', labelKey: 'nav.config', icon: Settings });
     if (nav.admin_users) links.push({ href: '/admin/users', labelKey: 'nav.users', icon: UserCog });
     if (nav.admin_roles) links.push({ href: '/admin/roles', labelKey: 'nav.rolesPermissions', icon: KeyRound });
+    if (nav.event_contributions_notifications) links.push({ href: '/admin/event-contributions/notifications', labelKey: 'nav.eventContribNotifications', icon: BellRing });
     if (nav.audit) links.push({ href: '/audit', labelKey: 'nav.audit', icon: Shield });
     return links;
   }, [nav]);

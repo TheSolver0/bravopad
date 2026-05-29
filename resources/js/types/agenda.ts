@@ -93,6 +93,22 @@ export interface AgendaStats {
 
 export type AgendaView = 'day' | 'week' | 'month' | 'agenda' | 'team';
 
+/** Filtres d'affichage calendrier / liste */
+export type AgendaDisplayFilter = 'all' | 'birthday' | 'public_holiday' | EventType;
+
+export const AGENDA_DISPLAY_FILTERS: { key: AgendaDisplayFilter; label: string }[] = [
+    { key: 'all', label: 'Tout' },
+    { key: 'birthday', label: 'Anniversaires' },
+    { key: 'public_holiday', label: 'Fériés' },
+    { key: 'meeting', label: 'Réunions' },
+    { key: 'appointment', label: 'Rendez-vous' },
+    { key: 'task', label: 'Tâches' },
+    { key: 'out_of_office', label: 'Congés' },
+    { key: 'reminder', label: 'Rappels' },
+    { key: 'holiday', label: 'Congé (evt.)' },
+    { key: 'other', label: 'Autre' },
+];
+
 export interface EventFormData {
     title: string;
     description: string;

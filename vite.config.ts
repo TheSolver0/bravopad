@@ -6,6 +6,12 @@ import laravel from 'laravel-vite-plugin';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
+    server: {
+        // Firefox ne charge pas toujours [::1] ; éviter une page blanche si Vite tourne sans HMR accessible
+        host: '127.0.0.1',
+        port: 5173,
+        strictPort: true,
+    },
     plugins: [
         laravel({
             input: ['resources/css/app.css', 'resources/js/app.tsx'],

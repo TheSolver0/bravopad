@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AdminConfigController;
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\AdminEventContributionNotificationsController;
 use App\Http\Controllers\AdminRolesController;
 use App\Http\Controllers\AdminUsersController;
 use App\Http\Controllers\AgendaController;
@@ -13,6 +14,7 @@ use App\Http\Controllers\ChallengeController;
 use App\Http\Controllers\CommentController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EngagementController;
+use App\Http\Controllers\EventContributionController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\HrDashboardController;
 use App\Http\Controllers\MessengerController;
@@ -81,6 +83,10 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('/admin/roles', [AdminRolesController::class, 'index'])->name('admin.roles.index');
     Route::patch('/admin/roles/{role}', [AdminRolesController::class, 'update'])->name('admin.roles.update');
+    Route::get('/admin/event-contributions/notifications', [AdminEventContributionNotificationsController::class, 'index'])
+        ->name('admin.event-contributions.notifications.index');
+    Route::get('/admin/event-contributions/notifications/export', [AdminEventContributionNotificationsController::class, 'export'])
+        ->name('admin.event-contributions.notifications.export');
 
     Route::get('/notifications', [NotificationCenterController::class, 'index'])->name('notifications.index');
     Route::post('/notifications/read-all', [NotificationCenterController::class, 'markAllRead'])->name('notifications.read-all');
@@ -103,6 +109,17 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/engagement', [EngagementController::class, 'index'])->name('engagement.index');
     Route::post('/engagement/vote', [EngagementController::class, 'vote'])->name('engagement.vote');
     Route::post('/engagement/surveys/{survey}/responses', [EngagementController::class, 'respondSurvey'])->name('engagement.surveys.respond');
+
+    Route::get('/event-contributions', [EventContributionController::class, 'index'])->name('event-contributions.index');
+    Route::get('/event-contributions/export', [EventContributionController::class, 'export'])->name('event-contributions.export');
+    Route::get('/event-contributions/{contribution}/export/excel', [EventContributionController::class, 'exportDetailExcel'])->name('event-contributions.detail.export.excel');
+    Route::get('/event-contributions/{contribution}/export/pdf', [EventContributionController::class, 'exportDetailPdf'])->name('event-contributions.detail.export.pdf');
+    Route::get('/event-contributions/{contribution}', [EventContributionController::class, 'show'])->name('event-contributions.show');
+    Route::post('/event-contributions', [EventContributionController::class, 'store'])->name('event-contributions.store');
+    Route::patch('/event-contributions/{contribution}', [EventContributionController::class, 'update'])->name('event-contributions.update');
+    Route::delete('/event-contributions/{contribution}', [EventContributionController::class, 'destroy'])->name('event-contributions.destroy');
+    Route::post('/event-contributions/{contribution}/contribute', [EventContributionController::class, 'contribute'])->name('event-contributions.contribute');
+    Route::post('/event-contributions/{contribution}/manual', [EventContributionController::class, 'recordManualContribution'])->name('event-contributions.manual');
 
     // Admin — gestion des sondages RH (HR uniquement)
     Route::get('/admin/surveys', [EngagementController::class, 'adminSurveys'])->name('admin.surveys.index');

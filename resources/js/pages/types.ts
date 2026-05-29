@@ -222,3 +222,58 @@ export interface Post {
   user: { id: number; name: string; avatar?: string | null; role: string; department?: string | null };
   comments?: PostComment[];
 }
+
+export interface EventContributionPayment {
+  id: number;
+  amount: number | null;
+  payment_method: 'orange_money' | 'mtn_money' | 'cash';
+  is_manual: boolean;
+  contributor_user_id: number | null;
+  contributor_name: string;
+  paid_at: string | null;
+}
+
+export type EventContributionStatus = 'pending' | 'partial' | 'complete';
+export type EventContributionCollectionStatus = 'pending' | 'in_progress' | 'completed' | 'closed';
+
+export interface EventContributionParticipant {
+  user_id: number;
+  name: string;
+  target_amount: number | null;
+  paid_amount: number | null;
+  remaining_amount: number | null;
+  progress_percent: number | null;
+  is_fully_paid: boolean;
+  contribution_status: EventContributionStatus | null;
+}
+
+export interface EventContribution {
+  id: number;
+  title: string;
+  description: string | null;
+  event_type: string;
+  goal_amount: number | null;
+  amount_mode: 'global' | 'per_participant';
+  amount_per_participant: number | null;
+  deadline_at: string | null;
+  banner_url: string | null;
+  visibility: 'public' | 'private';
+  viewer_role: 'creator' | 'invitee' | 'viewer';
+  payment_methods: ('orange_money' | 'mtn_money' | 'cash')[];
+  creator: { id: number; name: string };
+  stats: {
+    total_collected: number | null;
+    participants_count: number | null;
+    pot_amount: number | null;
+    collection_progress_percent: number | null;
+    contribution_status: EventContributionCollectionStatus | null;
+    goal_progress_percent: number | null;
+  };
+  invitees: { user_id: number; name?: string; status: 'pending' | 'accepted' | 'declined' }[];
+  participants: EventContributionParticipant[];
+  payments: EventContributionPayment[];
+  can_record_manual: boolean;
+  can_contribute: boolean;
+  can_edit: boolean;
+  can_delete: boolean;
+}

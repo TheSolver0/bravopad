@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Head, useForm, usePage } from '@inertiajs/react';
-import { CheckCircle2, Calendar, Clock, MapPin, Users, ListChecks, Info } from 'lucide-react';
+import { CheckCircle2, Calendar, Clock, MapPin, Users, ListChecks, Info, ChevronDown, X } from 'lucide-react';
 
 type Direction = { id: number; name: string; code: string | null };
 
@@ -188,17 +188,13 @@ export default function EvenementInscription({ evenement, directions }: Props) {
                             </Field>
 
                             {/* Direction */}
-                            <Field label="Direction" error={errors.direction_id}>
-                                <select value={data.direction_id}
-                                    onChange={e => setData('direction_id', Number(e.target.value) || '')}
-                                    className={inputCls(!!errors.direction_id)}>
-                                    <option value="">— Sélectionner votre direction —</option>
-                                    {directions.map(d => (
-                                        <option key={d.id} value={d.id}>
-                                            {d.code ? `${d.code} — ${d.name}` : d.name}
-                                        </option>
-                                    ))}
-                                </select>
+                            <Field label="Direction / Entité" error={errors.direction_id}>
+                                <DirectionCombobox
+                                    directions={directions}
+                                    value={data.direction_id}
+                                    onChange={id => setData('direction_id', id)}
+                                    hasError={!!errors.direction_id}
+                                />
                             </Field>
 
                             {/* Sexe */}
@@ -299,6 +295,113 @@ export default function EvenementInscription({ evenement, directions }: Props) {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+function DirectionCombobox({
+    directions,
+    value,
+    onChange,
+    hasError,
+}: {
+    directions: Direction[];
+    value: number | '';
+    onChange: (id: number | '') => void;
+    hasError: boolean;
+}) {
+    const [query, setQuery] = useState('');
+    const [open, setOpen] = useState(false);
+    const containerRef = useRef<HTMLDivElement>(null);
+
+    const selected = directions.find(d => d.id === value) ?? null;
+
+    const filtered = query.trim() === ''
+        ? directions
+        : directions.filter(d => {
+            const q = query.toLowerCase();
+            return (
+                d.name.toLowerCase().includes(q) ||
+                (d.code ?? '').toLowerCase().includes(q)
+            );
+        });
+
+    useEffect(() => {
+        function onClickOutside(e: MouseEvent) {
+            if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+                setOpen(false);
+                setQuery('');
+            }
+        }
+        document.addEventListener('mousedown', onClickOutside);
+        return () => document.removeEventListener('mousedown', onClickOutside);
+    }, []);
+
+    function select(d: Direction) {
+        onChange(d.id);
+        setQuery('');
+        setOpen(false);
+    }
+
+    function clear(e: React.MouseEvent) {
+        e.stopPropagation();
+        onChange('');
+        setQuery('');
+    }
+
+    const baseCls = `w-full rounded-xl border px-4 py-3 text-sm focus:outline-none focus:ring-2 transition ${
+        hasError
+            ? 'border-red-400 bg-red-50 focus:ring-red-300'
+            : 'border-gray-200 bg-gray-50 hover:border-gray-300 focus:ring-blue-200'
+    }`;
+
+    return (
+        <div ref={containerRef} className="relative">
+            {/* Trigger / input */}
+            <div className={`${baseCls} flex items-center gap-2 cursor-pointer`}
+                onClick={() => { setOpen(o => !o); }}>
+                {open ? (
+                    <input
+                        autoFocus
+                        className="flex-1 bg-transparent outline-none text-sm placeholder-gray-400"
+                        placeholder="Rechercher par code ou nom…"
+                        value={query}
+                        onChange={e => setQuery(e.target.value)}
+                        onClick={e => e.stopPropagation()}
+                    />
+                ) : (
+                    <span className={`flex-1 truncate ${selected ? 'text-gray-800' : 'text-gray-400'}`}>
+                        {selected
+                            ? (selected.code ? `${selected.code} — ${selected.name}` : selected.name)
+                            : '— Sélectionner votre direction —'}
+                    </span>
+                )}
+                {selected && !open
+                    ? <X className="w-4 h-4 text-gray-400 shrink-0 hover:text-gray-600" onClick={clear} />
+                    : <ChevronDown className={`w-4 h-4 text-gray-400 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+                }
+            </div>
+
+            {/* Dropdown */}
+            {open && (
+                <ul className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-y-auto">
+                    {filtered.length === 0 ? (
+                        <li className="px-4 py-3 text-sm text-gray-400 text-center">Aucun résultat</li>
+                    ) : (
+                        filtered.map(d => (
+                            <li key={d.id}
+                                className={`px-4 py-2.5 text-sm cursor-pointer hover:bg-blue-50 transition-colors ${
+                                    d.id === value ? 'bg-blue-50 font-semibold text-blue-800' : 'text-gray-700'
+                                }`}
+                                onMouseDown={e => { e.preventDefault(); select(d); }}>
+                                {d.code
+                                    ? <><span className="font-mono font-bold text-xs text-blue-700 mr-2">{d.code}</span>{d.name}</>
+                                    : d.name}
+                            </li>
+                        ))
+                    )}
+                </ul>
+            )}
+        </div>
+    );
+}
 
 function Chip({ icon, label }: { icon: React.ReactNode; label: string }) {
     return (

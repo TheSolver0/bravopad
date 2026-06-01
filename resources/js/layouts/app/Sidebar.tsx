@@ -31,6 +31,7 @@ import {
   MoreHorizontal,
   CalendarRange,
   HandCoins,
+  PartyPopper,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -57,6 +58,7 @@ export const navItems: NavItem[] = [
   { href: '/history', labelKey: 'nav.myBravos', icon: User },
   { href: '/agenda', labelKey: 'nav.agenda', icon: CalendarRange },
   { href: '/challenges', labelKey: 'nav.challenges', icon: Trophy },
+  { href: '/evenements', labelKey: 'nav.evenements', icon: PartyPopper },
   { href: '/event-contributions', labelKey: 'nav.eventContributions', icon: HandCoins },
   { href: '/engagement', labelKey: 'nav.surveys', icon: ClipboardList },
   { href: '/team', labelKey: 'nav.team', icon: Users },
@@ -71,6 +73,7 @@ type AuthNav = {
   audit?: boolean;
   admin_surveys?: boolean;
   admin_challenges?: boolean;
+  admin_evenements?: boolean;
   event_contributions_notifications?: boolean;
 };
 
@@ -365,6 +368,7 @@ export default function Sidebar({ collapsed = false, onCollapseToggle, onClose, 
     if (nav.hr_dashboard) links.push({ href: '/hr/dashboard', labelKey: 'nav.hrDashboard', icon: BarChart3 });
     if (nav.admin_surveys) links.push({ href: '/admin/surveys', labelKey: 'nav.manageSurveys', icon: ClipboardCheck });
     if (nav.admin_challenges) links.push({ href: '/admin/challenges', labelKey: 'nav.manageChallenges', icon: Trophy });
+    if (nav.admin_evenements) links.push({ href: '/admin/evenements', labelKey: 'nav.manageEvenements', icon: PartyPopper });
     if (nav.admin_config) links.push({ href: '/admin/config', labelKey: 'nav.config', icon: Settings });
     if (nav.admin_users) links.push({ href: '/admin/users', labelKey: 'nav.users', icon: UserCog });
     if (nav.admin_roles) links.push({ href: '/admin/roles', labelKey: 'nav.rolesPermissions', icon: KeyRound });

@@ -51,6 +51,7 @@ class HandleInertiaRequests extends Middleware
                 'event_contributions_notifications' => Gate::forUser($user)->allows('view-event-contribution-stats'),
                 'admin_surveys' => $user->isHr(),
                 'admin_challenges' => $user->isHr(),
+                'admin_evenements' => $user->isHr(),
             ]
             : [
                 'hr_dashboard' => false,
@@ -62,6 +63,7 @@ class HandleInertiaRequests extends Middleware
                 'event_contributions_notifications' => false,
                 'admin_surveys' => false,
                 'admin_challenges' => false,
+                'admin_evenements' => false,
             ];
 
         return [

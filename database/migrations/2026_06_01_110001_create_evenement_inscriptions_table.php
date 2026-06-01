@@ -8,8 +8,9 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('club_pad_registrations', function (Blueprint $table) {
+        Schema::create('evenement_inscriptions', function (Blueprint $table) {
             $table->id();
+            $table->foreignId('evenement_id')->constrained('evenements')->cascadeOnDelete();
             $table->string('nom');
             $table->string('matricule');
             $table->enum('sexe', ['M', 'F']);
@@ -18,12 +19,12 @@ return new class extends Migration
             $table->string('ip_address')->nullable();
             $table->timestamps();
 
-            $table->unique('matricule');
+            $table->unique(['evenement_id', 'matricule']);
         });
     }
 
     public function down(): void
     {
-        Schema::dropIfExists('club_pad_registrations');
+        Schema::dropIfExists('evenement_inscriptions');
     }
 };

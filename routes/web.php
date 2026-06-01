@@ -3,7 +3,8 @@
 use App\Http\Controllers\AdminConfigController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AdminEventContributionNotificationsController;
-use App\Http\Controllers\ClubPadRegistrationController;
+use App\Http\Controllers\AdminEvenementController;
+use App\Http\Controllers\EvenementPublicController;
 use App\Http\Controllers\UserProfileController;
 use App\Http\Controllers\AdminRolesController;
 use App\Http\Controllers\AdminUsersController;
@@ -157,8 +158,15 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('/audit', [AuditLogController::class, 'index'])->name('audit.index');
 
-    // Club PAD — liste des participants (admin/RH)
-    Route::get('/club-pad/participants', [ClubPadRegistrationController::class, 'index'])->name('club-pad.participants');
+    // Événements organisationnels — admin
+    Route::get('/admin/evenements', [AdminEvenementController::class, 'index'])->name('admin.evenements.index');
+    Route::post('/admin/evenements', [AdminEvenementController::class, 'store'])->name('admin.evenements.store');
+    Route::get('/admin/evenements/{evenement}', [AdminEvenementController::class, 'dashboard'])->name('admin.evenements.dashboard');
+    Route::put('/admin/evenements/{evenement}', [AdminEvenementController::class, 'update'])->name('admin.evenements.update');
+    Route::delete('/admin/evenements/{evenement}', [AdminEvenementController::class, 'destroy'])->name('admin.evenements.destroy');
+    Route::patch('/admin/evenements/{evenement}/statut', [AdminEvenementController::class, 'updateStatut'])->name('admin.evenements.statut');
+    Route::post('/admin/evenements/{evenement}/posts', [AdminEvenementController::class, 'storePost'])->name('admin.evenements.posts.store');
+    Route::delete('/admin/evenements/{evenement}/posts/{post}', [AdminEvenementController::class, 'destroyPost'])->name('admin.evenements.posts.destroy');
 
     // ── Agenda professionnel ──────────────────────────────────────────────────
     Route::prefix('agenda')->name('agenda.')->group(function () {
@@ -226,9 +234,10 @@ Route::middleware(['auth'])->group(function () {
 Route::get('/surveys/{token}', [EngagementController::class, 'showSurvey'])->name('surveys.show');
 Route::post('/surveys/{token}/respond', [EngagementController::class, 'respondSurveyByToken'])->name('surveys.respond');
 
-// Club PAD Olympiades — inscription publique
-Route::get('/club-pad/inscription', [ClubPadRegistrationController::class, 'show'])->name('club-pad.inscription');
-Route::post('/club-pad/inscription', [ClubPadRegistrationController::class, 'store'])->name('club-pad.inscription.store');
+// Événements — liste publique (connecté) et formulaire d'inscription (sans compte)
+Route::get('/evenements', [EvenementPublicController::class, 'index'])->name('evenements.index')->middleware('auth');
+Route::get('/inscrire/{slug}', [EvenementPublicController::class, 'show'])->name('evenement.inscription');
+Route::post('/inscrire/{slug}', [EvenementPublicController::class, 'store'])->name('evenement.inscription.store');
 
 Route::get('/challenges', [ChallengeController::class, 'page'])->middleware(['auth']);
 Route::post('/challenges', [ChallengeController::class, 'store'])->middleware(['auth']);

@@ -5,7 +5,7 @@ import {
   ShoppingBag, Bell, Hash, Settings,
   UserCog, ClipboardCheck, ClipboardList, KeyRound, Shield,
   BarChart3, History, ChevronLeft, ChevronRight, CalendarDays,
-  HandCoins,
+  HandCoins, PartyPopper,
 } from 'lucide-react';
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
@@ -125,6 +125,7 @@ export default function NavRail({ expanded, onToggle, onCreateBravo }: NavRailPr
       nav?: {
         hr_dashboard?: boolean; admin_surveys?: boolean; admin_challenges?: boolean;
         admin_config?: boolean; admin_users?: boolean; admin_roles?: boolean; audit?: boolean;
+        admin_evenements?: boolean;
       };
       unread_notifications_count?: number;
     };
@@ -136,7 +137,8 @@ export default function NavRail({ expanded, onToggle, onCreateBravo }: NavRailPr
   const unread = page.props.auth?.unread_notifications_count ?? 0;
   const hasAdmin = !!(
     nav.hr_dashboard || nav.admin_surveys || nav.admin_challenges ||
-    nav.admin_config || nav.admin_users || nav.admin_roles || nav.audit
+    nav.admin_config || nav.admin_users || nav.admin_roles || nav.audit ||
+    nav.admin_evenements
   );
 
   return (
@@ -194,6 +196,7 @@ export default function NavRail({ expanded, onToggle, onCreateBravo }: NavRailPr
         <RailDivider expanded={expanded} label="Plus" />
 
         <RailItem href="/agenda" icon={CalendarDays} label={t('nav.agenda', 'Agenda')} active={isActive(path, '/agenda')} expanded={expanded} />
+        <RailItem href="/evenements" icon={PartyPopper} label={t('nav.evenements', 'Événements')} active={isActive(path, '/evenements')} expanded={expanded} />
         <RailItem href="/event-contributions" icon={HandCoins} label={t('nav.eventContributions', 'Cotisations')} active={isActive(path, '/event-contributions')} expanded={expanded} />
         <RailItem href="/shop" icon={ShoppingBag} label={t('nav.shop', 'Boutique')} active={isActive(path, '/shop')} expanded={expanded} />
         <RailItem href="/notifications" icon={Bell} label={t('nav.notifications', 'Notifications')} active={isActive(path, '/notifications')} badge={unread} expanded={expanded} />
@@ -204,6 +207,7 @@ export default function NavRail({ expanded, onToggle, onCreateBravo }: NavRailPr
             {nav.hr_dashboard && <RailItem href="/hr/dashboard" icon={BarChart3} label={t('nav.hrDashboard', 'RH Dashboard')} active={isActive(path, '/hr/dashboard')} expanded={expanded} />}
             {nav.admin_surveys && <RailItem href="/admin/surveys" icon={ClipboardCheck} label={t('nav.manageSurveys', 'Sondages')} active={isActive(path, '/admin/surveys')} expanded={expanded} />}
             {nav.admin_challenges && <RailItem href="/admin/challenges" icon={Trophy} label={t('nav.manageChallenges', 'Challenges')} active={isActive(path, '/admin/challenges')} expanded={expanded} />}
+            {nav.admin_evenements && <RailItem href="/admin/evenements" icon={PartyPopper} label={t('nav.manageEvenements', 'Événements')} active={isActive(path, '/admin/evenements')} expanded={expanded} />}
             {nav.admin_config && <RailItem href="/admin/config" icon={Settings} label={t('nav.config', 'Config')} active={isActive(path, '/admin/config')} expanded={expanded} />}
             {nav.admin_users && <RailItem href="/admin/users" icon={UserCog} label={t('nav.users', 'Utilisateurs')} active={isActive(path, '/admin/users')} expanded={expanded} />}
             {nav.admin_roles && <RailItem href="/admin/roles" icon={KeyRound} label={t('nav.rolesPermissions', 'Rôles')} active={isActive(path, '/admin/roles')} expanded={expanded} />}

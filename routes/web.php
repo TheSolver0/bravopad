@@ -3,6 +3,7 @@
 use App\Http\Controllers\AdminConfigController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AdminEventContributionNotificationsController;
+use App\Http\Controllers\ClubPadRegistrationController;
 use App\Http\Controllers\UserProfileController;
 use App\Http\Controllers\AdminRolesController;
 use App\Http\Controllers\AdminUsersController;
@@ -156,6 +157,9 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('/audit', [AuditLogController::class, 'index'])->name('audit.index');
 
+    // Club PAD — liste des participants (admin/RH)
+    Route::get('/club-pad/participants', [ClubPadRegistrationController::class, 'index'])->name('club-pad.participants');
+
     // ── Agenda professionnel ──────────────────────────────────────────────────
     Route::prefix('agenda')->name('agenda.')->group(function () {
         // Dashboard principal
@@ -221,6 +225,10 @@ Route::middleware(['auth'])->group(function () {
 // Sondages RH — accessibles sans compte (réponse libre)
 Route::get('/surveys/{token}', [EngagementController::class, 'showSurvey'])->name('surveys.show');
 Route::post('/surveys/{token}/respond', [EngagementController::class, 'respondSurveyByToken'])->name('surveys.respond');
+
+// Club PAD Olympiades — inscription publique
+Route::get('/club-pad/inscription', [ClubPadRegistrationController::class, 'show'])->name('club-pad.inscription');
+Route::post('/club-pad/inscription', [ClubPadRegistrationController::class, 'store'])->name('club-pad.inscription.store');
 
 Route::get('/challenges', [ChallengeController::class, 'page'])->middleware(['auth']);
 Route::post('/challenges', [ChallengeController::class, 'store'])->middleware(['auth']);

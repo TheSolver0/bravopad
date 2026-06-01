@@ -1,4 +1,34 @@
 @php
+    /* ── Événement inscription OG ── */
+    $evenementOg = null;
+    if (request()->routeIs('evenement.inscription')) {
+        $slug = request()->route('slug');
+        if ($slug) {
+            $ev = \App\Models\Evenement::where('slug', $slug)->first();
+            if ($ev) {
+                $evImg = $ev->cover_image;
+                if ($evImg && ! filter_var($evImg, FILTER_VALIDATE_URL)) {
+                    $evImg = str_starts_with($evImg, '/') ? url($evImg) : asset('storage/' . $evImg);
+                }
+                $evDateInfo = '';
+                if ($ev->date) {
+                    $evDateInfo .= $ev->date->format('d/m/Y');
+                    if ($ev->heure_debut) $evDateInfo .= ' à ' . substr($ev->heure_debut, 0, 5);
+                    if ($ev->lieu)        $evDateInfo .= ' — ' . $ev->lieu;
+                }
+                $evDesc = $ev->description
+                    ? \Illuminate\Support\Str::limit(strip_tags($ev->description), 160)
+                    : 'Inscrivez-vous dès maintenant à cet événement du Port Autonome de Douala.';
+                $evenementOg = [
+                    'title'       => $ev->nom . ($evDateInfo ? ' · ' . $evDateInfo : ''),
+                    'description' => $evDesc,
+                    'image'       => $evImg,
+                    'url'         => request()->url(),
+                ];
+            }
+        }
+    }
+
     $surveyOg = null;
     if (request()->routeIs('surveys.show')) {
         $token = request()->route('token');
@@ -25,6 +55,28 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
+
+        @if($evenementOg)
+            <title>{{ $evenementOg['title'] }} — {{ config('app.name', 'OnePAD') }}</title>
+            <meta name="description" content="{{ $evenementOg['description'] }}">
+            <meta property="og:type"        content="website">
+            <meta property="og:site_name"   content="{{ config('app.name', 'OnePAD') }}">
+            <meta property="og:url"         content="{{ $evenementOg['url'] }}">
+            <meta property="og:title"       content="{{ $evenementOg['title'] }}">
+            <meta property="og:description" content="{{ $evenementOg['description'] }}">
+            @if($evenementOg['image'])
+            <meta property="og:image"       content="{{ $evenementOg['image'] }}">
+            <meta property="og:image:width" content="1200">
+            <meta property="og:image:height" content="630">
+            <meta property="og:image:alt"   content="{{ $evenementOg['title'] }}">
+            @endif
+            <meta name="twitter:card"        content="summary_large_image">
+            <meta name="twitter:title"       content="{{ $evenementOg['title'] }}">
+            <meta name="twitter:description" content="{{ $evenementOg['description'] }}">
+            @if($evenementOg['image'])
+            <meta name="twitter:image"       content="{{ $evenementOg['image'] }}">
+            @endif
+        @endif
 
         @if($surveyOg)
             <title>{{ $surveyOg['title'] }} — {{ config('app.name', 'OnePAD') }}</title>

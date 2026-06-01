@@ -17,7 +17,10 @@ class ClubPadEvenementSeeder extends Seeder
         $data = [
             'slug'        => 'festival-nutrisante-bien-etre-2026',
             'nom'         => "1er Festival Nutri'Santé & Bien-être",
-            'description' => "La Direction des Ressources Humaines a le plaisir de vous annoncer la tenue de la première édition du Festival Nutri-Santé & Bien-être du PAD, un moment de partage, de santé et de cohésion réunissant l'ensemble du personnel.\n\nAfin de bien organiser cet évènement et de l'adapter à vos attentes, nous vous invitons à répondre à ce court sondage (moins de 2 minutes). Votre réponse nous aide à tout prévoir : espaces, restauration, activités et animations.\n\nMerci de votre participation !",
+            'description' => "La Direction des Ressources Humaines vous invite à la première édition du Festival Nutri-Santé & Bien-être du PAD.
+Accordez-vous une journée dédiée à votre santé, votre énergie et votre équilibre à travers des ateliers de danse, yoga, nutrition, bien-être, massages et de nombreuses autres activités conviviales.
+Les places étant limitées, inscrivez-vous dès maintenant pour réserver votre participation et vivre une expérience enrichissante placée sous le signe du bien-être et de la cohésion.
+Nous vous attendons nombreux le samedi 20 juin 2026 au Club PAD !",
             'date'        => '2026-06-20',
             'heure_debut' => '07:30',
             'heure_fin'   => '15:00',

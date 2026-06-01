@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Direction;
 use App\Models\Evenement;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Inertia\Inertia;
 
 class EvenementPublicController extends Controller
@@ -99,5 +100,93 @@ class EvenementPublicController extends Controller
         ]);
 
         return back()->with('success', 'Inscription enregistrée avec succès !');
+    }
+
+    /** Returns a 1200×630 landscape-cropped OG image for social previews. */
+    public function ogImage(string $slug): Response
+    {
+        $evenement = Evenement::where('slug', $slug)->firstOrFail();
+
+        $cacheKey = 'og_' . $slug . '_' . md5($evenement->cover_image ?? '');
+        $cachePath = storage_path('app/og-cache/' . $cacheKey . '.jpg');
+
+        if (! file_exists($cachePath)) {
+            $jpeg = $this->buildOgJpeg($evenement->cover_image);
+            @mkdir(dirname($cachePath), 0755, true);
+            file_put_contents($cachePath, $jpeg);
+        }
+
+        return response(file_get_contents($cachePath), 200, [
+            'Content-Type'  => 'image/jpeg',
+            'Cache-Control' => 'public, max-age=86400',
+        ]);
+    }
+
+    private function buildOgJpeg(?string $coverImage): string
+    {
+        $ogW = 1200;
+        $ogH = 630;
+
+        // ── Resolve file path ────────────────────────────────────────────────
+        $src = null;
+        if ($coverImage) {
+            if (filter_var($coverImage, FILTER_VALIDATE_URL)) {
+                $tmp = tempnam(sys_get_temp_dir(), 'og_');
+                file_put_contents($tmp, file_get_contents($coverImage));
+                $src = $tmp;
+            } elseif (str_starts_with($coverImage, '/')) {
+                $src = public_path(ltrim($coverImage, '/'));
+            } else {
+                $src = storage_path('app/public/' . $coverImage);
+            }
+        }
+
+        $canvas = imagecreatetruecolor($ogW, $ogH);
+        $bg     = imagecolorallocate($canvas, 0, 29, 82); // PAD navy
+        imagefill($canvas, 0, 0, $bg);
+
+        if ($src && file_exists($src)) {
+            $info = @getimagesize($src);
+            $mime = $info['mime'] ?? '';
+            $orig = match ($mime) {
+                'image/jpeg' => @imagecreatefromjpeg($src),
+                'image/png'  => @imagecreatefrompng($src),
+                'image/webp' => @imagecreatefromwebp($src),
+                default      => false,
+            };
+
+            if ($orig) {
+                $srcW = imagesx($orig);
+                $srcH = imagesy($orig);
+
+                // Center-crop to target ratio (cover, not letterbox)
+                $srcRatio = $srcW / $srcH;
+                $dstRatio = $ogW / $ogH;
+
+                if ($srcRatio > $dstRatio) {
+                    // Source is wider — crop sides
+                    $cropH = $srcH;
+                    $cropW = (int) round($srcH * $dstRatio);
+                    $cropX = (int) round(($srcW - $cropW) / 2);
+                    $cropY = 0;
+                } else {
+                    // Source is taller (our case) — crop top/bottom, favour upper portion
+                    $cropW = $srcW;
+                    $cropH = (int) round($srcW / $dstRatio);
+                    $cropX = 0;
+                    $cropY = (int) round(($srcH - $cropH) * 0.25); // 25 % from top
+                }
+
+                imagecopyresampled($canvas, $orig, 0, 0, $cropX, $cropY, $ogW, $ogH, $cropW, $cropH);
+                imagedestroy($orig);
+            }
+        }
+
+        ob_start();
+        imagejpeg($canvas, null, 92);
+        $jpeg = ob_get_clean();
+        imagedestroy($canvas);
+
+        return $jpeg;
     }
 }

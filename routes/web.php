@@ -238,6 +238,7 @@ Route::post('/surveys/{token}/respond', [EngagementController::class, 'respondSu
 Route::get('/evenements', [EvenementPublicController::class, 'index'])->name('evenements.index')->middleware('auth');
 Route::get('/inscrire/{slug}', [EvenementPublicController::class, 'show'])->name('evenement.inscription');
 Route::post('/inscrire/{slug}', [EvenementPublicController::class, 'store'])->name('evenement.inscription.store');
+Route::get('/og-image/evenement/{slug}', [EvenementPublicController::class, 'ogImage'])->name('evenement.og-image');
 
 Route::get('/challenges', [ChallengeController::class, 'page'])->middleware(['auth']);
 Route::post('/challenges', [ChallengeController::class, 'store'])->middleware(['auth']);

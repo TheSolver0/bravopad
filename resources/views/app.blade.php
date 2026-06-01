@@ -99,6 +99,14 @@
             @endif
         @endif
 
+        {{-- Fallback OG tags (toutes pages sans og:image spécifique) --}}
+        @if(! $evenementOg && ! $surveyOg)
+        <meta property="og:site_name" content="{{ config('app.name', 'OnePAD') }}">
+        <meta property="og:image"     content="{{ asset('assets/images/onepad-logo.png') }}">
+        <meta name="twitter:card"     content="summary">
+        <meta name="twitter:image"    content="{{ asset('assets/images/onepad-logo.png') }}">
+        @endif
+
         {{-- Inline script to detect system dark mode preference and apply it immediately --}}
         <script>
             (function() {
@@ -125,8 +133,11 @@
             }
         </style>
 
-        <link rel="icon" href="/assets/images/onepad-logo.png" type="image/png">
-        <link rel="apple-touch-icon" href="/assets/images/onepad-logo.png">
+        <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+        <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+        <link rel="shortcut icon" href="/favicon.ico">
+        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
 
         <link rel="preconnect" href="https://fonts.bunny.net">
         <link href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600" rel="stylesheet" />

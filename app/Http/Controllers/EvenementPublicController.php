@@ -170,11 +170,11 @@ class EvenementPublicController extends Controller
                     $cropX = (int) round(($srcW - $cropW) / 2);
                     $cropY = 0;
                 } else {
-                    // Source is taller (our case) — crop top/bottom, favour upper portion
+                    // Source is taller — show top of poster (title/logo area)
                     $cropW = $srcW;
                     $cropH = (int) round($srcW / $dstRatio);
                     $cropX = 0;
-                    $cropY = (int) round(($srcH - $cropH) * 0.25); // 25 % from top
+                    $cropY = 0;
                 }
 
                 imagecopyresampled($canvas, $orig, 0, 0, $cropX, $cropY, $ogW, $ogH, $cropW, $cropH);

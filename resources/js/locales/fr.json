@@ -27,7 +27,7 @@
   },
   "nav": {
     "home": "Mur des Bravos",
-    "myBravos": "Mes Bravos",
+    "myBravos": "Moi",
     "challenges": "Défis",
     "surveys": "Sondages",
     "team": "Personnel",
@@ -36,15 +36,27 @@
     "administration": "Administration",
     "hrDashboard": "Tableau de bord RH",
     "manageSurveys": "Gérer les sondages",
+    "evenements": "Événements",
     "manageChallenges": "Gérer les défis",
+    "manageEvenements": "Gérer les événements",
     "config": "Configuration",
     "users": "Utilisateurs",
     "rolesPermissions": "Rôles & permissions",
+    "eventContribNotifications": "Notif. cotisations",
     "audit": "Audit",
     "sendBravo": "Envoyer un Bravo",
     "logout": "Déconnexion",
     "bravo": "Bravo",
-    "feed": "Fil d'actualité"
+    "feed": "Fil d'actualité",
+    "agenda": "Agenda",
+    "eventContributions": "Cotisations",
+    "messaging": "Messagerie",
+    "messages": "Messages",
+    "chatbot": "Assistant IA",
+    "groups": "Groupes de travail",
+    "joinGroup": "Rejoindre un groupe",
+    "mainSection": "Principal",
+    "more": "Plus"
   },
   "notifications": {
     "recent": "Récentes",
@@ -272,6 +284,11 @@
     "beFirst": "Soyez le premier à partager quelque chose !",
     "edit": "Modifier",
     "delete": "Supprimer",
-    "confirmDelete": "Supprimer cette publication ?"
+    "confirmDelete": "Supprimer cette publication ?",
+    "republish": "Republier",
+    "republishedBy": "{{name}} a republié un post de {{original}}",
+    "republishError": "Impossible de republier ce post.",
+    "showMore": "Voir plus",
+    "showLess": "Voir moins"
   }
 }

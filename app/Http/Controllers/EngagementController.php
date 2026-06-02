@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Badge;
 use App\Models\Bravo;
 use App\Models\HrSurvey;
 use App\Models\HrSurveyResponse;
@@ -11,6 +10,7 @@ use App\Models\User;
 use App\Services\Audit\AuditLogger;
 use App\Services\Engagement\BadgeProgressService;
 use App\Services\Survey\SamplingService;
+use App\Services\Survey\SurveyParticipationBravoService;
 use App\Services\Survey\SurveyStatsService;
 use App\Services\Survey\SurveyTemplateService;
 use Carbon\Carbon;
@@ -23,6 +23,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class EngagementController extends Controller
 {
@@ -37,7 +38,8 @@ class EngagementController extends Controller
         if (str_starts_with($value, '/')) {
             return $value;
         }
-        return asset('storage/' . $value);
+
+        return asset('storage/'.$value);
     }
 
     public function index(Request $request, BadgeProgressService $badges): Response
@@ -45,7 +47,7 @@ class EngagementController extends Controller
         $period = now()->format('Y-m');
         $user = $request->user();
 
-        if (Cache::add('badges:sync:' . now()->format('YmdH'), true, 3600)) {
+        if (Cache::add('badges:sync:'.now()->format('YmdH'), true, 3600)) {
             $batch = User::query()->where('is_automation', false)->get(['id', 'hired_at', 'points_total']);
             $badges->syncForUsers($batch);
         } else {
@@ -90,16 +92,17 @@ class EngagementController extends Controller
             $breakdown = $allStats->get($s->id, collect())
                 ->pluck('total', 'option_key')
                 ->all();
+
             return [
-                'id'              => $s->id,
-                'title'           => $s->title,
-                'question'        => $s->question,
-                'options'         => $s->options,
-                'starts_at'       => $s->starts_at?->toIso8601String(),
-                'ends_at'         => $s->ends_at?->toIso8601String(),
+                'id' => $s->id,
+                'title' => $s->title,
+                'question' => $s->question,
+                'options' => $s->options,
+                'starts_at' => $s->starts_at?->toIso8601String(),
+                'ends_at' => $s->ends_at?->toIso8601String(),
                 'total_responses' => (int) array_sum($breakdown),
-                'stats'           => $breakdown,
-                'my_response'     => $myResponses[$s->id] ?? null,
+                'stats' => $breakdown,
+                'my_response' => $myResponses[$s->id] ?? null,
             ];
         })->values();
 
@@ -119,22 +122,23 @@ class EngagementController extends Controller
                 $hasAnswered = HrSurveyResponse::where('survey_id', $s->id)
                     ->where('user_id', $user->id)
                     ->exists();
+
                 return [
-                    'id'              => $s->id,
-                    'title'           => $s->title,
-                    'description'     => $s->description,
-                    'cover_image'     => $this->resolveCoverImage($s->cover_image),
-                    'token'           => $s->token,
-                    'ends_at'         => $s->ends_at?->toIso8601String(),
-                    'has_answered'    => $hasAnswered,
+                    'id' => $s->id,
+                    'title' => $s->title,
+                    'description' => $s->description,
+                    'cover_image' => $this->resolveCoverImage($s->cover_image),
+                    'token' => $s->token,
+                    'ends_at' => $s->ends_at?->toIso8601String(),
+                    'has_answered' => $hasAnswered,
                     'questions_count' => count($s->questions ?? []),
                 ];
             })->values();
 
         return Inertia::render('Engagement', [
-            'period'                    => $period,
-            'can_manage'                => $user->isHr(),
-            'vote_candidates'           => User::query()
+            'period' => $period,
+            'can_manage' => $user->isHr(),
+            'vote_candidates' => User::query()
                 ->where('is_automation', false)
                 ->where('id', '!=', $user->id)
                 ->orderBy('name')
@@ -142,20 +146,20 @@ class EngagementController extends Controller
                 ->with('department:id,name')
                 ->get(['id', 'name', 'department_id', 'avatar'])
                 ->map(fn ($u) => [
-                    'id'         => $u->id,
-                    'name'       => $u->name,
+                    'id' => $u->id,
+                    'name' => $u->name,
                     'department' => $u->department?->name,
-                    'avatar'     => $u->avatar,
+                    'avatar' => $u->avatar,
                 ])
                 ->values(),
-            'my_vote'                   => $myVote ? [
-                'nominee_id'   => $myVote->nominee_id,
+            'my_vote' => $myVote ? [
+                'nominee_id' => $myVote->nominee_id,
                 'is_anonymous' => $myVote->is_anonymous,
-                'comment'      => $myVote->comment,
+                'comment' => $myVote->comment,
             ] : null,
             'employee_of_month_ranking' => $ranking,
-            'surveys'                   => $surveysData,
-            'multi_surveys'             => $activeMultiSurveys,
+            'surveys' => $surveysData,
+            'multi_surveys' => $activeMultiSurveys,
         ]);
     }
 
@@ -172,19 +176,20 @@ class EngagementController extends Controller
             ->get()
             ->map(function (HrSurvey $s) {
                 return [
-                    'id'              => $s->id,
-                    'title'           => $s->title,
-                    'description'     => $s->description,
-                    'cover_image'     => $this->resolveCoverImage($s->cover_image),
-                    'question'        => $s->question,
-                    'options'         => $s->options,
-                    'questions'       => $s->questions,
-                    'token'           => $s->token,
-                    'is_active'       => $s->is_active,
-                    'starts_at'       => $s->starts_at?->toIso8601String(),
-                    'ends_at'         => $s->ends_at?->toIso8601String(),
+                    'id' => $s->id,
+                    'title' => $s->title,
+                    'description' => $s->description,
+                    'cover_image' => $this->resolveCoverImage($s->cover_image),
+                    'question' => $s->question,
+                    'options' => $s->options,
+                    'questions' => $s->questions,
+                    'token' => $s->token,
+                    'is_active' => $s->is_active,
+                    'starts_at' => $s->starts_at?->toIso8601String(),
+                    'ends_at' => $s->ends_at?->toIso8601String(),
+                    'auto_bravo_points' => (int) $s->auto_bravo_points,
                     'responses_count' => HrSurveyResponse::where('survey_id', $s->id)->count(),
-                    'created_at'      => $s->created_at->toIso8601String(),
+                    'created_at' => $s->created_at->toIso8601String(),
                 ];
             });
 
@@ -209,18 +214,19 @@ class EngagementController extends Controller
         }
 
         $validated = $request->validate([
-            'title'                    => ['required', 'string', 'max:180'],
-            'description'              => ['nullable', 'string', 'max:500'],
-            'cover_image'              => ['nullable', 'image', 'max:4096'],
-            'questions'                => ['required', 'array', 'min:1', 'max:50'],
-            'questions.*.id'           => ['required', 'string', 'max:40'],
-            'questions.*.label'        => ['required', 'string', 'max:400'],
-            'questions.*.type'         => ['required', 'in:radio,checkbox,text,rating'],
-            'questions.*.section'      => ['nullable', 'string', 'max:120'],
-            'questions.*.required'     => ['boolean'],
-            'questions.*.options'      => ['nullable', 'array'],
-            'questions.*.options.*'    => ['string', 'max:160'],
-            'ends_at'                  => ['nullable', 'date'],
+            'title' => ['required', 'string', 'max:180'],
+            'description' => ['nullable', 'string', 'max:500'],
+            'cover_image' => ['nullable', 'image', 'max:4096'],
+            'questions' => ['required', 'array', 'min:1', 'max:50'],
+            'questions.*.id' => ['required', 'string', 'max:40'],
+            'questions.*.label' => ['required', 'string', 'max:400'],
+            'questions.*.type' => ['required', 'in:radio,checkbox,text,rating'],
+            'questions.*.section' => ['nullable', 'string', 'max:120'],
+            'questions.*.required' => ['boolean'],
+            'questions.*.options' => ['nullable', 'array'],
+            'questions.*.options.*' => ['string', 'max:160'],
+            'ends_at' => ['nullable', 'date'],
+            'auto_bravo_points' => ['nullable', 'integer', 'min:0', 'max:10000'],
         ]);
 
         $coverPath = null;
@@ -229,24 +235,26 @@ class EngagementController extends Controller
         }
 
         $survey = HrSurvey::query()->create([
-            'title'       => $validated['title'],
+            'title' => $validated['title'],
             'description' => $validated['description'] ?? null,
             'cover_image' => $coverPath,
-            'question'    => $validated['title'],
-            'options'     => [],
-            'questions'   => $validated['questions'],
-            'is_active'   => true,
-            'created_by'  => $request->user()->id,
-            'starts_at'   => now(),
-            'ends_at'     => $validated['ends_at'] ?? null,
+            'question' => $validated['title'],
+            'options' => [],
+            'questions' => $validated['questions'],
+            'is_active' => true,
+            'created_by' => $request->user()->id,
+            'starts_at' => now(),
+            'ends_at' => $validated['ends_at'] ?? null,
+            'auto_bravo_points' => (int) ($validated['auto_bravo_points'] ?? 0),
         ]);
 
         AuditLogger::log(
             'hr_survey_created',
             [
-                'title'           => $validated['title'],
+                'title' => $validated['title'],
                 'questions_count' => count($validated['questions']),
-                'ends_at'         => $validated['ends_at'] ?? null,
+                'ends_at' => $validated['ends_at'] ?? null,
+                'auto_bravo_points' => (int) ($validated['auto_bravo_points'] ?? 0),
             ],
             $request->user(),
             HrSurvey::class,
@@ -266,12 +274,13 @@ class EngagementController extends Controller
 
         return Inertia::render('AdminSurveyEdit', [
             'survey' => [
-                'id'          => $survey->id,
-                'title'       => $survey->title,
+                'id' => $survey->id,
+                'title' => $survey->title,
                 'description' => $survey->description,
                 'cover_image' => $this->resolveCoverImage($survey->cover_image),
-                'questions'   => $survey->questions ?? [],
-                'ends_at'     => $survey->ends_at?->format('Y-m-d'),
+                'questions' => $survey->questions ?? [],
+                'ends_at' => $survey->ends_at?->format('Y-m-d'),
+                'auto_bravo_points' => (int) $survey->auto_bravo_points,
             ],
         ]);
     }
@@ -283,19 +292,20 @@ class EngagementController extends Controller
         }
 
         $validated = $request->validate([
-            'title'                    => ['required', 'string', 'max:180'],
-            'description'              => ['nullable', 'string', 'max:500'],
-            'cover_image'              => ['nullable', 'image', 'max:4096'],
-            'remove_cover'             => ['nullable', 'boolean'],
-            'questions'                => ['required', 'array', 'min:1', 'max:50'],
-            'questions.*.id'           => ['required', 'string', 'max:40'],
-            'questions.*.label'        => ['required', 'string', 'max:400'],
-            'questions.*.type'         => ['required', 'in:radio,checkbox,text,rating'],
-            'questions.*.section'      => ['nullable', 'string', 'max:120'],
-            'questions.*.required'     => ['boolean'],
-            'questions.*.options'      => ['nullable', 'array'],
-            'questions.*.options.*'    => ['string', 'max:160'],
-            'ends_at'                  => ['nullable', 'date'],
+            'title' => ['required', 'string', 'max:180'],
+            'description' => ['nullable', 'string', 'max:500'],
+            'cover_image' => ['nullable', 'image', 'max:4096'],
+            'remove_cover' => ['nullable', 'boolean'],
+            'questions' => ['required', 'array', 'min:1', 'max:50'],
+            'questions.*.id' => ['required', 'string', 'max:40'],
+            'questions.*.label' => ['required', 'string', 'max:400'],
+            'questions.*.type' => ['required', 'in:radio,checkbox,text,rating'],
+            'questions.*.section' => ['nullable', 'string', 'max:120'],
+            'questions.*.required' => ['boolean'],
+            'questions.*.options' => ['nullable', 'array'],
+            'questions.*.options.*' => ['string', 'max:160'],
+            'ends_at' => ['nullable', 'date'],
+            'auto_bravo_points' => ['nullable', 'integer', 'min:0', 'max:10000'],
         ]);
 
         $coverPath = $survey->cover_image;
@@ -309,12 +319,13 @@ class EngagementController extends Controller
         }
 
         $survey->update([
-            'title'       => $validated['title'],
+            'title' => $validated['title'],
             'description' => $validated['description'] ?? null,
             'cover_image' => $coverPath,
-            'question'    => $validated['title'],
-            'questions'   => $validated['questions'],
-            'ends_at'     => $validated['ends_at'] ?? null,
+            'question' => $validated['title'],
+            'questions' => $validated['questions'],
+            'ends_at' => $validated['ends_at'] ?? null,
+            'auto_bravo_points' => (int) ($validated['auto_bravo_points'] ?? 0),
         ]);
 
         AuditLogger::log(
@@ -338,17 +349,17 @@ class EngagementController extends Controller
 
         return Inertia::render('SurveyForm', [
             'survey' => [
-                'id'          => $survey->id,
-                'title'       => $survey->title,
+                'id' => $survey->id,
+                'title' => $survey->title,
                 'description' => $survey->description,
                 'cover_image' => $this->resolveCoverImage($survey->cover_image),
-                'questions'   => $survey->questions ?? [],
-                'options'     => $survey->options ?? [],
-                'token'       => $survey->token,
-                'ends_at'     => $survey->ends_at?->toIso8601String(),
+                'questions' => $survey->questions ?? [],
+                'options' => $survey->options ?? [],
+                'token' => $survey->token,
+                'ends_at' => $survey->ends_at?->toIso8601String(),
             ],
             'has_answered' => false,
-            'is_preview'   => true,
+            'is_preview' => true,
         ]);
     }
 
@@ -450,7 +461,7 @@ PROMPT;
 
         $groqHttp = Http::withHeaders([
             'Authorization' => "Bearer {$apiKey}",
-            'Content-Type'  => 'application/json',
+            'Content-Type' => 'application/json',
         ])->timeout(30);
 
         if (app()->environment('local')) {
@@ -459,10 +470,10 @@ PROMPT;
 
         try {
             $resp = $groqHttp->post('https://api.groq.com/openai/v1/chat/completions', [
-                'model'       => 'llama-3.3-70b-versatile',
-                'max_tokens'  => 2500,
+                'model' => 'llama-3.3-70b-versatile',
+                'max_tokens' => 2500,
                 'temperature' => 0.6,
-                'messages'    => [
+                'messages' => [
                     ['role' => 'system', 'content' => $systemPrompt],
                     ['role' => 'user',   'content' => $userPrompt],
                 ],
@@ -499,11 +510,11 @@ PROMPT;
 
         $validated = $request->validate([
             'confidence_level' => ['required', 'integer', 'in:90,95,99'],
-            'margin_of_error'  => ['required', 'numeric', 'in:1,2,3,5'],
-            'stratify_by'      => ['nullable', 'string', 'in:none,department,seniority'],
+            'margin_of_error' => ['required', 'numeric', 'in:1,2,3,5'],
+            'stratify_by' => ['nullable', 'string', 'in:none,department,seniority'],
         ]);
 
-        $service    = app(SamplingService::class);
+        $service = app(SamplingService::class);
         $population = User::where('is_automation', false)->count();
 
         $result = $service->calculateSampleSize(
@@ -513,13 +524,13 @@ PROMPT;
         );
 
         $stratifyBy = $validated['stratify_by'] ?? 'none';
-        $sample     = $stratifyBy !== 'none'
+        $sample = $stratifyBy !== 'none'
             ? $service->getStratifiedSample($result['sample_size'], $stratifyBy)
             : [];
 
         return response()->json([
             ...$result,
-            'sample'      => $sample,
+            'sample' => $sample,
             'stratify_by' => $stratifyBy,
         ]);
     }
@@ -547,21 +558,24 @@ PROMPT;
 
         return Inertia::render('SurveyForm', [
             'survey' => [
-                'id'          => $survey->id,
-                'title'       => $survey->title,
+                'id' => $survey->id,
+                'title' => $survey->title,
                 'description' => $survey->description,
                 'cover_image' => $this->resolveCoverImage($survey->cover_image),
-                'questions'   => $survey->questions,
-                'options'     => $survey->options ?? [],
-                'token'       => $survey->token,
-                'ends_at'     => $survey->ends_at?->toIso8601String(),
+                'questions' => $survey->questions,
+                'options' => $survey->options ?? [],
+                'token' => $survey->token,
+                'ends_at' => $survey->ends_at?->toIso8601String(),
             ],
             'has_answered' => $hasAnswered,
         ]);
     }
 
-    public function respondSurveyByToken(Request $request, string $token): RedirectResponse
-    {
+    public function respondSurveyByToken(
+        Request $request,
+        string $token,
+        SurveyParticipationBravoService $surveyBravoService,
+    ): RedirectResponse {
         $survey = HrSurvey::where('token', $token)->firstOrFail();
 
         if (! $survey->is_active) {
@@ -598,13 +612,19 @@ PROMPT;
 
         $sessionId = $user ? null : $request->session()->getId();
 
-        HrSurveyResponse::create([
-            'survey_id'  => $survey->id,
-            'user_id'    => $user?->id,
-            'session_id' => $sessionId,
-            'answers'    => $answers,
-            'option_key' => null,
-        ]);
+        DB::transaction(function () use ($survey, $user, $sessionId, $answers, $surveyBravoService): void {
+            HrSurveyResponse::create([
+                'survey_id' => $survey->id,
+                'user_id' => $user?->id,
+                'session_id' => $sessionId,
+                'answers' => $answers,
+                'option_key' => null,
+            ]);
+
+            if ($user) {
+                $surveyBravoService->award($survey, $user);
+            }
+        });
 
         // Mark in session for anonymous users
         if (! $user) {
@@ -641,7 +661,7 @@ PROMPT;
             ->get();
 
         $totalResponses = $responses->count();
-        $totalUsers     = User::where('is_automation', false)->count();
+        $totalUsers = User::where('is_automation', false)->count();
 
         $responsesOverTime = HrSurveyResponse::where('survey_id', $survey->id)
             ->selectRaw('DATE(created_at) as date, COUNT(*) as count')
@@ -652,15 +672,15 @@ PROMPT;
             ->values();
 
         $questionsReport = [];
-        $npsData         = null;
+        $npsData = null;
 
         foreach (($survey->questions ?? []) as $q) {
-            $qId   = $q['id'];
-            $type  = $q['type'];
+            $qId = $q['id'];
+            $type = $q['type'];
             $entry = [
-                'id'      => $qId,
-                'label'   => $q['label'],
-                'type'    => $type,
+                'id' => $qId,
+                'label' => $q['label'],
+                'type' => $type,
                 'section' => $q['section'] ?? null,
             ];
 
@@ -674,22 +694,22 @@ PROMPT;
 
             } elseif ($type === 'radio') {
                 $options = $q['options'] ?? [];
-                $counts  = array_fill_keys($options, 0);
+                $counts = array_fill_keys($options, 0);
                 foreach ($responses as $r) {
                     $val = $r->answers[$qId] ?? null;
                     if ($val !== null && isset($counts[$val])) {
                         $counts[$val]++;
                     }
                 }
-                $answered          = array_sum($counts);
-                $entry['options']  = $options;
-                $entry['counts']   = $counts;
+                $answered = array_sum($counts);
+                $entry['options'] = $options;
+                $entry['counts'] = $counts;
                 $entry['answered'] = $answered;
-                $entry['chi2']     = $statsService->chiSquareTest(array_values($counts), $answered);
+                $entry['chi2'] = $statsService->chiSquareTest(array_values($counts), $answered);
 
             } elseif ($type === 'checkbox') {
                 $options = $q['options'] ?? [];
-                $counts  = array_fill_keys($options, 0);
+                $counts = array_fill_keys($options, 0);
                 foreach ($responses as $r) {
                     $vals = $r->answers[$qId] ?? [];
                     if (is_array($vals)) {
@@ -700,11 +720,11 @@ PROMPT;
                         }
                     }
                 }
-                $answered          = $responses->filter(fn ($r) => ! empty($r->answers[$qId]))->count();
-                $entry['options']  = $options;
-                $entry['counts']   = $counts;
+                $answered = $responses->filter(fn ($r) => ! empty($r->answers[$qId]))->count();
+                $entry['options'] = $options;
+                $entry['counts'] = $counts;
                 $entry['answered'] = $answered;
-                $entry['chi2']     = $statsService->chiSquareTest(array_values($counts), (int) array_sum($counts));
+                $entry['chi2'] = $statsService->chiSquareTest(array_values($counts), (int) array_sum($counts));
 
             } elseif ($type === 'rating') {
                 $vals = $responses
@@ -718,14 +738,14 @@ PROMPT;
                     $distribution[$i] = count(array_filter($vals, fn ($v) => $v === $i));
                 }
 
-                $stats            = $statsService->ratingStats($vals, $totalResponses);
-                $entry['average']      = $stats['average'];
-                $entry['median']       = $stats['median'];
-                $entry['std_dev']      = $stats['std_dev'];
-                $entry['mode']         = $stats['mode'];
-                $entry['ci95']         = $stats['confidence_interval'];
+                $stats = $statsService->ratingStats($vals, $totalResponses);
+                $entry['average'] = $stats['average'];
+                $entry['median'] = $stats['median'];
+                $entry['std_dev'] = $stats['std_dev'];
+                $entry['mode'] = $stats['mode'];
+                $entry['ci95'] = $stats['confidence_interval'];
                 $entry['distribution'] = $distribution;
-                $entry['answered']     = $stats['answered'];
+                $entry['answered'] = $stats['answered'];
 
                 // Use the last (or most complete) rating question for global NPS
                 $enps = $statsService->computeEnps($vals);
@@ -739,29 +759,29 @@ PROMPT;
 
         return Inertia::render('AdminSurveyReport', [
             'survey' => [
-                'id'          => $survey->id,
-                'title'       => $survey->title,
+                'id' => $survey->id,
+                'title' => $survey->title,
                 'description' => $survey->description,
-                'token'       => $survey->token,
-                'is_active'   => $survey->is_active,
-                'created_at'  => $survey->created_at->toIso8601String(),
-                'ends_at'     => $survey->ends_at?->toIso8601String(),
+                'token' => $survey->token,
+                'is_active' => $survey->is_active,
+                'created_at' => $survey->created_at->toIso8601String(),
+                'ends_at' => $survey->ends_at?->toIso8601String(),
             ],
-            'total_responses'     => $totalResponses,
-            'total_users'         => $totalUsers,
-            'questions_report'    => $questionsReport,
+            'total_responses' => $totalResponses,
+            'total_users' => $totalUsers,
+            'questions_report' => $questionsReport,
             'responses_over_time' => $responsesOverTime,
-            'nps'                 => $npsData,
+            'nps' => $npsData,
         ]);
     }
 
-    public function exportSurvey(Request $request, HrSurvey $survey): \Symfony\Component\HttpFoundation\StreamedResponse
+    public function exportSurvey(Request $request, HrSurvey $survey): StreamedResponse
     {
         if (! $request->user()->isHr()) {
             abort(403);
         }
 
-        $filename = 'sondage-' . str($survey->title)->slug() . '-' . now()->format('Y-m-d') . '.csv';
+        $filename = 'sondage-'.str($survey->title)->slug().'-'.now()->format('Y-m-d').'.csv';
 
         if ($survey->isMultiQuestion()) {
             $responses = HrSurveyResponse::where('survey_id', $survey->id)
@@ -770,10 +790,10 @@ PROMPT;
 
             return response()->streamDownload(function () use ($survey, $responses) {
                 $handle = fopen('php://output', 'w');
-                fprintf($handle, chr(0xEF) . chr(0xBB) . chr(0xBF));
+                fprintf($handle, chr(0xEF).chr(0xBB).chr(0xBF));
 
                 $questions = $survey->questions ?? [];
-                $headers   = ['Nom', 'Date'];
+                $headers = ['Nom', 'Date'];
                 foreach ($questions as $q) {
                     $headers[] = $q['label'];
                 }
@@ -802,12 +822,12 @@ PROMPT;
 
         return response()->streamDownload(function () use ($survey, $stats, $totalResponses) {
             $handle = fopen('php://output', 'w');
-            fprintf($handle, chr(0xEF) . chr(0xBB) . chr(0xBF));
+            fprintf($handle, chr(0xEF).chr(0xBB).chr(0xBF));
             fputcsv($handle, ['Option', 'Réponses', 'Pourcentage'], ';');
             foreach ($survey->options as $option) {
                 $count = (int) ($stats[$option['key']] ?? 0);
-                $pct   = $totalResponses > 0 ? round(($count / $totalResponses) * 100, 1) : 0;
-                fputcsv($handle, [$option['label'], $count, $pct . ' %'], ';');
+                $pct = $totalResponses > 0 ? round(($count / $totalResponses) * 100, 1) : 0;
+                fputcsv($handle, [$option['label'], $count, $pct.' %'], ';');
             }
             fputcsv($handle, ['Total', $totalResponses, '100 %'], ';');
             fclose($handle);
@@ -816,8 +836,11 @@ PROMPT;
 
     // ── Legacy single-question respond (Engagement widget) ────────────────────
 
-    public function respondSurvey(Request $request, HrSurvey $survey): RedirectResponse
-    {
+    public function respondSurvey(
+        Request $request,
+        HrSurvey $survey,
+        SurveyParticipationBravoService $surveyBravoService,
+    ): RedirectResponse {
         $validated = $request->validate([
             'option_key' => ['required', 'string', 'max:40'],
         ]);
@@ -827,10 +850,18 @@ PROMPT;
             return back()->with('error', 'Option de vote invalide.');
         }
 
-        HrSurveyResponse::query()->updateOrCreate(
-            ['survey_id' => $survey->id, 'user_id' => $request->user()->id],
-            ['option_key' => $validated['option_key']]
-        );
+        $response = HrSurveyResponse::query()->firstOrNew([
+            'survey_id' => $survey->id,
+            'user_id' => $request->user()->id,
+        ]);
+        $wasNew = ! $response->exists;
+
+        $response->option_key = $validated['option_key'];
+        $response->save();
+
+        if ($wasNew) {
+            $surveyBravoService->award($survey, $request->user());
+        }
 
         AuditLogger::log(
             'hr_survey_answered',
@@ -850,9 +881,9 @@ PROMPT;
     public function vote(Request $request): RedirectResponse
     {
         $validated = $request->validate([
-            'nominee_id'   => ['required', 'integer', 'exists:users,id'],
+            'nominee_id' => ['required', 'integer', 'exists:users,id'],
             'is_anonymous' => ['nullable', 'boolean'],
-            'comment'      => ['nullable', 'string', 'max:300'],
+            'comment' => ['nullable', 'string', 'max:300'],
         ]);
 
         if ((int) $validated['nominee_id'] === (int) $request->user()->id) {
@@ -863,10 +894,10 @@ PROMPT;
         PeerVote::query()->updateOrCreate(
             ['voter_id' => $request->user()->id, 'period' => $period],
             [
-                'nominee_id'   => $validated['nominee_id'],
+                'nominee_id' => $validated['nominee_id'],
                 'is_anonymous' => (bool) ($validated['is_anonymous'] ?? true),
-                'comment'      => $validated['comment'] ?? null,
-                'weight'       => $this->voterWeight($request->user()),
+                'comment' => $validated['comment'] ?? null,
+                'weight' => $this->voterWeight($request->user()),
             ]
         );
 
@@ -897,8 +928,8 @@ PROMPT;
 
     private function employeeOfMonthRanking(string $period): array
     {
-        $start = Carbon::parse($period . '-01')->startOfMonth();
-        $end   = $start->copy()->endOfMonth();
+        $start = Carbon::parse($period.'-01')->startOfMonth();
+        $end = $start->copy()->endOfMonth();
 
         $voteRows = PeerVote::query()
             ->where('period', $period)
@@ -927,22 +958,22 @@ PROMPT;
 
         return $users
             ->map(function (User $u) use ($voteRows, $bravoRows, $maxPoints) {
-                $votes         = (int) ($voteRows[$u->id]->votes_count ?? 0);
+                $votes = (int) ($voteRows[$u->id]->votes_count ?? 0);
                 $weightedVotes = (float) ($voteRows[$u->id]->weighted_votes ?? 0);
-                $bravoPoints   = (int) ($bravoRows[$u->id]->points_sum ?? 0);
-                $merit         = round(($weightedVotes * 0.65) + (($bravoPoints / $maxPoints) * 10 * 0.35), 2);
+                $bravoPoints = (int) ($bravoRows[$u->id]->points_sum ?? 0);
+                $merit = round(($weightedVotes * 0.65) + (($bravoPoints / $maxPoints) * 10 * 0.35), 2);
 
                 return [
                     'user' => [
-                        'id'         => $u->id,
-                        'name'       => $u->name,
+                        'id' => $u->id,
+                        'name' => $u->name,
                         'department' => $u->department?->name,
-                        'avatar'     => $u->avatar,
+                        'avatar' => $u->avatar,
                     ],
-                    'votes_count'    => $votes,
+                    'votes_count' => $votes,
                     'weighted_votes' => $weightedVotes,
-                    'bravo_points'   => $bravoPoints,
-                    'merit_score'    => $merit,
+                    'bravo_points' => $bravoPoints,
+                    'merit_score' => $merit,
                 ];
             })
             ->sortByDesc('merit_score')
@@ -956,9 +987,9 @@ PROMPT;
         return match (true) {
             $score >= 180 => 'Ambassadeur Legend',
             $score >= 120 => 'Leader Reconnaissance',
-            $score >= 80  => 'Influenceur Positif',
-            $score >= 40  => 'Contributeur Regulier',
-            default       => 'Nouveau Talent',
+            $score >= 80 => 'Influenceur Positif',
+            $score >= 40 => 'Contributeur Regulier',
+            default => 'Nouveau Talent',
         };
     }
 }

@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
-import { Link } from '@inertiajs/react';
-import { Search, Award, Users, ChevronDown, Check, Building2, X } from 'lucide-react';
+import { Link, router } from '@inertiajs/react';
+import { Search, Award, Users, ChevronDown, Check, Building2, X, UserCheck, UserPlus } from 'lucide-react';
 import { Card } from '../components/ui/card';
 import { Badge } from '../components/ui/badge';
 import {
@@ -11,10 +11,13 @@ import {
   DropdownMenuTrigger,
 } from '../components/ui/dropdown-menu';
 import { User } from './types';
+import { ClickableAvatar } from '@/components/clickable-avatar';
 
 interface TeamProps {
   users: User[];
   departments: string[];
+  followingIds: number[];
+  authUserId: number | null;
   pagination: {
     current_page: number;
     last_page: number;
@@ -23,10 +26,22 @@ interface TeamProps {
   };
 }
 
-export default function Team({ users, departments: deptList, pagination }: TeamProps) {
+export default function Team({ users, departments: deptList, followingIds, authUserId, pagination }: TeamProps) {
   const [search, setSearch]           = useState('');
   const [selectedDept, setSelectedDept] = useState('Tous');
   const [deptSearch, setDeptSearch]   = useState('');
+  const [followingSet, setFollowingSet] = useState<Set<number>>(() => new Set(followingIds));
+
+  function toggleFollow(e: React.MouseEvent, userId: number) {
+    e.preventDefault();
+    e.stopPropagation();
+    setFollowingSet(prev => {
+      const next = new Set(prev);
+      next.has(userId) ? next.delete(userId) : next.add(userId);
+      return next;
+    });
+    router.post(`/users/${userId}/follow`, {}, { preserveScroll: true });
+  }
   const deptInputRef = useRef<HTMLInputElement>(null);
 
   const allDepts = ['Tous', ...deptList];
@@ -185,9 +200,13 @@ export default function Team({ users, departments: deptList, pagination }: TeamP
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filtered.map((user, index) => (
-            <Card
+            <Link
               key={user.id}
-              className="group relative overflow-hidden border border-surface-container-high/60 hover:border-primary/20 hover:shadow-lg transition-all duration-300 bg-white flex flex-col items-center text-center p-5 gap-3"
+              href={`/users/${user.id}`}
+              className="block"
+            >
+            <Card
+              className="group relative overflow-hidden border border-surface-container-high/60 hover:border-primary/20 hover:shadow-lg transition-all duration-300 bg-white flex flex-col items-center text-center p-5 gap-3 cursor-pointer"
             >
               {/* Médaille top 3 */}
               {index < 3 && (
@@ -200,11 +219,28 @@ export default function Team({ users, departments: deptList, pagination }: TeamP
                 </div>
               )}
 
+              {/* Bouton Suivre */}
+              {user.id !== authUserId && (
+                <button
+                  onClick={(e) => toggleFollow(e, user.id)}
+                  className={`absolute top-2.5 right-2.5 flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold transition-all opacity-0 group-hover:opacity-100 shadow-sm ${
+                    followingSet.has(user.id)
+                      ? 'bg-surface-container text-on-surface-variant border border-surface-container-high hover:bg-red-50 hover:text-red-500'
+                      : 'bg-primary text-white hover:bg-primary/90'
+                  }`}
+                >
+                  {followingSet.has(user.id)
+                    ? <><UserCheck size={10} /> Suivi</>
+                    : <><UserPlus size={10} /> Suivre</>
+                  }
+                </button>
+              )}
+
               {/* Avatar */}
               <div className="relative mt-1">
-                <img
+                <ClickableAvatar
                   src={user.avatar}
-                  alt={user.name}
+                  userName={user.name}
                   className="w-16 h-16 rounded-2xl object-cover shadow-md border-2 border-white ring-1 ring-surface-container-high group-hover:ring-primary/30 transition-all duration-300"
                   referrerPolicy="no-referrer"
                 />
@@ -232,6 +268,7 @@ export default function Team({ users, departments: deptList, pagination }: TeamP
                 <span className="text-[9px] font-bold text-on-surface-variant uppercase tracking-widest">pts</span>
               </div>
             </Card>
+            </Link>
           ))}
         </div>
       )}

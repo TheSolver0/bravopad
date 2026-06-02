@@ -10,7 +10,7 @@ class Post extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['user_id', 'content', 'type', 'media_url', 'is_pinned'];
+    protected $fillable = ['user_id', 'content', 'type', 'media_url', 'is_pinned', 'original_post_id'];
 
     protected $casts = [
         'is_pinned' => 'boolean',
@@ -21,6 +21,11 @@ class Post extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function originalPost()
+    {
+        return $this->belongsTo(self::class, 'original_post_id');
     }
 
     public function comments()

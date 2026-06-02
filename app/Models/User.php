@@ -73,9 +73,36 @@ class User extends Authenticatable
             ->withTimestamps();
     }
 
+    public function followers(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'user_follows', 'following_id', 'follower_id')
+            ->withTimestamps();
+    }
+
+    public function following(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'user_follows', 'follower_id', 'following_id')
+            ->withTimestamps();
+    }
+
+    public function isFollowing(User $user): bool
+    {
+        return $this->following()->where('following_id', $user->id)->exists();
+    }
+
     public function messengerCallParticipations(): HasMany
     {
         return $this->hasMany(MessengerCallParticipant::class);
+    }
+
+    public function eventContributions(): HasMany
+    {
+        return $this->hasMany(EventContribution::class, 'creator_id');
+    }
+
+    public function eventContributionPayments(): HasMany
+    {
+        return $this->hasMany(EventContributionPayment::class, 'contributor_user_id');
     }
 
     // -------------------------------------------------------------------------

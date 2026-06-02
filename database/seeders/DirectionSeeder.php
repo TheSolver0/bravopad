@@ -38,6 +38,9 @@ class DirectionSeeder extends Seeder
             ['code' => 'REP-PAD BANGUI', 'name' => "Représentation PAD - Bangui", 'name_en' => "PAD Representation - Bangui"],
             ['code' => "REP-PAD N'DJAMENA", 'name' => "Représentation PAD - N'Djamena", 'name_en' => "PAD Representation - N'Djamena"],
             ['code' => 'REP-PAD YOUNDE', 'name' => "Représentation PAD - Yaoundé", 'name_en' => "PAD Representation - Yaoundé"],
+            ['code' => 'RDD', 'name' => "Régie Déléguée au Dragage", 'name_en' => "Delegated Dredging Agency"],
+            ['code' => 'RPI', 'name' => "Régie du Patrimoine Immobilier", 'name_en' => "Real Estate Asset Management"],
+            ['code' => 'DPS', 'name' => "Douala Port Security", 'name_en' => "Douala Port Security"],
         ];
 
         foreach ($directions as $direction) {

@@ -46,16 +46,28 @@ class MessengerController extends Controller
         /** @var User $user */
         $user = $request->user();
         $search = trim((string) $request->query('search', ''));
+        $department = trim((string) $request->query('department', ''));
 
         $users = User::query()
             ->where('id', '!=', $user->id)
             ->where('is_automation', false)
             ->when($search !== '', function ($query) use ($search) {
                 $term = '%'.$search.'%';
-                $query->where(fn ($q) => $q
-                    ->where('name', 'like', $term)
-                    ->orWhere('email', 'like', $term));
+                $query->where(function ($q) use ($term) {
+                    $q->where('name', 'like', $term)
+                        ->orWhere('email', 'like', $term)
+                        ->orWhere('role', 'like', $term)
+                        ->orWhereHas('department', fn ($q) => $q->where('name', 'like', $term))
+                        ->orWhereHas('direction', fn ($q) => $q->where('name', 'like', $term)->orWhere('code', 'like', $term));
+                });
             })
+            ->when($department !== '' && $department !== 'Tous les départements', function ($query) use ($department) {
+                $query->where(function ($q) use ($department) {
+                    $q->whereHas('direction', fn ($q) => $q->where('code', $department)->orWhere('name', $department))
+                      ->orWhereHas('department', fn ($q) => $q->where('name', $department));
+                });
+            })
+            ->with(['department:id,name', 'direction:id,name'])
             ->orderBy('name')
             ->limit(15)
             ->get(['id', 'name', 'email', 'avatar', 'role', 'last_seen_at']);
@@ -755,6 +767,8 @@ class MessengerController extends Controller
 
     private function userPayload(User $user): array
     {
+        $department = $user->direction?->code ?? $user->direction?->name ?? $user->department?->name;
+
         return [
             'id' => $user->id,
             'name' => $user->name,

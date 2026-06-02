@@ -36,15 +36,27 @@
     "administration": "Administration",
     "hrDashboard": "HR Dashboard",
     "manageSurveys": "Manage surveys",
+    "evenements": "Events",
     "manageChallenges": "Manage challenges",
+    "manageEvenements": "Manage events",
     "config": "Settings",
     "users": "Users",
     "rolesPermissions": "Roles & permissions",
+    "eventContribNotifications": "Contribution notifications",
     "audit": "Audit",
     "sendBravo": "Send a Bravo",
     "logout": "Logout",
     "bravo": "Bravo",
-    "feed": "Feed"
+    "feed": "Feed",
+    "agenda": "Calendar",
+    "eventContributions": "Contributions",
+    "messaging": "Messaging",
+    "messages": "Messages",
+    "chatbot": "AI Assistant",
+    "groups": "Work Groups",
+    "joinGroup": "Join a group",
+    "mainSection": "Main",
+    "more": "More"
   },
   "notifications": {
     "recent": "Recent",
@@ -272,6 +284,8 @@
     "beFirst": "Be the first to share something!",
     "edit": "Edit",
     "delete": "Delete",
-    "confirmDelete": "Delete this post?"
+    "confirmDelete": "Delete this post?",
+    "showMore": "See more",
+    "showLess": "See less"
   }
 }

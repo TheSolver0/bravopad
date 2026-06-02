@@ -7,12 +7,13 @@ use App\Models\BravoValue;
 use App\Models\Challenge;
 use App\Models\Post;
 use App\Models\PostComment;
+use App\Models\PostMedia;
+use App\Models\Story;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Inertia\Inertia;
-use App\Models\PostMedia;
 use Illuminate\Support\Facades\Storage;
+use Inertia\Inertia;
 
 class PostController extends Controller
 {
@@ -25,7 +26,7 @@ class PostController extends Controller
     {
         $currentUser = Auth::user();
 
-        $posts = Post::with(['user', 'comments.user'])
+        $posts = Post::with(['user', 'comments.user', 'originalPost.user', 'originalPost.media'])
             ->withCount('likedBy')
             ->orderByDesc('is_pinned')
             ->orderByDesc('created_at')
@@ -34,6 +35,31 @@ class PostController extends Controller
                 'user_has_liked' => $post->likedBy->contains('id', $currentUser->id),
                 'likes_count'    => $post->liked_by_count,
                 // 'media'          => $this->media,
+                'original_post'  => $post->originalPost ? [
+                    'id'             => $post->originalPost->id,
+                    'user_id'        => $post->originalPost->user_id,
+                    'content'        => $post->originalPost->content,
+                    'type'           => $post->originalPost->type,
+                    'media_url'      => $post->originalPost->media_url,
+                    'is_pinned'      => $post->originalPost->is_pinned,
+                    'likes_count'    => $post->originalPost->likes_count,
+                    'comments_count' => $post->originalPost->comments_count,
+                    'created_at'     => $post->originalPost->created_at->toDateTimeString(),
+                    'user'           => [
+                        'id'         => $post->originalPost->user->id,
+                        'name'       => $post->originalPost->user->name,
+                        'avatar'     => $post->originalPost->user->avatar,
+                        'role'       => $post->originalPost->user->role,
+                        'department' => $post->originalPost->user->department,
+                    ],
+                    'media'          => $post->originalPost->media->map(fn ($m) => [
+                        'id'        => $m->id,
+                        'url'       => $m->url,
+                        'type'      => $m->type,
+                        'mime_type' => $m->mime_type,
+                        'order'     => $m->order,
+                    ])->values()->toArray(),
+                ] : null,
                 'comments'       => $post->comments->map(fn ($c) => [
                     'id'         => $c->id,
                     'content'    => $c->content,
@@ -48,15 +74,54 @@ class PostController extends Controller
 
             
 
+        $followingIds = $currentUser->following()->pluck('following_id')->toArray();
+
         $users = User::query()
             ->where('is_automation', false)
             ->orderByDesc('points_total')
-            ->get(['id', 'name', 'avatar', 'role', 'points_total']);
+            ->get(['id', 'name', 'avatar', 'role', 'points_total', 'direction_id'])
+            ->map(fn ($user) => [
+                'id'           => $user->id,
+                'name'         => $user->name,
+                'avatar'       => $user->avatar,
+                'role'         => $user->role,
+                'points_total' => $user->points_total,
+                'direction_id'   => $user->direction_id,
+                'is_following' => in_array($user->id, $followingIds),
+            ]);
 
         $activeChallenge = Challenge::where('status', 'active')
             ->where('start_date', '<=', now())
             ->where('end_date', '>=', now())
             ->first();
+
+        // Stories actives (24h), groupées : les propres d'abord, les autres ensuite
+        $allStories = Story::active()
+            ->with('user:id,name,avatar,role')
+            ->withCount('views')
+            ->orderByDesc('created_at')
+            ->get()
+            ->map(fn ($s) => [
+                'id'               => $s->id,
+                'user_id'          => $s->user_id,
+                'type'             => $s->type,
+                'content'          => $s->content,
+                'media_url'        => $s->media_url,
+                'background_color' => $s->background_color,
+                'font_style'       => $s->font_style,
+                'text_align'       => $s->text_align,
+                'views_count'      => $s->views_count,
+                'expires_at'       => $s->expires_at->toIso8601String(),
+                'created_at'       => $s->created_at->diffForHumans(),
+                'seen'             => $s->isViewedBy($currentUser->id),
+                'user' => [
+                    'id'         => $s->user->id,
+                    'name'       => $s->user->name,
+                    'avatar'     => $s->user->avatar,
+                    'role'       => $s->user->role,
+                    'department' => null,
+                ],
+            ]);
 
         return Inertia::render('Feed', [
             'posts'           => $posts,
@@ -68,6 +133,7 @@ class PostController extends Controller
             'activeChallenge' => $activeChallenge,
             'bravoCount'      => Bravo::count(),
             'bravoValues'     => BravoValue::where('is_active', true)->get(),
+            'stories'         => $allStories,
         ]);
     }
 
@@ -113,6 +179,23 @@ class PostController extends Controller
         }
  
         return back();
+    }
+ 
+    public function republish(Post $post)
+    {
+        $user = Auth::user();
+
+        $originalId = $post->original_post_id ? $post->original_post_id : $post->id;
+
+        $newPost = Post::create([
+            'user_id'          => $user->id,
+            'content'          => '',
+            'type'             => 'post',
+            'media_url'        => null,
+            'original_post_id' => $originalId,
+        ]);
+
+        return response()->json(['message' => 'Post republié avec succès', 'post_id' => $newPost->id], 201);
     }
  
     public function update(Request $request, Post $post)
@@ -198,7 +281,6 @@ class PostController extends Controller
             ]);
         }
     }
-
 
     // public function update(Request $request, Post $post)
     // {

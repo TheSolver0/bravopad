@@ -18,6 +18,7 @@ import {
   Settings,
   UserCog,
   KeyRound,
+  BellRing,
   LogOut,
   User,
   Award,
@@ -27,8 +28,10 @@ import {
   FolderOpen,
   ChevronDown,
   Search,
-  Zap,
   MoreHorizontal,
+  CalendarRange,
+  HandCoins,
+  PartyPopper,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -53,7 +56,10 @@ export const navItems: NavItem[] = [
   { href: '/feed', labelKey: 'nav.feed', icon: Home },
   { href: '/dashboard', labelKey: 'nav.home', icon: Award },
   { href: '/history', labelKey: 'nav.myBravos', icon: User },
+  { href: '/agenda', labelKey: 'nav.agenda', icon: CalendarRange },
   { href: '/challenges', labelKey: 'nav.challenges', icon: Trophy },
+  { href: '/evenements', labelKey: 'nav.evenements', icon: PartyPopper },
+  { href: '/event-contributions', labelKey: 'nav.eventContributions', icon: HandCoins },
   { href: '/engagement', labelKey: 'nav.surveys', icon: ClipboardList },
   { href: '/team', labelKey: 'nav.team', icon: Users },
   { href: '/shop', labelKey: 'nav.shop', icon: ShoppingBag },
@@ -67,6 +73,8 @@ type AuthNav = {
   audit?: boolean;
   admin_surveys?: boolean;
   admin_challenges?: boolean;
+  admin_evenements?: boolean;
+  event_contributions_notifications?: boolean;
 };
 
 type AuthShared = {
@@ -232,7 +240,7 @@ function MessagingSection({ collapsed }: { collapsed: boolean }) {
             <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-red-500" />
           )}
         </Link>
-        <Link
+        {/* <Link
           href="/chatbot"
           title="Assistant IA"
           className={`w-full flex items-center justify-center p-2 rounded-xl transition-all ${
@@ -242,7 +250,7 @@ function MessagingSection({ collapsed }: { collapsed: boolean }) {
           }`}
         >
           <Bot size={17} />
-        </Link>
+        </Link> */}
       </div>
     );
   }
@@ -285,7 +293,7 @@ function MessagingSection({ collapsed }: { collapsed: boolean }) {
               </Link>
 
               {/* Assistant IA */}
-              <Link
+              {/* <Link
                 href="/chatbot"
                 className={`w-full flex items-center gap-3 px-2.5 py-2 rounded-xl transition-all group ${
                   isLinkActive(path, '/chatbot')
@@ -298,7 +306,7 @@ function MessagingSection({ collapsed }: { collapsed: boolean }) {
                 <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-primary/10 text-primary">
                   Beta
                 </span>
-              </Link>
+              </Link> */}
 
               {/* Groupes de travail */}
               <div className="pt-2">
@@ -360,9 +368,11 @@ export default function Sidebar({ collapsed = false, onCollapseToggle, onClose, 
     if (nav.hr_dashboard) links.push({ href: '/hr/dashboard', labelKey: 'nav.hrDashboard', icon: BarChart3 });
     if (nav.admin_surveys) links.push({ href: '/admin/surveys', labelKey: 'nav.manageSurveys', icon: ClipboardCheck });
     if (nav.admin_challenges) links.push({ href: '/admin/challenges', labelKey: 'nav.manageChallenges', icon: Trophy });
+    if (nav.admin_evenements) links.push({ href: '/admin/evenements', labelKey: 'nav.manageEvenements', icon: PartyPopper });
     if (nav.admin_config) links.push({ href: '/admin/config', labelKey: 'nav.config', icon: Settings });
     if (nav.admin_users) links.push({ href: '/admin/users', labelKey: 'nav.users', icon: UserCog });
     if (nav.admin_roles) links.push({ href: '/admin/roles', labelKey: 'nav.rolesPermissions', icon: KeyRound });
+    if (nav.event_contributions_notifications) links.push({ href: '/admin/event-contributions/notifications', labelKey: 'nav.eventContribNotifications', icon: BellRing });
     if (nav.audit) links.push({ href: '/audit', labelKey: 'nav.audit', icon: Shield });
     return links;
   }, [nav]);
@@ -435,7 +445,7 @@ export default function Sidebar({ collapsed = false, onCollapseToggle, onClose, 
             collapsed ? 'w-9 h-9 p-0' : 'w-full py-2.5 px-4'
           }`}
         >
-          <Zap size={15} className="shrink-0" />
+          <Award size={15} className="shrink-0" />
           {!collapsed && <span>{t('nav.sendBravo', 'Envoyer un Bravo')}</span>}
         </Button>
       </div>

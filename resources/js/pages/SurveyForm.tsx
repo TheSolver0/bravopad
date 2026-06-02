@@ -276,13 +276,21 @@ export default function SurveyForm({ survey, has_answered, is_preview = false }:
             </p>
             <p className="font-bold text-on-surface">{surveyTitle}</p>
           </div>
-          <button
-            type="button"
-            onClick={() => window.close()}
-            className="inline-flex items-center gap-2 px-6 py-3 bg-surface-container-high text-on-surface rounded-xl font-semibold text-sm hover:bg-surface-container-highest transition-colors"
-          >
-            {t('common.close')}
-          </button>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+            <a
+              href="/dashboard"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-xl font-semibold text-sm hover:bg-primary/90 transition-colors"
+            >
+              {lang === 'en' ? 'Back to application' : 'Retour à l\'application'}
+            </a>
+            <button
+              type="button"
+              onClick={() => window.close()}
+              className="inline-flex items-center gap-2 px-6 py-3 bg-surface-container-high text-on-surface rounded-xl font-semibold text-sm hover:bg-surface-container-highest transition-colors"
+            >
+              {t('common.close')}
+            </button>
+          </div>
         </div>
       </div>
     );

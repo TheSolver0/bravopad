@@ -4,6 +4,7 @@ import {
     Bell,
     BellOff,
     Check,
+    Clock,
     Image,
     Loader2,
     Maximize2,
@@ -32,10 +33,10 @@ import type { MouseEvent, RefObject } from 'react';
 import { toast } from 'sonner';
 import { useMessengerPresence } from '@/hooks/useMessengerPresence';
 import { getEcho } from '@/lib/echo';
-import {
+import type {
     MessengerUser, MessengerMessage, MessengerConversation, ConversationsResponse,
     UsersResponse, MessageSentPayload, MessageUpdatedPayload, ConversationReadPayload, TypingPayload,
-    InboxUpdatedPayload, MessengerCall, MessengerCallParticipant, CallUpdatedPayload, WebRtcSessionPayload,
+    InboxUpdatedPayload, MessengerCall, MessengerQuotedMessage, CallUpdatedPayload, WebRtcSessionPayload,
     WebRtcIcePayload, MeshReadyPayload, CallIceServer, PageProps, DesktopNotificationPermission, MessageMenuState, MessengerWidgetProps
 } from '../pages/types';
 
@@ -58,6 +59,7 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
     const [searchResults, setSearchResults] = useState<MessengerUser[]>([]);
     const [body, setBody] = useState('');
     const [sendError, setSendError] = useState<string | null>(null);
+    const [replyingTo, setReplyingTo] = useState<MessengerMessage | null>(null);
     const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
     const [editingBody, setEditingBody] = useState('');
     const [typingUsers, setTypingUsers] = useState<Record<number, string>>({});
@@ -77,6 +79,12 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
     const [callError, setCallError] = useState<string | null>(null);
     const [callMuted, setCallMuted] = useState(false);
     const [cameraOff, setCameraOff] = useState(false);
+    const [conversationCallHistory, setConversationCallHistory] = useState<MessengerCall[]>([]);
+    const [globalCallHistory, setGlobalCallHistory] = useState<MessengerCall[]>([]);
+    const [callHistoryOpen, setCallHistoryOpen] = useState(false);
+    const [fullscreenView, setFullscreenView] = useState<'messages' | 'calls'>('messages');
+    const [loadingCallHistory, setLoadingCallHistory] = useState(false);
+    const [recordingVoice, setRecordingVoice] = useState(false);
     const [localStream, setLocalStream] = useState<MediaStream | null>(null);
     const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
     const [remoteStreams, setRemoteStreams] = useState<Record<number, MediaStream>>({});
@@ -85,6 +93,10 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
     const localVideoRef = useRef<HTMLVideoElement | null>(null);
     const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
     const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+    const mediaInputRef = useRef<HTMLInputElement | null>(null);
+    const fullscreenMediaInputRef = useRef<HTMLInputElement | null>(null);
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const voiceChunksRef = useRef<Blob[]>([]);
     const notifiedMessageIds = useRef<Set<number>>(new Set());
     const typingTimeoutsRef = useRef<Record<number, number>>({});
     const lastTypingWhisperRef = useRef(0);
@@ -164,9 +176,52 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
         setActiveConversation((current) => (current?.id === data.conversation.id ? data.conversation : current));
     }, []);
 
+    const loadConversationCallHistory = useCallback(async (conversationId: number) => {
+        setLoadingCallHistory(true);
+
+        try {
+            const response = await fetch(`/messenger/conversations/${conversationId}/calls`, {
+                headers: { Accept: 'application/json' },
+                credentials: 'same-origin',
+            });
+
+            if (!response.ok) {
+                return;
+            }
+
+            const data = (await response.json()) as { calls: MessengerCall[] };
+            setConversationCallHistory(data.calls ?? []);
+        } finally {
+            setLoadingCallHistory(false);
+        }
+    }, []);
+
+    const loadGlobalCallHistory = useCallback(async () => {
+        setLoadingCallHistory(true);
+
+        try {
+            const response = await fetch('/messenger/calls', {
+                headers: { Accept: 'application/json' },
+                credentials: 'same-origin',
+            });
+
+            if (!response.ok) {
+                return;
+            }
+
+            const data = (await response.json()) as { calls: MessengerCall[] };
+            setGlobalCallHistory(data.calls ?? []);
+        } finally {
+            setLoadingCallHistory(false);
+        }
+    }, []);
+
     const loadMessages = useCallback(async (conversation: MessengerConversation) => {
         setActiveConversation(conversation);
+        setFullscreenView('messages');
         setLoadingMessages(true);
+        setReplyingTo(null);
+        setCallHistoryOpen(false);
 
         try {
             const response = await fetch(`/messenger/conversations/${conversation.id}/messages`, {
@@ -180,11 +235,12 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
 
             const data = (await response.json()) as { messages: MessengerMessage[] };
             setMessages(data.messages ?? []);
+            void loadConversationCallHistory(conversation.id);
             await markRead(conversation.id);
         } finally {
             setLoadingMessages(false);
         }
-    }, [markRead]);
+    }, [loadConversationCallHistory, markRead]);
 
     useEffect(() => {
         if (!currentUser?.id) {
@@ -199,6 +255,12 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
             void fetchConversations();
         }
     }, [fetchConversations, open]);
+
+    useEffect(() => {
+        if (fullscreen && fullscreenView === 'calls') {
+            void loadGlobalCallHistory();
+        }
+    }, [fullscreen, fullscreenView, loadGlobalCallHistory]);
 
     useEffect(() => {
         if (!messageMenu) {
@@ -799,7 +861,10 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: csrfHeaders({ 'Content-Type': 'application/json' }),
-                body: JSON.stringify({ body: text }),
+                body: JSON.stringify({
+                    body: text,
+                    ...(replyingTo ? { reply_to_id: replyingTo.id } : {}),
+                }),
             });
 
             if (!response.ok) {
@@ -819,6 +884,7 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
             setActiveConversation(data.conversation);
             setUnreadTotal(data.unread_total ?? 0);
             setBody('');
+            setReplyingTo(null);
             getEcho()?.private(`messenger.conversation.${activeConversation.id}`).whisper('typing', {
                 user_id: currentUser?.id,
                 name: currentUser?.name,
@@ -827,6 +893,134 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
         } finally {
             setSending(false);
         }
+    }
+
+    async function sendMediaFile(file: File) {
+        if (!activeConversation || sending) {
+            return;
+        }
+
+        setSending(true);
+        setSendError(null);
+
+        try {
+            const formData = new FormData();
+            formData.append('media', file);
+
+            if (replyingTo) {
+                formData.append('reply_to_id', String(replyingTo.id));
+            }
+
+            const response = await fetch(`/messenger/conversations/${activeConversation.id}/messages`, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: csrfHeaders(),
+                body: formData,
+            });
+
+            if (!response.ok) {
+                setSendError(await responseError(response, 'Unable to send this media'));
+
+                return;
+            }
+
+            const data = (await response.json()) as {
+                message: MessengerMessage;
+                conversation: MessengerConversation;
+                unread_total: number;
+            };
+
+            setMessages((current) => appendMessage(current, data.message));
+            setConversations((current) => upsertConversation(current, data.conversation));
+            setActiveConversation(data.conversation);
+            setUnreadTotal(data.unread_total ?? 0);
+            setReplyingTo(null);
+        } finally {
+            setSending(false);
+        }
+    }
+
+    function handleMediaInput(fileList: FileList | null) {
+        const file = fileList?.[0];
+
+        if (file) {
+            void sendMediaFile(file);
+        }
+
+        if (mediaInputRef.current) {
+            mediaInputRef.current.value = '';
+        }
+
+        if (fullscreenMediaInputRef.current) {
+            fullscreenMediaInputRef.current.value = '';
+        }
+    }
+
+    async function toggleVoiceRecording() {
+        if (recordingVoice) {
+            mediaRecorderRef.current?.stop();
+
+            return;
+        }
+
+        if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+            toast.error('Voice notes are unavailable in this browser.');
+
+            return;
+        }
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const recorder = new MediaRecorder(stream);
+            voiceChunksRef.current = [];
+            mediaRecorderRef.current = recorder;
+
+            recorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    voiceChunksRef.current.push(event.data);
+                }
+            };
+
+            recorder.onstop = () => {
+                stream.getTracks().forEach((track) => track.stop());
+                setRecordingVoice(false);
+
+                const blob = new Blob(voiceChunksRef.current, { type: recorder.mimeType || 'audio/webm' });
+                voiceChunksRef.current = [];
+
+                if (blob.size > 0) {
+                    const file = new File([blob], `voice-note-${Date.now()}.webm`, { type: blob.type || 'audio/webm' });
+
+                    void sendMediaFile(file);
+                }
+            };
+
+            recorder.start();
+            setRecordingVoice(true);
+        } catch (error) {
+            toast.error(callErrorMessage(error));
+        }
+    }
+
+    async function toggleMessageLike(message: MessengerMessage) {
+        if (!activeConversation || message.is_deleted) {
+            return;
+        }
+
+        const response = await fetch(`/messenger/conversations/${activeConversation.id}/messages/${message.id}/like`, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: csrfHeaders(),
+        });
+
+        if (!response.ok) {
+            toast.error(await responseError(response, 'Unable to like this message'));
+
+            return;
+        }
+
+        const data = (await response.json()) as { message: MessengerMessage };
+        setMessages((current) => replaceMessage(current, data.message));
     }
 
     async function updateMessage(messageId: number) {
@@ -879,6 +1073,10 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
     }
 
     function startEditingMessage(message: MessengerMessage) {
+        if ((message.type ?? 'text') !== 'text' || message.is_deleted) {
+            return;
+        }
+
         setEditingMessageId(message.id);
         setEditingBody(message.body);
     }
@@ -889,7 +1087,7 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
     }
 
     function openMessageMenu(event: MouseEvent, message: MessengerMessage) {
-        if (message.sender_id !== currentUser?.id || message.is_deleted) {
+        if (message.is_deleted) {
             return;
         }
 
@@ -909,6 +1107,16 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
     function deleteMenuMessage(message: MessengerMessage) {
         setMessageMenu(null);
         void deleteMessage(message);
+    }
+
+    function replyToMenuMessage(message: MessengerMessage) {
+        setMessageMenu(null);
+        setReplyingTo(message);
+    }
+
+    function likeMenuMessage(message: MessengerMessage) {
+        setMessageMenu(null);
+        void toggleMessageLike(message);
     }
 
     function updateBodyWithTyping(nextBody: string) {
@@ -1113,6 +1321,14 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
     async function handleCallUpdate(call: MessengerCall) {
         if (!currentUser?.id) {
             return;
+        }
+
+        if (activeConversation?.id === call.conversation_id) {
+            void loadConversationCallHistory(call.conversation_id);
+        }
+
+        if (fullscreen && fullscreenView === 'calls') {
+            void loadGlobalCallHistory();
         }
 
         const currentCall = activeCallRef.current;
@@ -1693,7 +1909,15 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
                 onClose={!fullscreen ? () => setOpen(false) : undefined}
                 onManageGroup={activeConversation.type === 'group' && activeConversation.is_creator ? () => setGroupManageOpen(true) : undefined}
                 onStartCall={startCall}
+                onToggleCallHistory={() => {
+                    setCallHistoryOpen((current) => !current);
+                    void loadConversationCallHistory(activeConversation.id);
+                }}
             />
+
+            {callHistoryOpen && (
+                <CallHistoryPanel calls={conversationCallHistory} loading={loadingCallHistory} currentUserId={currentUser.id} compact />
+            )}
 
             <div className="min-h-0 flex-1 overflow-y-auto bg-background px-3 py-3 sm:px-4">
                 {loadingMessages ? (
@@ -1738,15 +1962,35 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
                     void sendMessage();
                 }}
             >
+                {replyingTo && (
+                    <ReplyComposerPreview message={replyingTo} onCancel={() => setReplyingTo(null)} />
+                )}
                 {sendError && <div className="mb-2 rounded-lg bg-red-500/10 px-3 py-2 text-xs font-medium text-red-300">{sendError}</div>}
                 <div className="flex items-center gap-1.5">
                     <div className="flex shrink-0 items-center gap-0.5 text-primary">
-                        <span className="flex h-9 w-8 items-center justify-center rounded-full hover:bg-primary/10">
+                        <button
+                            type="button"
+                            onClick={() => void toggleVoiceRecording()}
+                            className={`flex h-9 w-8 items-center justify-center rounded-full hover:bg-primary/10 ${recordingVoice ? 'bg-red-500/10 text-red-500' : ''}`}
+                            aria-label={recordingVoice ? 'Stop voice note' : 'Record voice note'}
+                        >
                             <Mic size={18} />
-                        </span>
-                        <span className="flex h-9 w-8 items-center justify-center rounded-full hover:bg-primary/10">
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => mediaInputRef.current?.click()}
+                            className="flex h-9 w-8 items-center justify-center rounded-full hover:bg-primary/10"
+                            aria-label="Send media"
+                        >
                             <Image size={18} />
-                        </span>
+                        </button>
+                        <input
+                            ref={mediaInputRef}
+                            type="file"
+                            accept="image/*,video/*,audio/*"
+                            className="hidden"
+                            onChange={(event) => handleMediaInput(event.target.files)}
+                        />
                     </div>
                     <div className="flex min-h-10 flex-1 items-center rounded-full bg-primary/8 px-3 ring-1 ring-primary/10 focus-within:ring-primary/30">
                         <textarea
@@ -1829,6 +2073,10 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
         <MessageContextMenu
             x={messageMenu.x}
             y={messageMenu.y}
+            message={menuMessage}
+            currentUserId={currentUser.id}
+            onLike={() => likeMenuMessage(menuMessage)}
+            onReply={() => replyToMenuMessage(menuMessage)}
             onEdit={() => editMenuMessage(menuMessage)}
             onDelete={() => deleteMenuMessage(menuMessage)}
         />
@@ -1921,7 +2169,10 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
                     <div className="flex items-center gap-0.5">
                         <button
                             type="button"
-                            onClick={() => { setGroupComposerOpen(true); setGroupError(null); }}
+                            onClick={() => {
+                                setGroupComposerOpen(true);
+                                setGroupError(null);
+                            }}
                             className="flex h-8 w-8 items-center justify-center rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-primary transition-all"
                             aria-label="Créer un groupe"
                         >
@@ -1956,10 +2207,12 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
                     </div>
                 </div>
                 <div className="flex items-center gap-1 px-3 pb-2 shrink-0">
-                    {(['Tous', 'Non-lus', 'Groupes'] as const).map((label, i) => (
+                    {(['Messages', 'Appels'] as const).map((label) => (
                         <button
                             key={label}
-                            className={`flex-1 py-1 text-[11px] font-semibold rounded-lg transition-all ${i === 0
+                            type="button"
+                            onClick={() => setFullscreenView(label === 'Messages' ? 'messages' : 'calls')}
+                            className={`flex-1 py-1 text-[11px] font-semibold rounded-lg transition-all ${(label === 'Messages' ? fullscreenView === 'messages' : fullscreenView === 'calls')
                                 ? 'bg-primary/10 text-primary'
                                 : 'text-on-surface-variant hover:bg-surface-container-low'
                                 }`}
@@ -1985,7 +2238,25 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
             </aside>
         );
 
-        const fullscreenChat = activeConversation ? (
+        const fullscreenChat = fullscreenView === 'calls' ? (
+            <section className="flex h-full min-w-0 flex-1 flex-col bg-background">
+                <div className="flex h-14 items-center justify-between border-b border-primary/10 bg-white px-4">
+                    <div>
+                        <div className="text-base font-bold text-gray-900">Historique des appels</div>
+                        <div className="text-xs text-gray-400">Tous vos appels audio et video</div>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => void loadGlobalCallHistory()}
+                        className="flex h-8 w-8 items-center justify-center rounded-full text-primary hover:bg-primary/5"
+                        aria-label="Actualiser les appels"
+                    >
+                        <Clock size={17} />
+                    </button>
+                </div>
+                <CallHistoryPanel calls={globalCallHistory} loading={loadingCallHistory} currentUserId={currentUser.id} />
+            </section>
+        ) : activeConversation ? (
             <section className="flex h-full min-w-0 flex-1 flex-col bg-background">
                 <ChatHeader
                     conversation={activeConversation}
@@ -1996,7 +2267,14 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
                     onClose={undefined}
                     onManageGroup={activeConversation.type === 'group' && activeConversation.is_creator ? () => setGroupManageOpen(true) : undefined}
                     onStartCall={startCall}
+                    onToggleCallHistory={() => {
+                        setCallHistoryOpen((current) => !current);
+                        void loadConversationCallHistory(activeConversation.id);
+                    }}
                 />
+                {callHistoryOpen && (
+                    <CallHistoryPanel calls={conversationCallHistory} loading={loadingCallHistory} currentUserId={currentUser.id} compact />
+                )}
                 <div className="min-h-0 flex-1 overflow-y-auto bg-background px-3 py-3 sm:px-4">
                     {loadingMessages ? (
                         <div className="flex h-full items-center justify-center text-sm text-gray-400">
@@ -2033,13 +2311,40 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
                 )}
                 <form
                     className="border-t border-primary/10 bg-white p-3"
-                    onSubmit={(event) => { event.preventDefault(); void sendMessage(); }}
+                    onSubmit={(event) => {
+                        event.preventDefault();
+                        void sendMessage();
+                    }}
                 >
+                    {replyingTo && (
+                        <ReplyComposerPreview message={replyingTo} onCancel={() => setReplyingTo(null)} />
+                    )}
                     {sendError && <div className="mb-2 rounded-lg bg-red-500/10 px-3 py-2 text-xs font-medium text-red-300">{sendError}</div>}
                     <div className="flex items-center gap-1.5">
                         <div className="flex shrink-0 items-center gap-0.5 text-primary">
-                            <span className="flex h-9 w-8 items-center justify-center rounded-full hover:bg-primary/10"><Mic size={18} /></span>
-                            <span className="flex h-9 w-8 items-center justify-center rounded-full hover:bg-primary/10"><Image size={18} /></span>
+                            <button
+                                type="button"
+                                onClick={() => void toggleVoiceRecording()}
+                                className={`flex h-9 w-8 items-center justify-center rounded-full hover:bg-primary/10 ${recordingVoice ? 'bg-red-500/10 text-red-500' : ''}`}
+                                aria-label={recordingVoice ? 'Stop voice note' : 'Record voice note'}
+                            >
+                                <Mic size={18} />
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => fullscreenMediaInputRef.current?.click()}
+                                className="flex h-9 w-8 items-center justify-center rounded-full hover:bg-primary/10"
+                                aria-label="Send media"
+                            >
+                                <Image size={18} />
+                            </button>
+                            <input
+                                ref={fullscreenMediaInputRef}
+                                type="file"
+                                accept="image/*,video/*,audio/*"
+                                className="hidden"
+                                onChange={(event) => handleMediaInput(event.target.files)}
+                            />
                         </div>
                         <div className="flex min-h-10 flex-1 items-center rounded-full bg-primary/8 px-3 ring-1 ring-primary/10 focus-within:ring-primary/30">
                             <textarea
@@ -2205,6 +2510,7 @@ function ChatHeader({
     onClose,
     onManageGroup,
     onStartCall,
+    onToggleCallHistory,
 }: {
     conversation: MessengerConversation;
     calling: boolean;
@@ -2214,6 +2520,7 @@ function ChatHeader({
     onClose?: () => void;
     onManageGroup?: () => void;
     onStartCall: (type: MessengerCall['type']) => void;
+    onToggleCallHistory: () => void;
 }) {
     const user = conversation.other_user;
     const online = isMessengerUserOnline(user, onlineUserIds);
@@ -2234,6 +2541,15 @@ function ChatHeader({
                 </div>
             </div>
             <div className="flex items-center gap-1 text-primary">
+                <button
+                    type="button"
+                    onClick={onToggleCallHistory}
+                    className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-primary/5"
+                    aria-label="Historique des appels"
+                    title="Historique des appels"
+                >
+                    <Clock size={18} />
+                </button>
                 {isGroup ? (
                     <>
                         <button
@@ -2345,7 +2661,7 @@ function ConversationList({
                             <p className={`mt-0.5 truncate text-sm ${conversation.unread_count > 0 ? 'font-semibold text-primary' : 'text-gray-500'}`}>
                                 <span className={online && conversation.type === 'direct' ? 'text-green-600' : ''}>{status}</span>
                                 <span className="text-gray-300"> · </span>
-                                {conversation.last_message?.body ? previewText(conversation.last_message.body) : 'No messages yet'}
+                                {conversation.last_message ? previewText(messagePreviewLabel(conversation.last_message)) : 'No messages yet'}
                             </p>
                         </div>
                     </button>
@@ -2947,7 +3263,7 @@ function MessageBubble({
     return (
         <div className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
             <div
-                className={`max-w-[78%] px-3 py-2 text-sm shadow-sm ${mine && !message.is_deleted ? 'cursor-context-menu' : ''} ${bubbleClass}`}
+                className={`group relative max-w-[78%] px-3 py-2 text-sm shadow-sm ${!message.is_deleted ? 'cursor-context-menu' : ''} ${bubbleClass}`}
                 onContextMenu={onOpenMenu}
             >
                 {editing ? (
@@ -2980,10 +3296,38 @@ function MessageBubble({
                     </div>
                 ) : (
                     <>
-                        <p className={`whitespace-pre-wrap break-words leading-relaxed ${message.is_deleted ? 'italic' : ''}`}>
-                            {message.is_deleted ? 'Message deleted' : message.body}
-                        </p>
+                        {!message.is_deleted && (
+                            <button
+                                type="button"
+                                onClick={onOpenMenu}
+                                className={`absolute top-1 ${mine ? 'left-[-30px]' : 'right-[-30px]'} hidden h-7 w-7 items-center justify-center rounded-full bg-white text-gray-500 shadow-sm ring-1 ring-primary/10 hover:text-primary group-hover:flex`}
+                                aria-label="Message actions"
+                            >
+                                <MoreHorizontal size={15} />
+                            </button>
+                        )}
+                        {message.reply_to && !message.is_deleted && (
+                            <QuotedMessagePreview message={message.reply_to} mine={mine} />
+                        )}
+                        {message.is_deleted ? (
+                            <p className="whitespace-pre-wrap break-words leading-relaxed italic">Message deleted</p>
+                        ) : (
+                            <>
+                                <MessageMedia message={message} />
+                                {message.body && (
+                                    <p className="whitespace-pre-wrap break-words leading-relaxed">
+                                        {message.body}
+                                    </p>
+                                )}
+                            </>
+                        )}
                         <div className={`mt-1 flex items-center justify-end gap-1.5 text-[10px] ${mine && !message.is_deleted ? 'text-white/70' : 'text-gray-400'}`}>
+                            {(message.likes_count ?? 0) > 0 && (
+                                <span className="inline-flex items-center gap-0.5">
+                                    <ThumbsUp size={10} />
+                                    {message.likes_count}
+                                </span>
+                            )}
                             <span>{formatTime(message.created_at)}</span>
                             {message.is_edited && !message.is_deleted && <span>edited</span>}
                             {readStatus && <span>{readStatus}</span>}
@@ -2998,14 +3342,25 @@ function MessageBubble({
 function MessageContextMenu({
     x,
     y,
+    message,
+    currentUserId,
+    onLike,
+    onReply,
     onEdit,
     onDelete,
 }: {
     x: number;
     y: number;
+    message: MessengerMessage;
+    currentUserId: number;
+    onLike: () => void;
+    onReply: () => void;
     onEdit: () => void;
     onDelete: () => void;
 }) {
+    const canManage = message.sender_id === currentUserId;
+    const canEdit = canManage && (message.type ?? 'text') === 'text' && !message.is_deleted;
+
     return (
         <div
             className="fixed z-[90] w-40 overflow-hidden rounded-xl border border-primary/10 bg-white py-1 text-sm shadow-xl shadow-primary/20"
@@ -3014,20 +3369,132 @@ function MessageContextMenu({
         >
             <button
                 type="button"
-                onClick={onEdit}
+                onClick={onLike}
                 className="flex w-full items-center gap-2 px-3 py-2 text-left text-gray-700 transition hover:bg-primary/5"
             >
-                <Pencil size={14} />
-                Modify
+                <ThumbsUp size={14} />
+                {message.user_has_liked ? 'Unlike' : 'Like'}
             </button>
             <button
                 type="button"
-                onClick={onDelete}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-red-300 transition hover:bg-red-500/10"
+                onClick={onReply}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-gray-700 transition hover:bg-primary/5"
             >
-                <Trash2 size={14} />
-                Delete
+                <MessageCircle size={14} />
+                Reply
             </button>
+            {canEdit && (
+                <button
+                    type="button"
+                    onClick={onEdit}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-gray-700 transition hover:bg-primary/5"
+                >
+                    <Pencil size={14} />
+                    Modify
+                </button>
+            )}
+            {canManage && (
+                <button
+                    type="button"
+                    onClick={onDelete}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-red-300 transition hover:bg-red-500/10"
+                >
+                    <Trash2 size={14} />
+                    Delete
+                </button>
+            )}
+        </div>
+    );
+}
+
+function ReplyComposerPreview({ message, onCancel }: { message: MessengerMessage; onCancel: () => void }) {
+    return (
+        <div className="mb-2 flex items-center gap-2 rounded-xl bg-primary/8 px-3 py-2 text-xs text-gray-600 ring-1 ring-primary/10">
+            <div className="min-w-0 flex-1 border-l-2 border-primary pl-2">
+                <div className="font-bold text-primary">Replying to {message.sender.name}</div>
+                <div className="truncate">{messagePreviewLabel(message)}</div>
+            </div>
+            <button
+                type="button"
+                onClick={onCancel}
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-gray-500 hover:bg-primary/10"
+                aria-label="Cancel reply"
+            >
+                <X size={14} />
+            </button>
+        </div>
+    );
+}
+
+function QuotedMessagePreview({ message, mine }: { message: MessengerQuotedMessage; mine: boolean }) {
+    return (
+        <div className={`mb-2 rounded-xl border-l-2 px-2 py-1.5 text-xs ${mine ? 'border-white/70 bg-white/15 text-white/85' : 'border-primary bg-primary/5 text-gray-600'}`}>
+            <div className={`font-bold ${mine ? 'text-white' : 'text-primary'}`}>{message.sender.name}</div>
+            <div className="line-clamp-2 break-words">{quotedPreviewLabel(message)}</div>
+        </div>
+    );
+}
+
+function MessageMedia({ message }: { message: MessengerMessage }) {
+    if (!message.media_url) {
+        return null;
+    }
+
+    if (message.type === 'image') {
+        return <img src={message.media_url} alt="" className="mb-2 max-h-72 rounded-xl object-cover" />;
+    }
+
+    if (message.type === 'video') {
+        return <video src={message.media_url} controls className="mb-2 max-h-72 rounded-xl bg-black" />;
+    }
+
+    if (message.type === 'audio') {
+        return <audio src={message.media_url} controls className="mb-2 w-64 max-w-full" />;
+    }
+
+    return null;
+}
+
+function CallHistoryPanel({
+    calls,
+    loading,
+    currentUserId,
+    compact = false,
+}: {
+    calls: MessengerCall[];
+    loading: boolean;
+    currentUserId: number;
+    compact?: boolean;
+}) {
+    return (
+        <div className={`${compact ? 'max-h-52 border-b border-primary/10 bg-white' : 'min-h-0 flex-1 overflow-y-auto bg-background'} px-3 py-3`}>
+            {loading ? (
+                <div className="flex items-center justify-center py-8 text-sm text-gray-400">
+                    <Loader2 size={16} className="mr-2 animate-spin" />
+                    Chargement des appels
+                </div>
+            ) : calls.length === 0 ? (
+                <div className="py-8 text-center text-sm text-gray-400">Aucun appel</div>
+            ) : (
+                <div className="space-y-2">
+                    {calls.map((call) => (
+                        <div key={call.id} className="flex items-center gap-3 rounded-xl bg-white px-3 py-2 text-sm ring-1 ring-primary/10">
+                            <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${call.status === 'ended' || call.status === 'accepted' ? 'bg-primary/10 text-primary' : 'bg-red-500/10 text-red-500'}`}>
+                                {call.type === 'video' ? <Video size={16} /> : <Phone size={16} />}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <div className="truncate font-bold text-gray-900">{callHistoryTitle(call, currentUserId)}</div>
+                                <div className="truncate text-xs text-gray-400">
+                                    {call.type === 'video' ? 'Video' : 'Audio'} · {callStatusLabel(call.status)} · {formatCallDuration(call.duration_seconds)}
+                                </div>
+                            </div>
+                            <div className="shrink-0 text-right text-[11px] text-gray-400">
+                                {call.created_at ? formatCallDate(call.created_at) : ''}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
     );
 }
@@ -3175,6 +3642,46 @@ function previewText(value: string): string {
     return value.length > 120 ? `${value.slice(0, 117)}...` : value;
 }
 
+function messagePreviewLabel(message: MessengerMessage): string {
+    if (message.is_deleted) {
+        return 'Message deleted';
+    }
+
+    if (message.body) {
+        return message.body;
+    }
+
+    return mediaTypeLabel(message.type);
+}
+
+function quotedPreviewLabel(message: MessengerQuotedMessage): string {
+    if (message.is_deleted) {
+        return 'Message deleted';
+    }
+
+    if (message.body) {
+        return message.body;
+    }
+
+    return mediaTypeLabel(message.type);
+}
+
+function mediaTypeLabel(type: MessengerMessage['type'] | MessengerQuotedMessage['type']): string {
+    if (type === 'image') {
+        return 'Image';
+    }
+
+    if (type === 'video') {
+        return 'Video';
+    }
+
+    if (type === 'audio') {
+        return 'Voice note';
+    }
+
+    return 'Message';
+}
+
 function messageReadStatus(message: MessengerMessage, otherReadAt: string | null): string {
     if (!otherReadAt) {
         return 'Sent';
@@ -3296,6 +3803,60 @@ function formatTime(value: string): string {
         hour: '2-digit',
         minute: '2-digit',
     }).format(new Date(value));
+}
+
+function formatCallDate(value: string): string {
+    return new Intl.DateTimeFormat(undefined, {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+    }).format(new Date(value));
+}
+
+function formatCallDuration(seconds: number | null | undefined): string {
+    if (seconds === null || typeof seconds === 'undefined') {
+        return 'En cours';
+    }
+
+    if (seconds <= 0) {
+        return '0 s';
+    }
+
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+
+    if (minutes === 0) {
+        return `${remainingSeconds} s`;
+    }
+
+    return `${minutes} min ${remainingSeconds.toString().padStart(2, '0')} s`;
+}
+
+function callStatusLabel(status: MessengerCall['status']): string {
+    if (status === 'ringing') {
+        return 'En attente';
+    }
+
+    if (status === 'accepted') {
+        return 'En cours';
+    }
+
+    if (status === 'declined') {
+        return 'Refuse';
+    }
+
+    return 'Termine';
+}
+
+function callHistoryTitle(call: MessengerCall, currentUserId: number): string {
+    if (isGroupCall(call)) {
+        return `Groupe · ${call.joined_count ?? 0}/${call.max_participants ?? 0} participants`;
+    }
+
+    const other = call.started_by === currentUserId ? call.callee : call.starter;
+
+    return other?.name ?? 'Appel';
 }
 
 function csrfHeaders(extra: HeadersInit = {}): HeadersInit {

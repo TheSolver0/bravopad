@@ -31,14 +31,38 @@ class MessageSent implements ShouldBroadcastNow
 
     public function broadcastWith(): array
     {
-        $this->message->loadMissing('sender:id,name,email,avatar,role,last_seen_at');
+        $this->message->loadMissing(['sender:id,name,email,avatar,role,last_seen_at', 'replyTo.sender:id,name,email,avatar,role,last_seen_at']);
+        $this->message->loadCount('likedBy');
 
         return [
             'message' => [
                 'id' => $this->message->id,
                 'conversation_id' => $this->message->conversation_id,
                 'sender_id' => $this->message->sender_id,
+                'type' => $this->message->type ?? 'text',
                 'body' => $this->message->deleted_at ? '' : $this->message->body,
+                'reply_to' => $this->message->replyTo ? [
+                    'id' => $this->message->replyTo->id,
+                    'sender_id' => $this->message->replyTo->sender_id,
+                    'type' => $this->message->replyTo->type ?? 'text',
+                    'body' => $this->message->replyTo->deleted_at ? '' : $this->message->replyTo->body,
+                    'media_url' => $this->message->replyTo->deleted_at ? null : $this->message->replyTo->media_url,
+                    'media_mime' => $this->message->replyTo->deleted_at ? null : $this->message->replyTo->media_mime,
+                    'is_deleted' => filled($this->message->replyTo->deleted_at),
+                    'sender' => [
+                        'id' => $this->message->replyTo->sender->id,
+                        'name' => $this->message->replyTo->sender->name,
+                        'email' => $this->message->replyTo->sender->email,
+                        'avatar' => $this->message->replyTo->sender->avatar,
+                        'role' => $this->message->replyTo->sender->role,
+                        'last_seen_at' => $this->message->replyTo->sender->last_seen_at?->toIso8601String(),
+                    ],
+                ] : null,
+                'media_url' => $this->message->deleted_at ? null : $this->message->media_url,
+                'media_mime' => $this->message->deleted_at ? null : $this->message->media_mime,
+                'media_size' => $this->message->deleted_at ? null : $this->message->media_size,
+                'likes_count' => $this->message->liked_by_count ?? 0,
+                'user_has_liked' => false,
                 'created_at' => $this->message->created_at?->toIso8601String(),
                 'edited_at' => $this->message->edited_at?->toIso8601String(),
                 'deleted_at' => $this->message->deleted_at?->toIso8601String(),

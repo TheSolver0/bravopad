@@ -10,8 +10,10 @@ use App\Models\Message;
 use App\Models\MessengerCall;
 use App\Models\MessengerCallParticipant;
 use App\Models\User;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia;
 
 function messengerUser(array $attributes = []): User
@@ -20,6 +22,8 @@ function messengerUser(array $attributes = []): User
 }
 
 it('renders the full screen messenger page for authenticated users only', function () {
+    $this->withoutVite();
+
     $user = messengerUser();
 
     $this->get('/messages')
@@ -474,6 +478,182 @@ it('allows message authors to edit and delete their own messages', function () {
         ->assertJsonPath('message.is_deleted', true);
 
     Event::assertDispatched(MessageUpdated::class, 2);
+});
+
+it('sends media messages with a single uploaded file', function (string $kind, string $filename, string $mime) {
+    Storage::fake('public');
+    Event::fake([MessageSent::class, MessengerInboxUpdated::class]);
+
+    $sender = messengerUser();
+    $recipient = messengerUser();
+    $conversation = Conversation::createDirectBetween($sender, $recipient);
+    $file = UploadedFile::fake()->create($filename, 128, $mime);
+
+    $this->actingAs($sender)
+        ->postJson("/messenger/conversations/{$conversation->id}/messages", [
+            'media' => $file,
+        ])
+        ->assertCreated()
+        ->assertJsonPath('message.type', $kind)
+        ->assertJsonPath('message.body', '')
+        ->assertJsonPath('message.media_mime', $mime)
+        ->assertJsonPath('message.media_url', fn (?string $value) => filled($value) && str_starts_with($value, '/storage/'));
+
+    $message = Message::query()->firstOrFail();
+
+    expect($message->type)->toBe($kind);
+    expect($message->media_path)->not->toBeNull();
+    Storage::disk('public')->assertExists($message->media_path);
+
+    $this->actingAs($recipient)
+        ->getJson("/messenger/conversations/{$conversation->id}/messages")
+        ->assertOk()
+        ->assertJsonPath('messages.0.type', $kind)
+        ->assertJsonPath('messages.0.media_mime', $mime);
+})->with([
+    ['image', 'photo.jpg', 'image/jpeg'],
+    ['video', 'clip.mp4', 'video/mp4'],
+    ['audio', 'voice.webm', 'audio/webm'],
+]);
+
+it('rejects unsupported messenger media uploads', function () {
+    Storage::fake('public');
+
+    $sender = messengerUser();
+    $recipient = messengerUser();
+    $conversation = Conversation::createDirectBetween($sender, $recipient);
+    $file = UploadedFile::fake()->create('document.pdf', 64, 'application/pdf');
+
+    $this->actingAs($sender)
+        ->postJson("/messenger/conversations/{$conversation->id}/messages", [
+            'media' => $file,
+        ])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors(['media']);
+
+    expect(Message::query()->count())->toBe(0);
+});
+
+it('allows participants to reply to messages with quoted context', function () {
+    Event::fake([MessageSent::class, MessengerInboxUpdated::class]);
+
+    $sender = messengerUser(['name' => 'Sender']);
+    $recipient = messengerUser(['name' => 'Recipient']);
+    $outsider = messengerUser();
+    $conversation = Conversation::createDirectBetween($sender, $recipient);
+    $original = Message::query()->create([
+        'conversation_id' => $conversation->id,
+        'sender_id' => $sender->id,
+        'body' => 'Original question',
+    ]);
+    $outsiderConversation = Conversation::createDirectBetween($sender, $outsider);
+    $outsiderMessage = Message::query()->create([
+        'conversation_id' => $outsiderConversation->id,
+        'sender_id' => $sender->id,
+        'body' => 'Private outsider message',
+    ]);
+
+    $this->actingAs($recipient)
+        ->postJson("/messenger/conversations/{$conversation->id}/messages", [
+            'body' => 'Here is the answer',
+            'reply_to_id' => $original->id,
+        ])
+        ->assertCreated()
+        ->assertJsonPath('message.reply_to.id', $original->id)
+        ->assertJsonPath('message.reply_to.body', 'Original question')
+        ->assertJsonPath('message.reply_to.sender.name', 'Sender');
+
+    $this->actingAs($recipient)
+        ->postJson("/messenger/conversations/{$conversation->id}/messages", [
+            'body' => 'Wrong thread',
+            'reply_to_id' => $outsiderMessage->id,
+        ])
+        ->assertStatus(422)
+        ->assertJsonValidationErrors(['reply_to_id']);
+});
+
+it('toggles likes on a message once per user', function () {
+    Event::fake([MessageUpdated::class]);
+
+    $sender = messengerUser();
+    $recipient = messengerUser();
+    $outsider = messengerUser();
+    $conversation = Conversation::createDirectBetween($sender, $recipient);
+    $message = Message::query()->create([
+        'conversation_id' => $conversation->id,
+        'sender_id' => $sender->id,
+        'body' => 'Like this',
+    ]);
+
+    $this->actingAs($recipient)
+        ->postJson("/messenger/conversations/{$conversation->id}/messages/{$message->id}/like")
+        ->assertOk()
+        ->assertJsonPath('message.likes_count', 1)
+        ->assertJsonPath('message.user_has_liked', true);
+
+    $this->actingAs($recipient)
+        ->postJson("/messenger/conversations/{$conversation->id}/messages/{$message->id}/like")
+        ->assertOk()
+        ->assertJsonPath('message.likes_count', 0)
+        ->assertJsonPath('message.user_has_liked', false);
+
+    $this->actingAs($outsider)
+        ->postJson("/messenger/conversations/{$conversation->id}/messages/{$message->id}/like")
+        ->assertForbidden();
+
+    Event::assertDispatched(MessageUpdated::class, 2);
+});
+
+it('lists global and conversation call history with durations for participants only', function () {
+    $caller = messengerUser(['name' => 'Caller']);
+    $callee = messengerUser(['name' => 'Callee']);
+    $outsider = messengerUser();
+    $conversation = Conversation::createDirectBetween($caller, $callee);
+    $otherConversation = Conversation::createDirectBetween($caller, $outsider);
+
+    $endedCall = MessengerCall::query()->create([
+        'conversation_id' => $conversation->id,
+        'started_by' => $caller->id,
+        'callee_id' => $callee->id,
+        'type' => 'audio',
+        'status' => 'ended',
+        'accepted_at' => now()->subMinutes(5),
+        'ended_at' => now()->subMinutes(3),
+    ]);
+    MessengerCall::query()->create([
+        'conversation_id' => $conversation->id,
+        'started_by' => $callee->id,
+        'callee_id' => $caller->id,
+        'type' => 'video',
+        'status' => 'declined',
+        'accepted_at' => null,
+        'ended_at' => now()->subMinute(),
+    ]);
+    MessengerCall::query()->create([
+        'conversation_id' => $otherConversation->id,
+        'started_by' => $outsider->id,
+        'callee_id' => $caller->id,
+        'type' => 'audio',
+        'status' => 'ringing',
+    ]);
+
+    $this->actingAs($callee)
+        ->getJson('/messenger/calls')
+        ->assertOk()
+        ->assertJsonCount(2, 'calls')
+        ->assertJsonPath('calls.1.id', $endedCall->id)
+        ->assertJsonPath('calls.1.duration_seconds', 120)
+        ->assertJsonPath('calls.1.starter.name', 'Caller');
+
+    $this->actingAs($callee)
+        ->getJson("/messenger/conversations/{$conversation->id}/calls")
+        ->assertOk()
+        ->assertJsonCount(2, 'calls')
+        ->assertJsonPath('calls.0.duration_seconds', 0);
+
+    $this->actingAs($outsider)
+        ->getJson("/messenger/conversations/{$conversation->id}/calls")
+        ->assertForbidden();
 });
 
 it('starts and updates direct audio and video calls between participants', function () {

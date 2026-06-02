@@ -3,6 +3,7 @@
 namespace App\Events;
 
 use App\Models\Conversation;
+use App\Models\Message;
 use App\Models\User;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
@@ -32,7 +33,11 @@ class MessengerInboxUpdated implements ShouldBroadcastNow
 
     public function broadcastWith(): array
     {
-        $this->conversation->loadMissing(['participants:id,name,email,avatar,role,last_seen_at', 'lastMessage.sender:id,name,email,avatar,role,last_seen_at']);
+        $this->conversation->loadMissing([
+            'participants:id,name,email,avatar,role,last_seen_at',
+            'lastMessage.sender:id,name,email,avatar,role,last_seen_at',
+            'lastMessage.replyTo.sender:id,name,email,avatar,role,last_seen_at',
+        ]);
         $other = $this->conversation->type === 'direct'
             ? $this->conversation->participants->firstWhere('id', '!=', $this->user->id)
             : null;
@@ -65,17 +70,43 @@ class MessengerInboxUpdated implements ShouldBroadcastNow
         ];
     }
 
-    private function messagePayload($message): array
+    private function messagePayload(Message $message): array
     {
+        $message->loadMissing(['sender:id,name,email,avatar,role,last_seen_at', 'replyTo.sender:id,name,email,avatar,role,last_seen_at']);
+        $message->loadCount('likedBy');
+
         return [
             'id' => $message->id,
             'conversation_id' => $message->conversation_id,
             'sender_id' => $message->sender_id,
+            'type' => $message->type ?? 'text',
             'body' => $message->deleted_at ? '' : $message->body,
+            'reply_to' => $message->replyTo ? $this->quotedMessagePayload($message->replyTo) : null,
+            'media_url' => $message->deleted_at ? null : $message->media_url,
+            'media_mime' => $message->deleted_at ? null : $message->media_mime,
+            'media_size' => $message->deleted_at ? null : $message->media_size,
+            'likes_count' => $message->liked_by_count ?? 0,
+            'user_has_liked' => $message->likedBy()->where('users.id', $this->user->id)->exists(),
             'created_at' => $message->created_at?->toIso8601String(),
             'edited_at' => $message->edited_at?->toIso8601String(),
             'deleted_at' => $message->deleted_at?->toIso8601String(),
             'is_edited' => filled($message->edited_at),
+            'is_deleted' => filled($message->deleted_at),
+            'sender' => $this->userPayload($message->sender),
+        ];
+    }
+
+    private function quotedMessagePayload(Message $message): array
+    {
+        $message->loadMissing('sender:id,name,email,avatar,role,last_seen_at');
+
+        return [
+            'id' => $message->id,
+            'sender_id' => $message->sender_id,
+            'type' => $message->type ?? 'text',
+            'body' => $message->deleted_at ? '' : $message->body,
+            'media_url' => $message->deleted_at ? null : $message->media_url,
+            'media_mime' => $message->deleted_at ? null : $message->media_mime,
             'is_deleted' => filled($message->deleted_at),
             'sender' => $this->userPayload($message->sender),
         ];

@@ -68,6 +68,7 @@ class MessengerCallUpdated implements ShouldBroadcastNow
                 'max_participants' => $this->call->isGroupCall() ? $this->call->participantLimit() : null,
                 'accepted_at' => $this->call->accepted_at?->toIso8601String(),
                 'ended_at' => $this->call->ended_at?->toIso8601String(),
+                'duration_seconds' => $this->callDurationSeconds(),
                 'created_at' => $this->call->created_at?->toIso8601String(),
                 'starter' => $this->userPayload($this->call->starter),
                 'callee' => $this->call->callee ? $this->userPayload($this->call->callee) : null,
@@ -97,5 +98,18 @@ class MessengerCallUpdated implements ShouldBroadcastNow
             'role' => $user->role,
             'last_seen_at' => $user->last_seen_at?->toIso8601String(),
         ];
+    }
+
+    private function callDurationSeconds(): ?int
+    {
+        if ($this->call->accepted_at && $this->call->ended_at) {
+            return max(0, $this->call->accepted_at->diffInSeconds($this->call->ended_at, false));
+        }
+
+        if (in_array($this->call->status, ['declined', 'ended'], true)) {
+            return 0;
+        }
+
+        return null;
     }
 }

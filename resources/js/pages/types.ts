@@ -253,11 +253,29 @@ export type MessengerMessage = {
     id: number;
     conversation_id: number;
     sender_id: number;
+    type?: 'text' | 'image' | 'video' | 'audio';
     body: string;
+    reply_to?: MessengerQuotedMessage | null;
+    media_url?: string | null;
+    media_mime?: string | null;
+    media_size?: number | null;
+    likes_count?: number;
+    user_has_liked?: boolean;
     created_at: string;
     edited_at?: string | null;
     deleted_at?: string | null;
     is_edited?: boolean;
+    is_deleted?: boolean;
+    sender: MessengerUser;
+};
+
+export type MessengerQuotedMessage = {
+    id: number;
+    sender_id: number;
+    type?: 'text' | 'image' | 'video' | 'audio';
+    body: string;
+    media_url?: string | null;
+    media_mime?: string | null;
     is_deleted?: boolean;
     sender: MessengerUser;
 };
@@ -290,7 +308,7 @@ export type MessageSentPayload = {
 };
 
 export type MessageUpdatedPayload = {
-    action: 'edited' | 'deleted';
+    action: 'edited' | 'deleted' | 'liked' | 'unliked';
     message: MessengerMessage;
 };
 
@@ -324,6 +342,7 @@ export type MessengerCall = {
     max_participants?: number | null;
     accepted_at?: string | null;
     ended_at?: string | null;
+    duration_seconds?: number | null;
     created_at?: string | null;
     starter: MessengerUser;
     callee: MessengerUser | null;

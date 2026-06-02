@@ -22,7 +22,7 @@
                 $evenementOg = [
                     'title'       => $ev->nom . ($evDateInfo ? ' · ' . $evDateInfo : ''),
                     'description' => $evDesc,
-                    'image'       => $ev->cover_image ? url('/og-image/evenement/' . $ev->slug) : null,
+                    'image'       => $evImg ?: null,
                     'url'         => request()->url(),
                 ];
             }

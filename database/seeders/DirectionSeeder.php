@@ -16,7 +16,7 @@ class DirectionSeeder extends Seeder
         $directions = [
             ['code' => 'CDA', 'name' => "Centre de Documentation et des Archives", 'name_en' => "Documentation and Archives Center"],
             ['code' => 'DAP', 'name' => "Direction des Aménagements Portuaires", 'name_en' => "Port Development Direction"],
-            ['code' => 'CQN', 'name' => "Cellule Qualité et Normalisation", 'name_en' => "Quality and Standardization Unit"],
+            // ['code' => 'CQN', 'name' => "Cellule Qualité et Normalisation", 'name_en' => "Quality and Standardization Unit"],
             ['code' => 'DAJ', 'name' => "Direction des Affaires Juridiques", 'name_en' => "Legal Affairs Directorate"],
             ['code' => 'DCRP', 'name' => "Division de la Communication et des Relations Publiques", 'name_en' => "Communication and Public Relations Division"],
             ['code' => 'DQDD', 'name' => "Division de la qualite et de la Développement Durable", 'name_en' => "Quality and Sustainable Development Division"],
@@ -34,7 +34,7 @@ class DirectionSeeder extends Seeder
             ['code' => 'DAI', 'name' => "Division de l'Audit Interne", 'name_en' => "Internal Audit Division"],
             ['code' => 'DAG', 'name' => "Direction des Affaires Générales", 'name_en' => "General Affairs Directorate"],
             ['code' => 'CTIPB', 'name' => "Cellule de la Traduction , de L'interpretation et la Promotion du Bilinguisme", 'name_en' => "Translation, Interpretation and Promotion of Bilingualism Cellule"],
-            ['code' => 'CDDRCR', 'name' => "Cellule de Développement Durable et Responsabilité Civile et Réglementaire", 'name_en' => "Sustainable Development and Civil and Regulatory Responsibility Cellule"],
+            // ['code' => 'CDDRCR', 'name' => "Cellule de Développement Durable et Responsabilité Civile et Réglementaire", 'name_en' => "Sustainable Development and Civil and Regulatory Responsibility Cellule"],
             ['code' => 'REP-PAD BANGUI', 'name' => "Représentation PAD - Bangui", 'name_en' => "PAD Representation - Bangui"],
             ['code' => "REP-PAD N'DJAMENA", 'name' => "Représentation PAD - N'Djamena", 'name_en' => "PAD Representation - N'Djamena"],
             ['code' => 'REP-PAD YOUNDE', 'name' => "Représentation PAD - Yaoundé", 'name_en' => "PAD Representation - Yaoundé"],

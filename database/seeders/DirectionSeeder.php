@@ -41,6 +41,8 @@ class DirectionSeeder extends Seeder
             ['code' => 'RDD', 'name' => "Régie Déléguée au Dragage", 'name_en' => "Delegated Dredging Agency"],
             ['code' => 'RPI', 'name' => "Régie du Patrimoine Immobilier", 'name_en' => "Real Estate Asset Management"],
             ['code' => 'DPS', 'name' => "Douala Port Security", 'name_en' => "Douala Port Security"],
+            ['code' => 'DG', 'name' => "Direction Générale", 'name_en' => "General Directorate"],
+            ['code' => 'SIS', 'name' => "Service de l'Information sécuritaire", 'name_en' => "Security Information Service"],
         ];
 
         foreach ($directions as $direction) {

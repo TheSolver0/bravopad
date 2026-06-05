@@ -40,9 +40,10 @@ Nous vous attendons nombreux le samedi 20 juin 2026 au Club PAD !",
             'activites_options' => [
                 'Quiz Inter-Directions',
                 'Activités sportives (Yoga, Danse zumba)',
-                'Ateliers / sensibilisation à la santé',
+                'Ateliers à la santé',
+                'Sensibilisation à la santé (Trouble du sommeil, stress, alimentation, sexologie)',
                 'Dépistages / consultations santé',
-                'Animations & moments conviviaux',
+                'Atelier diététique et Spa',
                 'Séance de massages',
             ],
         ];

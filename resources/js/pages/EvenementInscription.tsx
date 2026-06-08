@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Head, useForm, usePage } from '@inertiajs/react';
-import { CheckCircle2, Calendar, Clock, MapPin, Users, ListChecks, Info, ChevronDown, X } from 'lucide-react';
+import { CheckCircle2, Calendar, Clock, MapPin, Users, ListChecks, Info, ChevronDown, X, PlayCircle } from 'lucide-react';
 
 type Direction = { id: number; name: string; code: string | null };
 
@@ -16,6 +16,7 @@ type EvenementInfo = {
     cover_image: string | null;
     programme: string[];
     activites_options: string[];
+    video_url: string | null;
 };
 
 interface Props {
@@ -163,6 +164,27 @@ export default function EvenementInscription({ evenement, directions }: Props) {
                     </div>
                 )}
 
+                {/* ── Vidéo de présentation ── */}
+                {evenement.video_url && (
+                    <div className="max-w-2xl mx-auto px-6 pb-4">
+                        <div className="rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)' }}>
+                            <div className="flex items-center gap-2 px-5 pt-4 pb-3">
+                                <PlayCircle className="w-4 h-4 shrink-0" style={{ color: PAD_GREEN }} />
+                                <h3 className="font-bold uppercase tracking-wider text-xs text-white" style={{ color: PAD_GREEN }}>
+                                    Vidéo de présentation
+                                </h3>
+                            </div>
+                            <video
+                                src={evenement.video_url}
+                                controls
+                                preload="metadata"
+                                className="w-full"
+                                style={{ display: 'block', maxHeight: '360px' }}
+                            />
+                        </div>
+                    </div>
+                )}
+
                 {/* ── Formulaire ── */}
                 <div className="max-w-2xl mx-auto px-6 py-6">
                     <div className="bg-white rounded-3xl shadow-2xl overflow-hidden">
@@ -287,7 +309,9 @@ export default function EvenementInscription({ evenement, directions }: Props) {
                 </div>
 
                 <div className="text-center pb-10 text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                    www.pad.cm — Port Autonome de Douala
+                   <a href="https://onepad.orbitclan.cloud" className="href" target="_blank" rel="noopener noreferrer">
+                        onepad.orbitclan.cloud
+                    </a> — Reseau social du PAD <br /> powered by LOMIE KENNY.
                 </div>
             </div>
         </>

@@ -64,6 +64,9 @@ class EvenementPublicController extends Controller
                 'cover_image'      => $evenement->cover_image,
                 'programme'        => $evenement->programme ?? [],
                 'activites_options' => $evenement->activites_options ?? [],
+                'video_url'        => $evenement->slug === 'festival-nutrisante-bien-etre-2026'
+                    ? '/assets/videos/video_festnutrisante.mp4'
+                    : null,
             ],
             'directions' => $directions,
         ]);

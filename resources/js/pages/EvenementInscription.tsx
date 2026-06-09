@@ -309,9 +309,10 @@ export default function EvenementInscription({ evenement, directions }: Props) {
                 </div>
 
                 <div className="text-center pb-10 text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                   <a href="https://onepad.orbitclan.cloud" className="href" target="_blank" rel="noopener noreferrer">
+                   Powered by LOMIE KENNY.
+                   {/* <a href="https://onepad.orbitclan.cloud" className="href" target="_blank" rel="noopener noreferrer">
                         onepad.orbitclan.cloud
-                    </a> — Reseau social du PAD <br /> powered by LOMIE KENNY.
+                    </a> — Reseau social du PAD <br /> powered by LOMIE KENNY. */}
                 </div>
             </div>
         </>

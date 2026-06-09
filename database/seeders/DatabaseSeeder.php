@@ -93,6 +93,16 @@ class DatabaseSeeder extends Seeder
         ]);
         $drh->save();
         $drh->syncRoles(['hr']);
+        
+        $drh = User::firstOrNew(['email' => 'magazingrostant@pad.cm']);
+        $drh->fill([
+            'name'         => 'MAGAZING FOMO Rostant',
+            'role'         => 'Employé DRH',
+            'points_total' => 0,
+            'password'     => Hash::make('PAD2026!'),
+        ]);
+        $drh->save();
+        $drh->syncRoles(['hr']);
         // ─────────────────────────────────────────────────────────────────────
 
         User::query()
@@ -104,8 +114,9 @@ class DatabaseSeeder extends Seeder
                 'automations@bravo.internal',
                 'mezimes@pad.cm',
                 'minya@pad.cm',
-            ])
-            ->inRandomOrder()
+                'magazingrostant@pad.cm',
+            ], 'and')
+            ->inRandomOrder(rand())
             ->limit(50)
             ->each(function (User $u): void {
                 $u->forceFill([

@@ -94,7 +94,7 @@ private static array $avatarsWomen = [
         ];
 
         $directions = Direction::query()
-            ->orderBy('code')
+            ->orderBy('code', 'asc')
             ->get(['id', 'code', 'name']);
 
         if ($directions->isEmpty()) {

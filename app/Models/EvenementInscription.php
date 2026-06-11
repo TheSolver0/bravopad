@@ -10,7 +10,7 @@ class EvenementInscription extends Model
     protected $table = 'evenement_inscriptions';
 
     protected $fillable = [
-        'evenement_id', 'nom', 'matricule',
+        'evenement_id', 'nom', 'matricule', 'telephone',
         'sexe', 'direction_id', 'participera', 'activites', 'ip_address',
     ];
 

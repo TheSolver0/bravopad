@@ -35,6 +35,7 @@ export default function EvenementInscription({ evenement, directions }: Props) {
     const { data, setData, post, processing, errors, reset } = useForm({
         nom: '',
         matricule: '',
+        telephone: '',
         sexe: '' as 'M' | 'F' | '',
         direction_id: '' as number | '',
         participera: null as boolean | null,
@@ -55,6 +56,8 @@ export default function EvenementInscription({ evenement, directions }: Props) {
             onSuccess: () => { setSubmitted(true); reset(); setSelectedActivites([]); },
         });
     }
+
+    const showTelephone = evenement.slug === 'port-volleyball-finale-coupe-cameroun-2026';
 
     function handleReSubmit() { setSubmitted(false); }
 
@@ -208,6 +211,15 @@ export default function EvenementInscription({ evenement, directions }: Props) {
                                     onChange={e => setData('matricule', e.target.value)}
                                     placeholder="Ex : PAD-2024-001" className={inputCls(!!errors.matricule)} />
                             </Field>
+
+                            {/* Téléphone (événements spécifiques) */}
+                            {showTelephone && (
+                                <Field label="Numéro de téléphone" error={errors.telephone}>
+                                    <input type="tel" value={data.telephone}
+                                        onChange={e => setData('telephone', e.target.value)}
+                                        placeholder="Ex : 699 00 00 00" className={inputCls(!!errors.telephone)} />
+                                </Field>
+                            )}
 
                             {/* Direction */}
                             <Field label="Direction / Entité" error={errors.direction_id}>

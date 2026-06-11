@@ -81,6 +81,7 @@ class EvenementPublicController extends Controller
         $validated = $request->validate([
             'nom'          => ['required', 'string', 'max:255'],
             'matricule'    => ['required', 'string', 'max:50', "unique:evenement_inscriptions,matricule,NULL,id,evenement_id,{$evenement->id}"],
+            'telephone'    => ['nullable', 'string', 'max:20'],
             'sexe'         => ['required', 'in:M,F'],
             'direction_id' => ['required', 'exists:directions,id'],
             'participera'  => ['required', 'boolean'],

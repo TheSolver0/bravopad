@@ -31,8 +31,8 @@ type Tendance = {
 };
 
 type Inscription = {
-    id: number; nom: string; matricule: string; sexe: 'M' | 'F';
-    direction: string; participera: boolean; created_at: string;
+    id: number; nom: string; matricule: string; telephone: string | null; sexe: 'M' | 'F';
+    direction: string; participera: boolean; activites: string[]; created_at: string;
 };
 
 type Post = {
@@ -71,8 +71,12 @@ export default function AdminEvenementDashboard({ evenement, stats, tendances, i
     const [search, setSearch] = useState('');
 
     function exportCsv() {
-        const header = ['Nom', 'Matricule', 'Sexe', 'Direction', 'Participe', 'Inscrit le'];
-        const rows = inscriptions.map(r => [r.nom, r.matricule, r.sexe === 'M' ? 'Masculin' : 'Féminin', r.direction, r.participera ? 'Oui' : 'Non', r.created_at]);
+        const header = ['Nom', 'Matricule', 'Téléphone', 'Sexe', 'Direction', 'Participe', 'Activités', 'Inscrit le'];
+        const rows = inscriptions.map(r => [
+            r.nom, r.matricule, r.telephone ?? '', r.sexe === 'M' ? 'Masculin' : 'Féminin',
+            r.direction, r.participera ? 'Oui' : 'Non',
+            r.activites.join(' | '), r.created_at,
+        ]);
         const csv = [header, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n');
         const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
@@ -85,7 +89,8 @@ export default function AdminEvenementDashboard({ evenement, stats, tendances, i
         search === '' ||
         i.nom.toLowerCase().includes(search.toLowerCase()) ||
         i.matricule.toLowerCase().includes(search.toLowerCase()) ||
-        i.direction.toLowerCase().includes(search.toLowerCase())
+        i.direction.toLowerCase().includes(search.toLowerCase()) ||
+        (i.telephone ?? '').includes(search)
     );
 
     return (
@@ -243,9 +248,11 @@ export default function AdminEvenementDashboard({ evenement, stats, tendances, i
                                             <tr className="bg-gray-50 text-gray-400 text-xs uppercase tracking-wide">
                                                 <th className="px-5 py-3 text-left font-semibold">Nom</th>
                                                 <th className="px-5 py-3 text-left font-semibold">Matricule</th>
+                                                <th className="px-5 py-3 text-left font-semibold">Téléphone</th>
                                                 <th className="px-5 py-3 text-left font-semibold">Sexe</th>
                                                 <th className="px-5 py-3 text-left font-semibold">Direction</th>
                                                 <th className="px-5 py-3 text-center font-semibold">Participe</th>
+                                                <th className="px-5 py-3 text-left font-semibold">Activités</th>
                                                 <th className="px-5 py-3 text-left font-semibold">Inscrit le</th>
                                             </tr>
                                         </thead>
@@ -254,6 +261,11 @@ export default function AdminEvenementDashboard({ evenement, stats, tendances, i
                                                 <tr key={r.id} className="hover:bg-gray-50 transition">
                                                     <td className="px-5 py-3 font-medium text-gray-900">{r.nom}</td>
                                                     <td className="px-5 py-3 text-gray-500 font-mono text-xs">{r.matricule}</td>
+                                                    <td className="px-5 py-3 text-gray-600 text-sm">
+                                                        {r.telephone
+                                                            ? <span className="font-mono">{r.telephone}</span>
+                                                            : <span className="text-gray-300">—</span>}
+                                                    </td>
                                                     <td className="px-5 py-3">
                                                         <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold ${r.sexe === 'M' ? 'bg-blue-100 text-blue-700' : 'bg-pink-100 text-pink-600'}`}>
                                                             {r.sexe}
@@ -264,6 +276,15 @@ export default function AdminEvenementDashboard({ evenement, stats, tendances, i
                                                         {r.participera
                                                             ? <CheckCircle className="w-4 h-4 text-green-500 mx-auto" />
                                                             : <XCircle className="w-4 h-4 text-red-400 mx-auto" />}
+                                                    </td>
+                                                    <td className="px-5 py-3 max-w-[200px]">
+                                                        {r.activites.length > 0
+                                                            ? <div className="flex flex-wrap gap-1">
+                                                                {r.activites.map(a => (
+                                                                    <span key={a} className="bg-blue-50 text-blue-700 text-xs px-2 py-0.5 rounded-full">{a}</span>
+                                                                ))}
+                                                              </div>
+                                                            : <span className="text-gray-300">—</span>}
                                                     </td>
                                                     <td className="px-5 py-3 text-gray-400 text-xs">{r.created_at}</td>
                                                 </tr>

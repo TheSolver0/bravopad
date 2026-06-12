@@ -10,8 +10,14 @@ use App\Events\MessengerInboxUpdated;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\MessengerCall;
+use App\Models\MessengerCallEvent;
 use App\Models\MessengerCallParticipant;
+use App\Models\MessengerCallRecording;
 use App\Models\User;
+use App\Services\Media\CallAuthorizationService;
+use App\Services\Media\CallRecordingService;
+use App\Services\Media\LiveKitWebhookService;
+use App\Services\Media\MediaProviderInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -647,6 +653,139 @@ class MessengerController extends Controller
         ]);
     }
 
+    public function joinCallToken(
+        Request $request,
+        MessengerCall $call,
+        CallAuthorizationService $authorization,
+        MediaProviderInterface $mediaProvider,
+    ): JsonResponse {
+        /** @var User $user */
+        $user = $request->user();
+
+        if (! (bool) config('media.enabled', true)) {
+            abort(503, 'Le service media est indisponible.');
+        }
+
+        $authorization->assertCanJoinMedia($call, $user);
+
+        return response()->json($mediaProvider->joinToken($call, $user));
+    }
+
+    public function updateRecordingConsent(
+        Request $request,
+        MessengerCall $call,
+        CallAuthorizationService $authorization,
+    ): JsonResponse {
+        /** @var User $user */
+        $user = $request->user();
+        $authorization->assertCanJoinMedia($call, $user);
+
+        $validated = $request->validate([
+            'consented' => ['required', 'boolean'],
+        ]);
+
+        if (! $call->isGroupCall()) {
+            throw ValidationException::withMessages([
+                'recording' => 'Le consentement detaille est reserve aux appels de groupe.',
+            ]);
+        }
+
+        $participant = $call->participants()
+            ->where('user_id', $user->id)
+            ->firstOrFail();
+
+        $participant->forceFill($validated['consented'] ? [
+            'recording_consented_at' => now(),
+            'recording_consent_revoked_at' => null,
+        ] : [
+            'recording_consented_at' => null,
+            'recording_consent_revoked_at' => now(),
+        ])->save();
+
+        $call = $call->fresh([
+            'conversation.participants:id,name,email,avatar,role,last_seen_at',
+            'starter:id,name,email,avatar,role,last_seen_at',
+            'participants.user:id,name,email,avatar,role,last_seen_at',
+        ]);
+        $this->dispatchMessengerEvent(new MessengerCallUpdated($call));
+
+        return response()->json([
+            'call' => $this->callPayload($call),
+        ]);
+    }
+
+    public function startRecording(
+        Request $request,
+        MessengerCall $call,
+        CallRecordingService $recordingService,
+    ): JsonResponse {
+        /** @var User $user */
+        $user = $request->user();
+        $validated = $request->validate([
+            'layout' => ['nullable', 'string', 'in:grid,speaker'],
+        ]);
+
+        $recording = $recordingService->start($call, $user, $validated['layout'] ?? 'grid');
+        $this->dispatchMessengerEvent(new MessengerCallUpdated($call->fresh()));
+
+        return response()->json([
+            'recording' => $this->recordingPayload($recording),
+        ], 201);
+    }
+
+    public function updateRecording(
+        Request $request,
+        MessengerCall $call,
+        MessengerCallRecording $recording,
+        CallRecordingService $recordingService,
+    ): JsonResponse {
+        /** @var User $user */
+        $user = $request->user();
+        $request->validate([
+            'status' => ['required', 'string', 'in:stopping'],
+        ]);
+
+        $recording = $recordingService->stop($call, $recording, $user);
+        $this->dispatchMessengerEvent(new MessengerCallUpdated($call->fresh()));
+
+        return response()->json([
+            'recording' => $this->recordingPayload($recording),
+        ]);
+    }
+
+    public function callEvents(Request $request, MessengerCall $call): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        if (! $user->isAdmin() && ! $user->isHr()) {
+            abort(403);
+        }
+
+        $events = $call->events()
+            ->latest('occurred_at')
+            ->limit(100)
+            ->get();
+
+        return response()->json([
+            'events' => $events->map(fn (MessengerCallEvent $event) => [
+                'id' => $event->id,
+                'call_id' => $event->call_id,
+                'user_id' => $event->user_id,
+                'source' => $event->source,
+                'type' => $event->type,
+                'event_id' => $event->event_id,
+                'payload' => $event->payload_json,
+                'occurred_at' => $event->occurred_at?->toIso8601String(),
+            ])->values(),
+        ]);
+    }
+
+    public function livekitWebhook(Request $request, LiveKitWebhookService $webhookService): JsonResponse
+    {
+        return response()->json($webhookService->handle($request));
+    }
+
     private function startGroupCall(Conversation $conversation, User $starter, string $type): JsonResponse
     {
         $activeCallExists = $conversation->calls()
@@ -974,6 +1113,13 @@ class MessengerController extends Controller
             'type' => $call->type,
             'status' => $call->status,
             'room_key' => $call->room_key,
+            'media_provider' => $call->media_provider,
+            'media_room_name' => $call->media_room_name,
+            'media_status' => $call->media_status,
+            'recording_status' => $call->recording_status,
+            'recording_started_at' => $call->recording_started_at?->toIso8601String(),
+            'recording_ended_at' => $call->recording_ended_at?->toIso8601String(),
+            'ended_reason' => $call->ended_reason,
             'joined_count' => $call->isGroupCall() ? $call->participants->where('status', 'joined')->count() : null,
             'max_participants' => $call->isGroupCall() ? $call->participantLimit() : null,
             'accepted_at' => $call->accepted_at?->toIso8601String(),
@@ -990,10 +1136,31 @@ class MessengerController extends Controller
                             'status' => $participant->status,
                             'joined_at' => $participant->joined_at?->toIso8601String(),
                             'left_at' => $participant->left_at?->toIso8601String(),
+                            'media_identity' => $participant->media_identity,
+                            'network_quality' => $participant->network_quality,
+                            'recording_consented_at' => $participant->recording_consented_at?->toIso8601String(),
+                            'recording_consent_revoked_at' => $participant->recording_consent_revoked_at?->toIso8601String(),
                             'user' => $participant->user ? $this->userPayload($participant->user) : null,
                         ],
                     ])
                 : [],
+        ];
+    }
+
+    private function recordingPayload(MessengerCallRecording $recording): array
+    {
+        return [
+            'id' => $recording->id,
+            'call_id' => $recording->call_id,
+            'provider_id' => $recording->provider_id,
+            'layout' => $recording->layout,
+            'storage_disk' => $recording->storage_disk,
+            'storage_path' => $recording->storage_path,
+            'duration_seconds' => $recording->duration_seconds,
+            'status' => $recording->status,
+            'started_by' => $recording->started_by,
+            'started_at' => $recording->started_at?->toIso8601String(),
+            'ended_at' => $recording->ended_at?->toIso8601String(),
         ];
     }
 

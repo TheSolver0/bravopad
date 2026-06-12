@@ -29,19 +29,20 @@ import {
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { MouseEvent, RefObject } from 'react';
+import type { MouseEvent } from 'react';
 import { toast } from 'sonner';
+import { useMediaCall } from '@/hooks/useMediaCall';
 import { useMessengerPresence } from '@/hooks/useMessengerPresence';
 import { getEcho } from '@/lib/echo';
 import type {
     MessengerUser, MessengerMessage, MessengerConversation, ConversationsResponse,
     UsersResponse, MessageSentPayload, MessageUpdatedPayload, ConversationReadPayload, TypingPayload,
-    InboxUpdatedPayload, MessengerCall, MessengerQuotedMessage, CallUpdatedPayload, WebRtcSessionPayload,
-    WebRtcIcePayload, MeshReadyPayload, CallIceServer, PageProps, DesktopNotificationPermission, MessageMenuState, MessengerWidgetProps
+    InboxUpdatedPayload, MessengerCall, MessengerQuotedMessage, CallUpdatedPayload,
+    PageProps, DesktopNotificationPermission, MessageMenuState, MessengerWidgetProps
 } from '../pages/types';
 
 export default function MessengerWidget({ variant = 'floating' }: MessengerWidgetProps) {
-    const { auth, messenger } = usePage<PageProps>().props;
+    const { auth } = usePage<PageProps>().props;
     const fullscreen = variant === 'fullscreen';
     const currentUser = auth?.user;
     const onlineUserIds = useMessengerPresence(Boolean(currentUser?.id));
@@ -75,24 +76,15 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
     const [groupSaving, setGroupSaving] = useState(false);
     const [incomingCall, setIncomingCall] = useState<MessengerCall | null>(null);
     const [activeCall, setActiveCall] = useState<MessengerCall | null>(null);
-    const [callStatus, setCallStatus] = useState<'idle' | 'ringing' | 'connecting' | 'connected' | 'ended'>('idle');
-    const [callError, setCallError] = useState<string | null>(null);
-    const [callMuted, setCallMuted] = useState(false);
-    const [cameraOff, setCameraOff] = useState(false);
+    const mediaCall = useMediaCall();
     const [conversationCallHistory, setConversationCallHistory] = useState<MessengerCall[]>([]);
     const [globalCallHistory, setGlobalCallHistory] = useState<MessengerCall[]>([]);
     const [callHistoryOpen, setCallHistoryOpen] = useState(false);
     const [fullscreenView, setFullscreenView] = useState<'messages' | 'calls'>('messages');
     const [loadingCallHistory, setLoadingCallHistory] = useState(false);
     const [recordingVoice, setRecordingVoice] = useState(false);
-    const [localStream, setLocalStream] = useState<MediaStream | null>(null);
-    const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
-    const [remoteStreams, setRemoteStreams] = useState<Record<number, MediaStream>>({});
     const [desktopNotificationPermission, setDesktopNotificationPermission] = useState<DesktopNotificationPermission>(() => getDesktopNotificationPermission());
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
-    const localVideoRef = useRef<HTMLVideoElement | null>(null);
-    const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
-    const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
     const mediaInputRef = useRef<HTMLInputElement | null>(null);
     const fullscreenMediaInputRef = useRef<HTMLInputElement | null>(null);
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -100,30 +92,15 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
     const notifiedMessageIds = useRef<Set<number>>(new Set());
     const typingTimeoutsRef = useRef<Record<number, number>>({});
     const lastTypingWhisperRef = useRef(0);
-    const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
-    const groupPeerConnectionsRef = useRef<Record<number, RTCPeerConnection>>({});
-    const localStreamRef = useRef<MediaStream | null>(null);
-    const pendingIceCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
-    const pendingGroupIceCandidatesRef = useRef<Record<number, RTCIceCandidateInit[]>>({});
-    const startedOfferForCallRef = useRef<number | null>(null);
-    const startedGroupOffersRef = useRef<Set<number>>(new Set());
     const ringtoneContextRef = useRef<AudioContext | null>(null);
     const ringtoneTimerRef = useRef<number | null>(null);
 
     const activeId = activeConversation?.id ?? null;
     const activeCallRef = useRef<MessengerCall | null>(null);
-    const iceServers = useMemo<RTCIceServer[]>(
-        () => normalizeIceServers(messenger?.call_ice_servers),
-        [messenger?.call_ice_servers],
-    );
-
+    const connectedMediaCallIdRef = useRef<number | null>(null);
     useEffect(() => {
         activeCallRef.current = activeCall;
     }, [activeCall]);
-
-    useEffect(() => {
-        localStreamRef.current = localStream;
-    }, [localStream]);
 
     useEffect(() => {
         if (fullscreen) {
@@ -485,70 +462,10 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
             void handleCallUpdate(payload.call);
         });
 
-        channel.listenForWhisper('webrtc-offer', (payload: WebRtcSessionPayload) => {
-            void handleWebRtcOffer(payload);
-        });
-
-        channel.listenForWhisper('webrtc-answer', (payload: WebRtcSessionPayload) => {
-            void handleWebRtcAnswer(payload);
-        });
-
-        channel.listenForWhisper('ice-candidate', (payload: WebRtcIcePayload) => {
-            void handleWebRtcIceCandidate(payload);
-        });
-
-        channel.listenForWhisper('call-ready', (payload: { from: number }) => {
-            void handleCallReady(payload);
-        });
-
-        channel.listenForWhisper('mesh-ready', (payload: MeshReadyPayload) => {
-            void handleMeshReady(payload);
-        });
-
-        channel.listenForWhisper('mesh-offer', (payload: WebRtcSessionPayload) => {
-            void handleMeshOffer(payload);
-        });
-
-        channel.listenForWhisper('mesh-answer', (payload: WebRtcSessionPayload) => {
-            void handleMeshAnswer(payload);
-        });
-
-        channel.listenForWhisper('mesh-ice-candidate', (payload: WebRtcIcePayload) => {
-            void handleMeshIceCandidate(payload);
-        });
-
         return () => {
             echo.leave(channelName);
         };
-    }, [activeCall?.id, currentUser?.id, iceServers]);
-
-    useEffect(() => {
-        if (localVideoRef.current) {
-            localVideoRef.current.srcObject = localStream;
-        }
-    }, [localStream]);
-
-    useEffect(() => {
-        if (remoteVideoRef.current) {
-            remoteVideoRef.current.srcObject = remoteStream;
-        }
-    }, [remoteStream]);
-
-    useEffect(() => {
-        const audio = remoteAudioRef.current;
-
-        if (!audio) {
-            return;
-        }
-
-        audio.srcObject = remoteStream;
-
-        if (remoteStream) {
-            void audio.play().catch(() => {
-                setCallError('Audio playback was blocked. Click the call window and check browser sound permissions.');
-            });
-        }
-    }, [remoteStream]);
+    }, [activeCall?.id, currentUser?.id]);
 
     useEffect(() => () => {
         cleanupCallMedia();
@@ -1145,12 +1062,12 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
             return;
         }
 
-        setCallError(null);
+        mediaCall.setError(null);
 
-        const supportError = callSupportError(type);
+        const supportError = callSupportError();
 
         if (supportError) {
-            setCallError(supportError);
+            mediaCall.setError(supportError);
             toast.error(supportError);
 
             return;
@@ -1173,7 +1090,7 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
             const data = (await response.json()) as { call: MessengerCall };
             getEcho()?.private(`messenger.call.${data.call.id}`);
             setActiveCall(data.call);
-            setCallStatus(isGroupCall(data.call) ? 'connecting' : 'ringing');
+            mediaCall.setStatus(isGroupCall(data.call) ? 'connecting' : 'ringing');
             await waitForCallSubscription(data.call.id);
 
             if (!isGroupCall(data.call)) {
@@ -1182,16 +1099,11 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
 
             try {
                 if (isGroupCall(data.call)) {
-                    await prepareGroupCall(data.call);
-                    whisperCall(data.call.id, 'mesh-ready', {});
-                    createOffersForJoinedPeers(data.call);
-                    setCallStatus('connected');
-                } else {
-                    await preparePeerConnection(data.call);
+                    await connectMediaRoom(data.call);
                 }
             } catch (error) {
                 const message = callErrorMessage(error);
-                setCallError(message);
+                mediaCall.setError(message);
                 toast.error(message);
                 await fetch(`/messenger/conversations/${data.call.conversation_id}/calls/${data.call.id}`, {
                     method: 'PATCH',
@@ -1202,23 +1114,23 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
                 cleanupCallMedia();
             }
         } catch (error) {
-            setCallError(callErrorMessage(error));
+            mediaCall.setError(callErrorMessage(error));
         }
     }
 
     async function acceptCall(call: MessengerCall) {
-        setCallError(null);
+        mediaCall.setError(null);
         setIncomingCall(null);
         setOpen(true);
         getEcho()?.private(`messenger.call.${call.id}`);
         setActiveCall(call);
-        setCallStatus('connecting');
+        mediaCall.setStatus('connecting');
         stopRingtone();
 
-        const supportError = callSupportError(call.type);
+        const supportError = callSupportError();
 
         if (supportError) {
-            setCallError(supportError);
+            mediaCall.setError(supportError);
             toast.error(supportError);
             await declineCall(call);
             cleanupCallMedia();
@@ -1228,15 +1140,9 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
 
         try {
             await waitForCallSubscription(call.id);
-
-            if (isGroupCall(call)) {
-                await prepareGroupCall(call);
-            } else {
-                await preparePeerConnection(call);
-            }
         } catch (error) {
             const message = callErrorMessage(error);
-            setCallError(message);
+            mediaCall.setError(message);
             toast.error(message);
             await declineCall(call);
             cleanupCallMedia();
@@ -1260,17 +1166,9 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
 
             const data = (await response.json()) as { call: MessengerCall };
             setActiveCall(data.call);
-            setCallStatus('connecting');
-
-            if (isGroupCall(data.call)) {
-                whisperCall(data.call.id, 'mesh-ready', {});
-                createOffersForJoinedPeers(data.call);
-                setCallStatus('connected');
-            } else {
-                whisperCall(data.call.id, 'call-ready', {});
-            }
+            await connectMediaRoom(data.call);
         } catch (error) {
-            setCallError(callErrorMessage(error));
+            mediaCall.setError(callErrorMessage(error));
         }
     }
 
@@ -1360,6 +1258,10 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
                 cleanupCallMedia();
             }
 
+            if (call.status === 'accepted' && currentParticipant?.status === 'joined') {
+                void connectMediaRoom(call);
+            }
+
             return;
         }
 
@@ -1385,14 +1287,7 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
 
         if (call.status === 'accepted') {
             stopRingtone();
-            setCallStatus(peerConnectionRef.current?.connectionState === 'connected' ? 'connected' : 'connecting');
-
-            if (call.started_by === currentUser.id && startedOfferForCallRef.current !== call.id) {
-                await preparePeerConnection(call);
-                window.setTimeout(() => {
-                    void createAndSendOffer(call);
-                }, 500);
-            }
+            void connectMediaRoom(call);
         }
 
         if (call.status === 'declined' || call.status === 'ended') {
@@ -1400,349 +1295,20 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
         }
     }
 
-    async function preparePeerConnection(call: MessengerCall): Promise<RTCPeerConnection> {
-        if (peerConnectionRef.current) {
-            return peerConnectionRef.current;
-        }
-
-        const stream = await getLocalCallStream(call);
-        const peerConnection = new RTCPeerConnection({
-            iceServers,
-        });
-
-        stream.getTracks().forEach((track) => {
-            peerConnection.addTrack(track, stream);
-        });
-
-        peerConnection.onicecandidate = (event) => {
-            if (event.candidate) {
-                whisperCall(call.id, 'ice-candidate', { candidate: event.candidate.toJSON() });
-            }
-        };
-
-        peerConnection.ontrack = (event) => {
-            setRemoteStream(event.streams[0] ?? null);
-            setCallStatus('connected');
-        };
-
-        peerConnection.onconnectionstatechange = () => {
-            if (peerConnection.connectionState === 'connected') {
-                setCallStatus('connected');
-            }
-
-            if (['failed', 'closed', 'disconnected'].includes(peerConnection.connectionState)) {
-                setCallStatus((current) => (current === 'ended' ? current : 'ended'));
-            }
-        };
-
-        peerConnectionRef.current = peerConnection;
-        pendingIceCandidatesRef.current = [];
-        setLocalStream(stream);
-        setCallMuted(false);
-        setCameraOff(false);
-
-        return peerConnection;
-    }
-
-    async function getLocalCallStream(call: MessengerCall): Promise<MediaStream> {
-        if (localStreamRef.current) {
-            return localStreamRef.current;
-        }
-
-        if (!navigator.mediaDevices?.getUserMedia) {
-            throw new Error('Calls are not available in this browser.');
-        }
-
-        const stream = await navigator.mediaDevices.getUserMedia({
-            audio: true,
-            video: call.type === 'video',
-        });
-
-        localStreamRef.current = stream;
-        setLocalStream(stream);
-        setCallMuted(false);
-        setCameraOff(false);
-
-        return stream;
-    }
-
-    async function prepareGroupCall(call: MessengerCall): Promise<void> {
-        await getLocalCallStream(call);
-    }
-
-    async function prepareGroupPeerConnection(call: MessengerCall, peerId: number): Promise<RTCPeerConnection> {
-        const existing = groupPeerConnectionsRef.current[peerId];
-
-        if (existing) {
-            return existing;
-        }
-
-        const stream = await getLocalCallStream(call);
-        const peerConnection = new RTCPeerConnection({ iceServers });
-
-        stream.getTracks().forEach((track) => {
-            peerConnection.addTrack(track, stream);
-        });
-
-        peerConnection.onicecandidate = (event) => {
-            if (event.candidate) {
-                whisperCall(call.id, 'mesh-ice-candidate', {
-                    target: peerId,
-                    candidate: event.candidate.toJSON(),
-                });
-            }
-        };
-
-        peerConnection.ontrack = (event) => {
-            const [stream] = event.streams;
-
-            if (stream) {
-                setRemoteStreams((current) => ({
-                    ...current,
-                    [peerId]: stream,
-                }));
-                setCallStatus('connected');
-            }
-        };
-
-        peerConnection.onconnectionstatechange = () => {
-            if (peerConnection.connectionState === 'connected') {
-                setCallStatus('connected');
-            }
-
-            if (['failed', 'closed', 'disconnected'].includes(peerConnection.connectionState)) {
-                setRemoteStreams((current) => {
-                    const next = { ...current };
-                    delete next[peerId];
-
-                    return next;
-                });
-            }
-        };
-
-        groupPeerConnectionsRef.current[peerId] = peerConnection;
-        pendingGroupIceCandidatesRef.current[peerId] = pendingGroupIceCandidatesRef.current[peerId] ?? [];
-
-        return peerConnection;
-    }
-
-    async function createAndSendOffer(call: MessengerCall) {
-        const peerConnection = await preparePeerConnection(call);
-        startedOfferForCallRef.current = call.id;
-        const offer = await peerConnection.createOffer();
-        await peerConnection.setLocalDescription(offer);
-
-        if (peerConnection.localDescription) {
-            whisperCall(call.id, 'webrtc-offer', { sdp: peerConnection.localDescription });
-        }
-    }
-
-    async function handleWebRtcOffer(payload: WebRtcSessionPayload) {
-        if (!currentUser?.id || payload.from === currentUser.id) {
+    async function connectMediaRoom(call: MessengerCall) {
+        if (connectedMediaCallIdRef.current === call.id) {
             return;
         }
 
-        const call = activeCallRef.current;
+        connectedMediaCallIdRef.current = call.id;
 
-        if (!call) {
-            return;
+        try {
+            await mediaCall.connect(call);
+        } catch (error) {
+            connectedMediaCallIdRef.current = null;
+
+            throw error;
         }
-
-        const peerConnection = await preparePeerConnection(call);
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.sdp));
-        await flushPendingIceCandidates(peerConnection);
-        const answer = await peerConnection.createAnswer();
-        await peerConnection.setLocalDescription(answer);
-
-        if (peerConnection.localDescription) {
-            whisperCall(call.id, 'webrtc-answer', { sdp: peerConnection.localDescription });
-        }
-
-        setCallStatus('connecting');
-    }
-
-    async function handleWebRtcAnswer(payload: WebRtcSessionPayload) {
-        if (!currentUser?.id || payload.from === currentUser.id || !peerConnectionRef.current) {
-            return;
-        }
-
-        await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(payload.sdp));
-        await flushPendingIceCandidates(peerConnectionRef.current);
-        setCallStatus('connecting');
-    }
-
-    async function handleWebRtcIceCandidate(payload: WebRtcIcePayload) {
-        if (!currentUser?.id || payload.from === currentUser.id || !payload.candidate) {
-            return;
-        }
-
-        const peerConnection = peerConnectionRef.current;
-
-        if (!peerConnection?.remoteDescription) {
-            pendingIceCandidatesRef.current.push(payload.candidate);
-
-            return;
-        }
-
-        await peerConnection.addIceCandidate(new RTCIceCandidate(payload.candidate));
-    }
-
-    async function handleCallReady(payload: { from: number }) {
-        if (!currentUser?.id || payload.from === currentUser.id) {
-            return;
-        }
-
-        const call = activeCallRef.current;
-
-        if (!call || call.started_by !== currentUser.id || call.status !== 'accepted' || startedOfferForCallRef.current === call.id) {
-            return;
-        }
-
-        await createAndSendOffer(call);
-    }
-
-    async function handleMeshReady(payload: MeshReadyPayload) {
-        if (!currentUser?.id || payload.from === currentUser.id || (payload.target && payload.target !== currentUser.id)) {
-            return;
-        }
-
-        const call = activeCallRef.current;
-
-        if (!call || !isGroupCall(call) || call.status !== 'accepted') {
-            return;
-        }
-
-        const participant = call.participants?.[String(currentUser.id)];
-
-        if (participant?.status !== 'joined') {
-            return;
-        }
-
-        if (currentUser.id < payload.from) {
-            await createAndSendMeshOffer(call, payload.from);
-        }
-    }
-
-    async function createAndSendMeshOffer(call: MessengerCall, peerId: number) {
-        if (startedGroupOffersRef.current.has(peerId)) {
-            return;
-        }
-
-        startedGroupOffersRef.current.add(peerId);
-        const peerConnection = await prepareGroupPeerConnection(call, peerId);
-        const offer = await peerConnection.createOffer();
-        await peerConnection.setLocalDescription(offer);
-
-        if (peerConnection.localDescription) {
-            whisperCall(call.id, 'mesh-offer', {
-                target: peerId,
-                sdp: peerConnection.localDescription,
-            });
-        }
-    }
-
-    async function handleMeshOffer(payload: WebRtcSessionPayload) {
-        if (!currentUser?.id || payload.from === currentUser.id || payload.target !== currentUser.id) {
-            return;
-        }
-
-        const call = activeCallRef.current;
-
-        if (!call || !isGroupCall(call)) {
-            return;
-        }
-
-        const peerConnection = await prepareGroupPeerConnection(call, payload.from);
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.sdp));
-        await flushPendingGroupIceCandidates(peerConnection, payload.from);
-        const answer = await peerConnection.createAnswer();
-        await peerConnection.setLocalDescription(answer);
-
-        if (peerConnection.localDescription) {
-            whisperCall(call.id, 'mesh-answer', {
-                target: payload.from,
-                sdp: peerConnection.localDescription,
-            });
-        }
-    }
-
-    async function handleMeshAnswer(payload: WebRtcSessionPayload) {
-        if (!currentUser?.id || payload.from === currentUser.id || payload.target !== currentUser.id) {
-            return;
-        }
-
-        const peerConnection = groupPeerConnectionsRef.current[payload.from];
-
-        if (!peerConnection) {
-            return;
-        }
-
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.sdp));
-        await flushPendingGroupIceCandidates(peerConnection, payload.from);
-    }
-
-    async function handleMeshIceCandidate(payload: WebRtcIcePayload) {
-        if (!currentUser?.id || payload.from === currentUser.id || payload.target !== currentUser.id || !payload.candidate) {
-            return;
-        }
-
-        const peerConnection = groupPeerConnectionsRef.current[payload.from];
-
-        if (!peerConnection?.remoteDescription) {
-            pendingGroupIceCandidatesRef.current[payload.from] = [
-                ...(pendingGroupIceCandidatesRef.current[payload.from] ?? []),
-                payload.candidate,
-            ];
-
-            return;
-        }
-
-        await peerConnection.addIceCandidate(new RTCIceCandidate(payload.candidate));
-    }
-
-    function createOffersForJoinedPeers(call: MessengerCall) {
-        if (!currentUser?.id || !isGroupCall(call)) {
-            return;
-        }
-
-        Object.values(call.participants ?? {}).forEach((participant) => {
-            if (
-                participant.status === 'joined'
-                && participant.user_id !== currentUser.id
-                && currentUser.id < participant.user_id
-            ) {
-                window.setTimeout(() => {
-                    void createAndSendMeshOffer(call, participant.user_id);
-                }, 350);
-            }
-        });
-    }
-
-    async function flushPendingIceCandidates(peerConnection: RTCPeerConnection) {
-        for (const candidate of pendingIceCandidatesRef.current) {
-            await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-        }
-
-        pendingIceCandidatesRef.current = [];
-    }
-
-    async function flushPendingGroupIceCandidates(peerConnection: RTCPeerConnection, peerId: number) {
-        for (const candidate of pendingGroupIceCandidatesRef.current[peerId] ?? []) {
-            await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-        }
-
-        pendingGroupIceCandidatesRef.current[peerId] = [];
-    }
-
-    function whisperCall(callId: number, event: string, payload: Record<string, unknown>) {
-        if (!currentUser?.id) {
-            return;
-        }
-
-        getEcho()?.private(`messenger.call.${callId}`).whisper(event, {
-            ...payload,
-            from: currentUser.id,
-        });
     }
 
     async function waitForCallSubscription(callId: number) {
@@ -1778,17 +1344,11 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
     }
 
     function toggleMute() {
-        localStream?.getAudioTracks().forEach((track) => {
-            track.enabled = callMuted;
-        });
-        setCallMuted((current) => !current);
+        mediaCall.toggleMute();
     }
 
     function toggleCamera() {
-        localStream?.getVideoTracks().forEach((track) => {
-            track.enabled = cameraOff;
-        });
-        setCameraOff((current) => !current);
+        mediaCall.toggleCamera();
     }
 
     function startRingtone(kind: 'incoming' | 'outgoing') {
@@ -1842,24 +1402,10 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
 
     function cleanupCallMedia() {
         stopRingtone();
-        peerConnectionRef.current?.close();
-        peerConnectionRef.current = null;
-        Object.values(groupPeerConnectionsRef.current).forEach((peerConnection) => peerConnection.close());
-        groupPeerConnectionsRef.current = {};
-        pendingIceCandidatesRef.current = [];
-        pendingGroupIceCandidatesRef.current = {};
-        startedOfferForCallRef.current = null;
-        startedGroupOffersRef.current = new Set();
-        localStreamRef.current?.getTracks().forEach((track) => track.stop());
-        localStreamRef.current = null;
-        setLocalStream(null);
-        setRemoteStream(null);
-        setRemoteStreams({});
+        connectedMediaCallIdRef.current = null;
+        mediaCall.disconnect();
         setActiveCall(null);
         setIncomingCall(null);
-        setCallMuted(false);
-        setCameraOff(false);
-        setCallStatus('ended');
     }
 
     async function requestDesktopNotifications() {
@@ -2142,17 +1688,19 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
                     <CallWindow
                         call={activeCall}
                         currentUserId={currentUser.id}
-                        status={callStatus}
-                        error={callError}
-                        muted={callMuted}
-                        cameraOff={cameraOff}
-                        localVideoRef={localVideoRef}
-                        remoteVideoRef={remoteVideoRef}
-                        remoteAudioRef={remoteAudioRef}
-                        remoteStream={remoteStream}
-                        remoteStreams={remoteStreams}
+                        status={mediaCall.status}
+                        error={mediaCall.error}
+                        muted={mediaCall.muted}
+                        cameraOff={mediaCall.cameraOff}
+                        screenSharing={mediaCall.screenSharing}
+                        localStream={mediaCall.localStream}
+                        remoteStream={mediaCall.remoteStream}
+                        remoteStreams={mediaCall.remoteStreams}
                         onToggleMute={toggleMute}
                         onToggleCamera={toggleCamera}
+                        onToggleScreenShare={() => void mediaCall.toggleScreenShare()}
+                        onConsentRecording={() => void mediaCall.consentToRecording(activeCall, true).catch((error) => toast.error(callErrorMessage(error)))}
+                        onStartRecording={() => void mediaCall.startRecording(activeCall).catch((error) => toast.error(callErrorMessage(error)))}
                         onEnd={() => void endCall()}
                         onEndAll={activeCall.started_by === currentUser.id && isGroupCall(activeCall) ? () => void endCallForEveryone() : undefined}
                     />
@@ -3042,13 +2590,15 @@ function CallWindow({
     error,
     muted,
     cameraOff,
-    localVideoRef,
-    remoteVideoRef,
-    remoteAudioRef,
+    screenSharing,
+    localStream,
     remoteStream,
     remoteStreams,
     onToggleMute,
     onToggleCamera,
+    onToggleScreenShare,
+    onConsentRecording,
+    onStartRecording,
     onEnd,
     onEndAll,
 }: {
@@ -3058,13 +2608,15 @@ function CallWindow({
     error: string | null;
     muted: boolean;
     cameraOff: boolean;
-    localVideoRef: RefObject<HTMLVideoElement | null>;
-    remoteVideoRef: RefObject<HTMLVideoElement | null>;
-    remoteAudioRef: RefObject<HTMLAudioElement | null>;
+    screenSharing: boolean;
+    localStream: MediaStream | null;
     remoteStream: MediaStream | null;
     remoteStreams: Record<number, MediaStream>;
     onToggleMute: () => void;
     onToggleCamera: () => void;
+    onToggleScreenShare: () => void;
+    onConsentRecording: () => void;
+    onStartRecording: () => void;
     onEnd: () => void;
     onEndAll?: () => void;
 }) {
@@ -3083,6 +2635,9 @@ function CallWindow({
                 ? 'Connected'
                 : 'Connecting...'
     );
+    const localParticipant = group ? call.participants?.[String(currentUserId)] : null;
+    const recordingConsentNeeded = group && !localParticipant?.recording_consented_at;
+    const recordingActive = call.recording_status === 'starting' || call.recording_status === 'active';
 
     return (
         <motion.div
@@ -3110,7 +2665,7 @@ function CallWindow({
             </div>
 
             <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-primary/8">
-                {!group && !isVideo && <audio ref={remoteAudioRef} autoPlay className="hidden" />}
+                {!group && !isVideo && remoteStream && <MediaStreamAudio stream={remoteStream} />}
                 {group ? (
                     <div className={`grid h-full w-full gap-2 p-2 ${isVideo ? 'grid-cols-2' : 'grid-cols-1 content-center'}`}>
                         {participants.map((participant) => {
@@ -3139,7 +2694,7 @@ function CallWindow({
                         })}
                     </div>
                 ) : isVideo && remoteStream ? (
-                    <video ref={remoteVideoRef} autoPlay playsInline className="h-full w-full object-cover" />
+                    <MediaStreamVideo stream={remoteStream} className="h-full w-full object-cover" />
                 ) : (
                     <div className="flex flex-col items-center gap-3 text-center">
                         <Avatar user={otherUser} size="lg" />
@@ -3156,12 +2711,27 @@ function CallWindow({
                             <div className="flex h-full w-full items-center justify-center bg-primary/90 text-white">
                                 <VideoOff size={18} />
                             </div>
+                        ) : localStream ? (
+                            <MediaStreamVideo stream={localStream} muted className="h-full w-full object-cover" />
                         ) : (
-                            <video ref={localVideoRef} autoPlay muted playsInline className="h-full w-full object-cover" />
+                            <div className="flex h-full w-full items-center justify-center bg-gray-950 text-white">
+                                <Video size={18} />
+                            </div>
                         )}
                     </div>
                 )}
             </div>
+
+            {(recordingActive || recordingConsentNeeded) && (
+                <div className="border-t border-primary/10 bg-red-50 px-4 py-2 text-xs font-semibold text-red-700">
+                    {recordingActive ? 'Recording in progress' : 'Recording consent required'}
+                    {!recordingActive && recordingConsentNeeded && (
+                        <button type="button" onClick={onConsentRecording} className="ml-2 rounded-full bg-red-600 px-2 py-1 text-[11px] font-black text-white">
+                            Consent
+                        </button>
+                    )}
+                </div>
+            )}
 
             <div className="flex items-center justify-center gap-3 bg-white p-4">
                 <button
@@ -3186,6 +2756,24 @@ function CallWindow({
                 )}
                 <button
                     type="button"
+                    onClick={onToggleScreenShare}
+                    className={`flex h-11 w-11 items-center justify-center rounded-full transition ${screenSharing ? 'bg-primary text-white' : 'bg-primary/10 text-primary hover:bg-primary/15'
+                        }`}
+                    aria-label={screenSharing ? 'Stop screen sharing' : 'Share screen'}
+                >
+                    <Maximize2 size={18} />
+                </button>
+                {call.started_by === currentUserId && !recordingActive && (
+                    <button
+                        type="button"
+                        onClick={onStartRecording}
+                        className="rounded-full bg-primary/10 px-3 py-2 text-xs font-black text-primary transition hover:bg-primary/15"
+                    >
+                        Rec
+                    </button>
+                )}
+                <button
+                    type="button"
                     onClick={onEnd}
                     className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500 text-white shadow-lg shadow-red-500/25 transition hover:bg-red-600"
                     aria-label={group ? 'Leave call' : 'End call'}
@@ -3206,7 +2794,7 @@ function CallWindow({
     );
 }
 
-function MediaStreamVideo({ stream, className }: { stream: MediaStream; className?: string }) {
+function MediaStreamVideo({ stream, className, muted = false }: { stream: MediaStream; className?: string; muted?: boolean }) {
     const ref = useRef<HTMLVideoElement | null>(null);
 
     useEffect(() => {
@@ -3215,7 +2803,7 @@ function MediaStreamVideo({ stream, className }: { stream: MediaStream; classNam
         }
     }, [stream]);
 
-    return <video ref={ref} autoPlay playsInline className={className} />;
+    return <video ref={ref} autoPlay muted={muted} playsInline className={className} />;
 }
 
 function MediaStreamAudio({ stream }: { stream: MediaStream }) {
@@ -3718,20 +3306,6 @@ function isGroupCall(call: MessengerCall): boolean {
     return call.callee_id === null;
 }
 
-function normalizeIceServers(servers: CallIceServer[] | undefined): RTCIceServer[] {
-    if (!servers?.length) {
-        return [{ urls: 'stun:stun.l.google.com:19302' }];
-    }
-
-    return servers
-        .filter((server) => Boolean(server.urls))
-        .map((server) => ({
-            urls: server.urls,
-            ...(server.username ? { username: server.username } : {}),
-            ...(server.credential ? { credential: server.credential } : {}),
-        }));
-}
-
 function callErrorMessage(error: unknown): string {
     if (error instanceof DOMException && error.name === 'NotAllowedError') {
         return 'Camera or microphone permission was denied.';
@@ -3744,7 +3318,7 @@ function callErrorMessage(error: unknown): string {
     return 'Unable to start the call.';
 }
 
-function callSupportError(type: MessengerCall['type']): string | null {
+function callSupportError(): string | null {
     if (typeof window === 'undefined') {
         return 'Calls are not available in this browser.';
     }
@@ -3755,10 +3329,6 @@ function callSupportError(type: MessengerCall['type']): string | null {
 
     if (!navigator.mediaDevices?.getUserMedia) {
         return 'Microphone and camera access is not available in this browser.';
-    }
-
-    if (!window.RTCPeerConnection) {
-        return `${type === 'video' ? 'Video' : 'Audio'} calls are not available in this browser.`;
     }
 
     return null;

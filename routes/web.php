@@ -32,6 +32,8 @@ use App\Models\User;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
+Route::post('/media/livekit/webhooks', [MessengerController::class, 'livekitWebhook'])->name('media.livekit.webhooks');
+
 Route::middleware(['auth'])->group(function () {
 
     // Dashboard
@@ -128,6 +130,11 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/conversations/{conversation}/calls', [MessengerController::class, 'conversationCalls'])->name('conversations.calls.index');
         Route::post('/conversations/{conversation}/calls', [MessengerController::class, 'startCall'])->name('conversations.calls.store');
         Route::patch('/conversations/{conversation}/calls/{call}', [MessengerController::class, 'updateCall'])->name('conversations.calls.update');
+        Route::post('/calls/{call}/join-token', [MessengerController::class, 'joinCallToken'])->name('calls.join-token');
+        Route::patch('/calls/{call}/recording-consent', [MessengerController::class, 'updateRecordingConsent'])->name('calls.recording-consent');
+        Route::post('/calls/{call}/recordings', [MessengerController::class, 'startRecording'])->name('calls.recordings.store');
+        Route::patch('/calls/{call}/recordings/{recording}', [MessengerController::class, 'updateRecording'])->name('calls.recordings.update');
+        Route::get('/calls/{call}/events', [MessengerController::class, 'callEvents'])->name('calls.events');
     });
 
     Route::get('/engagement', [EngagementController::class, 'index'])->name('engagement.index');

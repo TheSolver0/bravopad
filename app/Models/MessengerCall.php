@@ -22,6 +22,14 @@ class MessengerCall extends Model
         'type',
         'status',
         'room_key',
+        'media_provider',
+        'media_room_name',
+        'media_room_sid',
+        'media_status',
+        'recording_status',
+        'recording_started_at',
+        'recording_ended_at',
+        'ended_reason',
         'accepted_at',
         'ended_at',
     ];
@@ -31,6 +39,8 @@ class MessengerCall extends Model
         return [
             'accepted_at' => 'datetime',
             'ended_at' => 'datetime',
+            'recording_started_at' => 'datetime',
+            'recording_ended_at' => 'datetime',
         ];
     }
 
@@ -54,6 +64,16 @@ class MessengerCall extends Model
         return $this->hasMany(MessengerCallParticipant::class, 'call_id');
     }
 
+    public function events(): HasMany
+    {
+        return $this->hasMany(MessengerCallEvent::class, 'call_id');
+    }
+
+    public function recordings(): HasMany
+    {
+        return $this->hasMany(MessengerCallRecording::class, 'call_id');
+    }
+
     public function hasParticipant(User|int $user): bool
     {
         $userId = $user instanceof User ? $user->id : $user;
@@ -74,8 +94,8 @@ class MessengerCall extends Model
     public function participantLimit(): int
     {
         return $this->type === 'video'
-            ? self::VIDEO_PARTICIPANT_LIMIT
-            : self::AUDIO_PARTICIPANT_LIMIT;
+            ? (int) config('media.limits.video_participants', self::VIDEO_PARTICIPANT_LIMIT)
+            : (int) config('media.limits.audio_participants', self::AUDIO_PARTICIPANT_LIMIT);
     }
 
     public function joinedParticipantsCount(): int

@@ -168,7 +168,7 @@ export default function EvenementInscription({ evenement, directions }: Props) {
                 )}
 
                 {/* ── Vidéo de présentation ── */}
-                {evenement.video_url && (
+                {/* {evenement.video_url && (
                     <div className="max-w-2xl mx-auto px-6 pb-4">
                         <div className="rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)' }}>
                             <div className="flex items-center gap-2 px-5 pt-4 pb-3">
@@ -186,7 +186,7 @@ export default function EvenementInscription({ evenement, directions }: Props) {
                             />
                         </div>
                     </div>
-                )}
+                )} */}
 
                 {/* ── Formulaire ── */}
                 <div className="max-w-2xl mx-auto px-6 py-6">

@@ -57,7 +57,8 @@ export default function EvenementInscription({ evenement, directions }: Props) {
         });
     }
 
-    const showTelephone = evenement.slug === 'port-volleyball-finale-coupe-cameroun-2026';
+    const showTelephone = true;
+    // const showTelephone = evenement.slug === 'port-volleyball-finale-coupe-cameroun-2026';
 
     function handleReSubmit() { setSubmitted(false); }
 

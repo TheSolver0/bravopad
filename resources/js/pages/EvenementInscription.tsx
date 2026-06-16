@@ -215,7 +215,7 @@ export default function EvenementInscription({ evenement, directions }: Props) {
 
                             {/* Téléphone (événements spécifiques) */}
                             {showTelephone && (
-                                <Field label="Numéro de téléphone" error={errors.telephone}>
+                                <Field label="Numéro de téléphone" error={errors.telephone} required={false}>
                                     <input type="tel" value={data.telephone}
                                         onChange={e => setData('telephone', e.target.value)}
                                         placeholder="Ex : 699 00 00 00" className={inputCls(!!errors.telephone)} />
@@ -449,11 +449,11 @@ function Chip({ icon, label }: { icon: React.ReactNode; label: string }) {
     );
 }
 
-function Field({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {
+function Field({ label, error, children, required = true }: { label: string; error?: string; children: React.ReactNode; required?: boolean }) {
     return (
         <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                {label} <span className="text-red-500">*</span>
+                {label} {required && <span className="text-red-500">*</span>}
             </label>
             {children}
             {error && <p className="mt-1 text-xs text-red-500">{error}</p>}

@@ -6,6 +6,7 @@ import {
   Sparkles, Loader2, Lightbulb, CheckCircle, RotateCcw, Mic, MicOff, Award,
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
+import { MentionTextarea } from '@/components/MentionTextarea';
 import { User, BravoValue } from './types';
 
 export interface BravoInsights {
@@ -317,11 +318,12 @@ export default function CreateBravo({ users, bravoValues, bravoInsights = emptyI
         <div className="space-y-2">
           <h3 className="font-semibold text-gray-800 text-sm">{t('bravo.writeMessage')}</h3>
           <div className="border border-gray-300 rounded-xl overflow-hidden focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/10 transition-all">
-            <textarea
+            <MentionTextarea
+              users={users}
+              value={data.message}
+              onChange={v => setData('message', v)}
               placeholder={t('bravo.messagePlaceholder')}
               className="w-full px-4 pt-3 pb-2 h-20 outline-none text-sm text-gray-700 resize-none placeholder-gray-400"
-              value={data.message}
-              onChange={e => setData('message', e.target.value)}
               maxLength={1000}
             />
             {/* Toolbar */}

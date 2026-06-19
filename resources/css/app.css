@@ -1,5 +1,4 @@
 @import 'tailwindcss';
-
 @import 'tw-animate-css';
 
 @source '../views';
@@ -8,50 +7,45 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
+    /* ── Typographie ── */
+    --font-serif:
+        'Instrument Sans', ui-sans-serif, system-ui, sans-serif,
+        'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
     --font-sans:
         'Instrument Sans', ui-sans-serif, system-ui, sans-serif,
-        'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
-        'Noto Color Emoji';
+        'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
 
+    /* ── Radius (mapping Tailwind) ── */
     --radius-lg: var(--radius);
     --radius-md: calc(var(--radius) - 2px);
     --radius-sm: calc(var(--radius) - 4px);
 
-    --color-background: var(--background);
-    --color-foreground: var(--foreground);
-
-    --color-card: var(--card);
+    /* ── Couleurs Tailwind (mappe les tokens CSS) ── */
+    --color-background:  var(--background);
+    --color-foreground:  var(--foreground);
+    --color-card:        var(--card);
     --color-card-foreground: var(--card-foreground);
-
-    --color-popover: var(--popover);
+    --color-popover:     var(--popover);
     --color-popover-foreground: var(--popover-foreground);
-
-    --color-primary: var(--primary);
+    --color-primary:     var(--primary);
     --color-primary-foreground: var(--primary-foreground);
-
-    --color-secondary: var(--secondary);
+    --color-secondary:   var(--secondary);
     --color-secondary-foreground: var(--secondary-foreground);
-
-    --color-muted: var(--muted);
+    --color-muted:       var(--muted);
     --color-muted-foreground: var(--muted-foreground);
-
-    --color-accent: var(--accent);
+    --color-accent:      var(--accent);
     --color-accent-foreground: var(--accent-foreground);
-
     --color-destructive: var(--destructive);
     --color-destructive-foreground: var(--destructive-foreground);
-
-    --color-border: var(--border);
-    --color-input: var(--input);
-    --color-ring: var(--ring);
-
-    --color-chart-1: var(--chart-1);
-    --color-chart-2: var(--chart-2);
-    --color-chart-3: var(--chart-3);
-    --color-chart-4: var(--chart-4);
-    --color-chart-5: var(--chart-5);
-
-    --color-sidebar: var(--sidebar);
+    --color-border:      var(--border);
+    --color-input:       var(--input);
+    --color-ring:        var(--ring);
+    --color-chart-1:     var(--chart-1);
+    --color-chart-2:     var(--chart-2);
+    --color-chart-3:     var(--chart-3);
+    --color-chart-4:     var(--chart-4);
+    --color-chart-5:     var(--chart-5);
+    --color-sidebar:     var(--sidebar);
     --color-sidebar-foreground: var(--sidebar-foreground);
     --color-sidebar-primary: var(--sidebar-primary);
     --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
@@ -59,125 +53,217 @@
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-ring: var(--sidebar-ring);
-    
+
+    /* ── Tokens sémantiques exposés dans Tailwind ── */
+    --color-marine:       var(--marine);
+    --color-marine-hover: var(--marine-hover);
+    --color-lime:         var(--lime);
+    --color-lime-text:    var(--lime-text);
+    --color-lime-bg:      var(--lime-light);
+    --color-gold:         var(--gold);
+    --color-gold-text:    var(--gold-text);
+    --color-gold-bg:      var(--gold-bg);
+    --color-text-strong:  var(--text-strong);
+    --color-text-secondary: var(--text-secondary);
+    --color-text-muted:   var(--text-muted);
+    --color-text-quiet:   var(--text-quiet);
+    --color-border-soft:  var(--border-soft);
+    --color-admin-accent: var(--admin-accent);
+    --color-admin-bg:     var(--admin-accent-bg);
 }
 
+/* ═══════════════════════════════════════════════════════
+   TOKENS LIGHT MODE
+═══════════════════════════════════════════════════════ */
 :root {
-    --background: #effaffbd;
-    /* --background: oklch(1 0 0); */
-    --foreground: oklch(0.145 0 0);
-    /* --foreground: oklch(0.145 0 0); */
-    --card: oklch(1 0 0);
-    --card-foreground: #014d9d;
-    /* --card-foreground: oklch(0.145 0 0); */
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.145 0 0);
-    --primary: #014d9d;
-    --primary-foreground: oklch(0.985 0 0);
-    --secondary: #c6d00a;
-    --secondary-foreground: oklch(0.205 0 0);
-    --muted: oklch(0.97 0 0);
-    --muted-foreground: oklch(0.556 0 0);
-    --accent: oklch(0.97 0 0);
-    --accent-foreground: oklch(0.205 0 0);
-    --destructive: oklch(0.577 0.245 27.325);
-    --destructive-foreground: oklch(0.577 0.245 27.325);
-    --border: oklch(0.922 0 0);
-    --input: oklch(0.922 0 0);
-    --ring: oklch(0.87 0 0);
+    /* ── Marine (couleur primaire PAD) ── */
+    --marine:          #0B3D7A;
+    --marine-hover:    #0E4A93;
+    --marine-dark:     #0A2E5C;
+    --marine-mid:      #123F7E;
+    --marine-light:    #1A5BA8;
+
+    /* ── Lime / Bravo (accent reconnaissance) ── */
+    --lime:            #C6E25A;
+    --lime-foreground: #173A1E;
+    --lime-light:      #F7FAEE;
+    --lime-border:     #E3EFBE;
+    --lime-text:       #5E7320;
+    --lime-dark:       #9DBA2E;
+
+    /* ── Or / Points ── */
+    --gold:            #F2B205;
+    --gold-bg:         #FFF6E0;
+    --gold-border:     #F6E2A8;
+    --gold-text:       #B5810A;
+
+    /* ── Accent admin ── */
+    --admin-accent:    #C98A4B;
+    --admin-accent-bg: #FBF1E7;
+
+    /* ── Texte ── */
+    --text-strong:     #0A2A4F;
+    --text-secondary:  #46586E;
+    --text-muted:      #64748B;
+    --text-quiet:      #8A99AD;
+
+    /* ── Fonds ── */
+    --background:      #F1F5FA;
+    --card:            #ffffff;
+    --card-foreground: #0A2A4F;
+    --popover:         #ffffff;
+    --popover-foreground: #0A2A4F;
+    --muted:           #F1F5FA;
+    --muted-foreground:#64748B;
+
+    /* ── Bordures ── */
+    --border:          #E9EEF5;
+    --border-soft:     #E4EAF2;
+    --border-strong:   #D0D9E6;
+    --input:           #E9EEF5;
+    --ring:            #0B3D7A;
+
+    /* ── Primary / Secondary (compat Tailwind) ── */
+    --primary:          #0B3D7A;
+    --primary-foreground:#ffffff;
+    --secondary:        #C6E25A;
+    --secondary-foreground: #173A1E;
+    --accent:           #F1F5FA;
+    --accent-foreground:#0A2A4F;
+    --destructive:      oklch(0.577 0.245 27.325);
+    --destructive-foreground: oklch(0.637 0.237 25.331);
+
+    /* ── Radius ── */
+    --radius:           1rem;   /* 16px cartes */
+    --radius-hero:      20px;
+    --radius-btn:       10px;
+    --radius-pill:      8px;
+
+    /* ── Ombres ── */
+    --shadow-card:      0 1px 2px rgba(16, 42, 67, 0.04);
+    --shadow-hero:      0 14px 34px rgba(11, 45, 92, 0.24);
+    --shadow-dropdown:  0 8px 24px rgba(11, 45, 92, 0.12);
+
+    /* ── Charts ── */
     --chart-1: oklch(0.646 0.222 41.116);
-    --chart-2: oklch(0.6 0.118 184.704);
-    --chart-3: oklch(0.398 0.07 227.392);
+    --chart-2: oklch(0.6   0.118 184.704);
+    --chart-3: oklch(0.398 0.07  227.392);
     --chart-4: oklch(0.828 0.189 84.429);
     --chart-5: oklch(0.769 0.188 70.08);
-    --radius: 0.625rem;
-    --sidebar: oklch(0.985 0 0);
-    --sidebar-foreground: oklch(0.145 0 0);
-    --sidebar-primary: oklch(0.205 0 0);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.97 0 0);
-    --sidebar-accent-foreground: oklch(0.205 0 0);
-    --sidebar-border: oklch(0.922 0 0);
-    --sidebar-ring: oklch(0.87 0 0);
+
+    /* ── Sidebar ── */
+    --sidebar:                    #ffffff;
+    --sidebar-foreground:         #46586E;
+    --sidebar-primary:            #0B3D7A;
+    --sidebar-primary-foreground: #ffffff;
+    --sidebar-accent:             #F1F5FA;
+    --sidebar-accent-foreground:  #0B3D7A;
+    --sidebar-border:             #E4EAF2;
+    --sidebar-ring:               #0B3D7A;
 }
 
+/* ═══════════════════════════════════════════════════════
+   DARK MODE
+═══════════════════════════════════════════════════════ */
 .dark {
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.145 0 0);
+    --background:      oklch(0.145 0 0);
+    --foreground:      oklch(0.985 0 0);
+    --card:            oklch(0.145 0 0);
     --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.145 0 0);
+    --popover:         oklch(0.145 0 0);
     --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.985 0 0);
+    --primary:         oklch(0.985 0 0);
     --primary-foreground: oklch(0.205 0 0);
-    --secondary: oklch(0.269 0 0);
+    --secondary:       oklch(0.269 0 0);
     --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
+    --muted:           oklch(0.269 0 0);
+    --muted-foreground:oklch(0.708 0 0);
+    --accent:          oklch(0.269 0 0);
     --accent-foreground: oklch(0.985 0 0);
-    --destructive: oklch(0.396 0.141 25.723);
+    --destructive:     oklch(0.396 0.141 25.723);
     --destructive-foreground: oklch(0.637 0.237 25.331);
-    --border: oklch(0.269 0 0);
-    --input: oklch(0.269 0 0);
-    --ring: oklch(0.439 0 0);
+    --border:          oklch(0.269 0 0);
+    --input:           oklch(0.269 0 0);
+    --ring:            oklch(0.439 0 0);
     --chart-1: oklch(0.488 0.243 264.376);
-    --chart-2: oklch(0.696 0.17 162.48);
+    --chart-2: oklch(0.696 0.17  162.48);
     --chart-3: oklch(0.769 0.188 70.08);
     --chart-4: oklch(0.627 0.265 303.9);
     --chart-5: oklch(0.645 0.246 16.439);
-    --sidebar: oklch(0.205 0 0);
-    --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: oklch(0.985 0 0);
+    --sidebar:                    oklch(0.205 0 0);
+    --sidebar-foreground:         oklch(0.985 0 0);
+    --sidebar-primary:            oklch(0.985 0 0);
     --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.269 0 0);
-    --sidebar-accent-foreground: oklch(0.985 0 0);
-    --sidebar-border: oklch(0.269 0 0);
-    --sidebar-ring: oklch(0.439 0 0);
+    --sidebar-accent:             oklch(0.269 0 0);
+    --sidebar-accent-foreground:  oklch(0.985 0 0);
+    --sidebar-border:             oklch(0.269 0 0);
+    --sidebar-ring:               oklch(0.439 0 0);
 }
 
+/* ═══════════════════════════════════════════════════════
+   BASE
+═══════════════════════════════════════════════════════ */
 @layer base {
     * {
         @apply border-border;
     }
-
     body {
-        @apply bg-background text-foreground;
+        @apply bg-background text-foreground font-sans;
+    }
+    h1, h2, h3.serif {
+        font-family: 'Source Serif 4', ui-serif, Georgia, serif;
     }
 }
 
+/* ── Utilitaires ── */
+.font-serif {
+    font-family: 'Source Serif 4', ui-serif, Georgia, serif !important;
+}
+
+/* ── Scrollbar modal ── */
 .modal-scroll {
     scrollbar-width: thin;
     scrollbar-color: #d1d5db transparent;
 }
-.modal-scroll::-webkit-scrollbar {
-    width: 4px;
-}
-.modal-scroll::-webkit-scrollbar-track {
-    background: transparent;
-}
+.modal-scroll::-webkit-scrollbar { width: 4px; }
+.modal-scroll::-webkit-scrollbar-track { background: transparent; }
 .modal-scroll::-webkit-scrollbar-thumb {
     background-color: #d1d5db;
     border-radius: 9999px;
 }
 
-/* ── Scrollbar fin aux couleurs primaires de l'app (nav sidebar) ── */
+/* ── Scrollbar navigation sidebar ── */
 .nav-scrollbar {
     scrollbar-width: thin;
-    scrollbar-color: rgba(1, 77, 157, 0.18) transparent;
+    scrollbar-color: rgba(11, 61, 122, 0.15) transparent;
 }
-.nav-scrollbar::-webkit-scrollbar {
-    width: 3px;
-}
-.nav-scrollbar::-webkit-scrollbar-track {
-    background: transparent;
-}
+.nav-scrollbar::-webkit-scrollbar { width: 3px; }
+.nav-scrollbar::-webkit-scrollbar-track { background: transparent; }
 .nav-scrollbar::-webkit-scrollbar-thumb {
-    background-color: rgba(1, 77, 157, 0.18);
+    background-color: rgba(11, 61, 122, 0.15);
     border-radius: 9999px;
     transition: background-color 0.2s;
 }
 .nav-scrollbar::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(1, 77, 157, 0.45);
+    background-color: rgba(11, 61, 122, 0.35);
 }
 
+/* ── Masquer scrollbar feed stories ── */
+.scrollbar-hide {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+
+/* ── Gradient lime→marine (anneau stories) ── */
+.ring-story {
+    background: linear-gradient(135deg, #C6E25A 0%, #0B3D7A 100%);
+}
+
+/* ── Card shadow standardisée ── */
+.card-shadow {
+    box-shadow: 0 1px 2px rgba(16, 42, 67, 0.04);
+}
+.hero-shadow {
+    box-shadow: 0 14px 34px rgba(11, 45, 92, 0.24);
+}

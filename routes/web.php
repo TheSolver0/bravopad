@@ -44,8 +44,8 @@ Route::middleware(['auth'])->group(function () {
     Route::delete('/stories/{story}', [StoryController::class, 'destroy'])->name('stories.destroy');
     Route::post('/stories/{story}/view', [StoryController::class, 'markViewed'])->name('stories.view');
 
-    // Fil social — Posts & Actualités
-    Route::get('/feed', [PostController::class, 'index'])->name('feed');
+    // Fil social — /feed redirige vers l'accueil fusionné
+    Route::get('/feed', fn () => redirect()->route('dashboard'))->name('feed');
     Route::post('/posts', [PostController::class, 'store'])->name('posts.store');
     Route::post('/posts/{post}/republish', [PostController::class, 'republish'])->name('posts.republish');
     Route::put('/posts/{post}', [PostController::class, 'update'])->name('posts.update');
@@ -69,6 +69,34 @@ Route::middleware(['auth'])->group(function () {
 
     // Stats
     Route::get('/stats', [StatsController::class, 'index']);
+
+    // Projets — redirige vers l'agenda (espace collaboratif existant)
+    Route::get('/projets', fn () => redirect()->route('agenda.index'))->name('projets');
+
+    // Documents — espace documentaire avec recherche
+    Route::get('/documents', function () {
+        $documents = \App\Models\ManualChunk::orderByDesc('created_at')
+            ->get()
+            ->map(fn ($chunk) => [
+                'id'          => $chunk->id,
+                'title'       => $chunk->title ?? 'Document sans titre',
+                'type'        => 'pdf',
+                'department'  => null,
+                'owner'       => null,
+                'created_at'  => $chunk->created_at?->toDateTimeString() ?? now()->toDateTimeString(),
+                'description' => \Illuminate\Support\Str::limit(strip_tags($chunk->content ?? ''), 120),
+                'tags'        => $chunk->tags ?? [],
+                'url'         => null,
+                'size_kb'     => null,
+            ])
+            ->values()
+            ->toArray();
+
+        return \Inertia\Inertia::render('Documents', [
+            'documents'   => $documents,
+            'departments' => [],
+        ]);
+    })->name('documents.index');
 
     // Boutique (récompenses persistantes)
     Route::get('/shop', [RewardController::class, 'index'])->name('shop');

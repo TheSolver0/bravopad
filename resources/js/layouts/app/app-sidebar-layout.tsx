@@ -34,7 +34,7 @@ export default function AppSidebarLayout({ children }: AppSidebarLayoutProps) {
 
   const { flash } = page.props;
   const isAgenda    = page.component === 'Agenda';
-  const isDashboard = page.component === 'Dashboard';
+  const isDashboard = page.component === 'dashboard';
   const isFeed      = page.component === 'Feed';
 
   const users: User[] =
@@ -45,7 +45,7 @@ export default function AppSidebarLayout({ children }: AppSidebarLayoutProps) {
 
   const isMessages = page.url.startsWith('/messages');
 
-  const [navExpanded, setNavExpanded] = useState(false);
+  const [navExpanded, setNavExpanded] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -75,7 +75,7 @@ export default function AppSidebarLayout({ children }: AppSidebarLayoutProps) {
         <ContextPanel />
 
         {/* Zone principale */}
-        <div className={`flex-1 flex flex-col min-w-0 ${isMessages ? '' : 'pl-6'}`}>
+        <div className={`flex-1 flex flex-col min-w-0 ${isMessages || isDashboard ? '' : 'pl-6'}`}>
 
           {/* Flash messages */}
           <AnimatePresence>

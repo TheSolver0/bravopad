@@ -353,6 +353,18 @@ export default function TopBar({ navRailWidth = RAIL_W_COLLAPSED, onMenuOpen, on
           </DropdownMenuContent>
         </DropdownMenu>
 
+        {/* Messages */}
+        <Link href="/messages">
+          <Button variant="ghost" size="icon" className="relative text-on-surface-variant">
+            <MessageCircle size={18} />
+            {unread > 0 && (
+              <span className="absolute top-1.5 right-1.5 min-w-[16px] h-4 px-1 flex items-center justify-center text-[9px] font-black bg-primary text-white rounded-full border-2 border-background">
+                {unread > 99 ? '99+' : unread}
+              </span>
+            )}
+          </Button>
+        </Link>
+
         {/* Points (desktop large) */}
         {user && (
           <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 bg-primary/5 rounded-xl border border-primary/10">

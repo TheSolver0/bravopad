@@ -82,6 +82,15 @@ class DashboardController extends Controller
         // Compteur de notifications non lues
         $unreadCount = $currentUser->unreadNotifications()->count();
 
+        // Bravos reçus cette semaine par l'utilisateur courant
+        $weeklyBravosReceived = Bravo::where('receiver_id', $currentUser->id)
+            ->where('created_at', '>=', Carbon::now()->startOfWeek())
+            ->count();
+
+        // Total de bravos envoyés ce mois
+        $monthlyBravosCount = Bravo::where('created_at', '>=', Carbon::now()->startOfMonth())
+            ->count();
+
         return Inertia::render('dashboard', [
             'users'           => $users,
             'bravos'          => $bravos,
@@ -92,8 +101,10 @@ class DashboardController extends Controller
             ]),
             'bravoValues'         => BravoValue::where('is_active', true)->get(),
             'celebrations'    => $celebrations->values(),
-            'unreadCount'     => $unreadCount,
-            'bravoInsights'   => $insightsService->forSender($currentUser),
+            'unreadCount'             => $unreadCount,
+            'weeklyBravosReceived'    => $weeklyBravosReceived,
+            'monthlyBravosCount'      => $monthlyBravosCount,
+            'bravoInsights'           => $insightsService->forSender($currentUser),
         ]);
     }
 }

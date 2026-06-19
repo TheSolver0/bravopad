@@ -438,17 +438,7 @@ export default function Sidebar({ collapsed = false, onCollapseToggle, onClose, 
       </div>
 
       {/* ── Send Bravo CTA ── */}
-      <div className={`px-3 pt-3 pb-1 ${collapsed ? 'flex justify-center' : ''}`}>
-        <Button
-          onClick={onCreateBravo}
-          className={`flex items-center justify-center gap-2 rounded-xl bg-primary text-white font-bold text-[12.5px] shadow-md shadow-primary/25 hover:bg-primary/90 active:scale-[0.98] transition-all duration-150 ${
-            collapsed ? 'w-9 h-9 p-0' : 'w-full py-2.5 px-4'
-          }`}
-        >
-          <Award size={15} className="shrink-0" />
-          {!collapsed && <span>{t('nav.sendBravo', 'Envoyer un Bravo')}</span>}
-        </Button>
-      </div>
+      
 
       {/* ── Navigation ── */}
       <nav className="flex-1 px-2 py-2 overflow-y-auto scrollbar-hide space-y-0.5">

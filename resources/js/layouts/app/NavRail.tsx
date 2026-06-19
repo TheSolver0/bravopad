@@ -2,10 +2,11 @@ import { Link, usePage } from '@inertiajs/react';
 import { useTranslation } from 'react-i18next';
 import {
   Home, MessageCircle, Users, Trophy, Award,
-  ShoppingBag, Bell, Hash, Settings,
-  UserCog, ClipboardCheck, ClipboardList, KeyRound, Shield,
-  BarChart3, History, ChevronLeft, ChevronRight, CalendarDays,
-  HandCoins, PartyPopper,
+  ShoppingBag, Bell, Settings,
+  UserCog, ClipboardCheck, ClipboardList, KeyRound,
+  ChevronLeft, CalendarDays,
+  PartyPopper, Newspaper, BookUser, LayoutDashboard,
+  ShieldCheck, TrendingUp, HandCoins, Anchor,
 } from 'lucide-react';
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
@@ -24,7 +25,7 @@ function isActive(path: string, href: string) {
   return path === href || path.startsWith(`${href}/`);
 }
 
-/* ── Item — collapsed (icône + tooltip) ou expanded (icône + label) ── */
+/* ── Rail Item ───────────────────────────────────────────────────────────── */
 interface RailItemProps {
   href?: string;
   icon: React.ElementType;
@@ -41,7 +42,6 @@ function RailItem({ href, icon: Icon, label, badge, active, expanded, onClick }:
     : 'text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface';
 
   const content = expanded ? (
-    /* Mode étendu : icône + label pleine largeur */
     <span className={`flex items-center gap-3 w-full px-3 h-10 rounded-xl transition-all duration-150 cursor-pointer ${activeClass}`}>
       <span className="relative shrink-0">
         <Icon size={18} strokeWidth={active ? 2.5 : 1.75} />
@@ -59,7 +59,6 @@ function RailItem({ href, icon: Icon, label, badge, active, expanded, onClick }:
       )}
     </span>
   ) : (
-    /* Mode réduit : icône centrée + tooltip */
     <span className={`relative flex items-center justify-center w-11 h-11 rounded-2xl transition-all duration-150 cursor-pointer ${activeClass}`}>
       <Icon size={20} strokeWidth={active ? 2.5 : 1.75} />
       {!!badge && badge > 0 && (
@@ -94,15 +93,16 @@ function RailItem({ href, icon: Icon, label, badge, active, expanded, onClick }:
   );
 }
 
-function RailDivider({ expanded, label }: { expanded: boolean; label?: string }) {
-  if (expanded && label) {
+/* ── Section header ──────────────────────────────────────────────────────── */
+function SectionLabel({ expanded, label }: { expanded: boolean; label: string }) {
+  if (expanded) {
     return (
-      <p className="px-3 pt-3 pb-0.5 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/50 truncate">
+      <p className="px-3 pt-5 pb-7 text-[10px] font-black uppercase tracking-widest text-on-surface-variant/50 truncate">
         {label}
       </p>
     );
   }
-  return <div className="w-8 h-px bg-border my-1 mx-auto shrink-0" />;
+  return <div className="w-8 h-10px p-20 bg-border my-2 mx-auto shrink-0" />;
 }
 
 /* ── Props ── */
@@ -135,6 +135,7 @@ export default function NavRail({ expanded, onToggle, onCreateBravo }: NavRailPr
   const user = page.props.auth?.user;
   const nav = page.props.auth?.nav ?? {};
   const unread = page.props.auth?.unread_notifications_count ?? 0;
+
   const hasAdmin = !!(
     nav.hr_dashboard || nav.admin_surveys || nav.admin_challenges ||
     nav.admin_config || nav.admin_users || nav.admin_roles || nav.audit ||
@@ -147,77 +148,60 @@ export default function NavRail({ expanded, onToggle, onCreateBravo }: NavRailPr
         expanded ? 'w-[240px]' : 'w-[72px]'
       }`}
     >
-      {/* ── Nav items ── */}
+      {/* ── Scrollable nav ── */}
       <div className="flex-1 flex flex-col gap-0.5 py-3 px-2 overflow-y-auto overflow-x-hidden nav-scrollbar">
 
-        {/* CTA Bravo */}
-        {expanded ? (
-          <button
-            onClick={onCreateBravo}
-            className="flex items-center gap-2.5 w-full px-3 h-10 rounded-xl bg-primary text-white text-[13px] font-bold shadow-md shadow-primary/20 hover:bg-primary/90 active:scale-[0.98] transition-all mb-1"
-          >
-            <Award size={18} className="shrink-0" />
-            <span className="truncate transition-opacity duration-200">
-              {t('nav.sendBravo', 'Envoyer un Bravo')}
-            </span>
-          </button>
-        ) : (
-          <TooltipProvider delayDuration={400}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={onCreateBravo}
-                  className="flex items-center justify-center w-11 h-11 mx-auto rounded-2xl bg-primary text-white shadow-md shadow-primary/30 hover:bg-primary/90 active:scale-95 transition-all mb-1"
-                >
-                  <Award size={20} />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="right" sideOffset={8}>
-                <p className="text-xs font-semibold">{t('nav.sendBravo', 'Envoyer un Bravo')}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        )}
 
-        <RailDivider expanded={expanded} label="Communication" />
-
-        <RailItem href="/feed" icon={Home} label={t('nav.feed', "Fil d'actualité")} active={isActive(path, '/feed')} expanded={expanded} />
-        <RailItem href="/messages" icon={MessageCircle} label={t('nav.messages', 'Messages')} active={isActive(path, '/messages')} badge={unread} expanded={expanded} />
-        <RailItem href="/groups" icon={Hash} label={t('nav.groups', 'Espaces')} active={isActive(path, '/groups')} expanded={expanded} />
-        <RailItem href="/team" icon={Users} label={t('nav.team', 'Équipe')} active={isActive(path, '/team')} expanded={expanded} />
-
-        <RailDivider expanded={expanded} label="Reconnaissance" />
-
-        <RailItem href="/dashboard" icon={Award} label={t('nav.home', 'Dashboard')} active={isActive(path, '/dashboard')} expanded={expanded} />
-        <RailItem href="/history" icon={History} label={t('nav.myBravos', 'Mes Bravos')} active={isActive(path, '/history')} expanded={expanded} />
-        <RailItem href="/challenges" icon={Trophy} label={t('nav.challenges', 'Challenges')} active={isActive(path, '/challenges')} expanded={expanded} />
-        <RailItem href="/engagement" icon={ClipboardList} label={t('nav.surveys', 'Sondages')} active={isActive(path, '/engagement')} expanded={expanded} />
-
-        <RailDivider expanded={expanded} label="Plus" />
-
-        <RailItem href="/agenda" icon={CalendarDays} label={t('nav.agenda', 'Agenda')} active={isActive(path, '/agenda')} expanded={expanded} />
-        <RailItem href="/evenements" icon={PartyPopper} label={t('nav.evenements', 'Événements')} active={isActive(path, '/evenements')} expanded={expanded} />
+        {/* ── Navigation principale (plate, sans sections) ── */}
+        <RailItem href="/dashboard"   icon={Home}          label={t('nav.home', 'Accueil')}           active={isActive(path, '/dashboard')}   expanded={expanded} />
+        <RailItem href="/feed"        icon={Newspaper}     label={t('nav.feed', "Fil d'actualité")}   active={isActive(path, '/feed')}         expanded={expanded} />
+        <RailItem href="/history"     icon={Award}         label={t('nav.bravos', 'Bravos')}          active={isActive(path, '/history')}      expanded={expanded} />
+        <RailItem href="/messages"    icon={MessageCircle} label={t('nav.messages', 'Messages')}      active={isActive(path, '/messages')}     badge={unread} expanded={expanded} />
+        <RailItem href="/groups"      icon={Users}         label={t('nav.groups', 'Communautés')}     active={isActive(path, '/groups')}       expanded={expanded} />
+        <RailItem href="/challenges"  icon={Trophy}        label={t('nav.challenges', 'Défis')}       active={isActive(path, '/challenges')}   expanded={expanded} />
+        <RailItem href="/evenements"  icon={CalendarDays}  label={t('nav.evenements', 'Événements')}  active={isActive(path, '/evenements')}   expanded={expanded} />
+        <RailItem href="/team"        icon={BookUser}      label={t('nav.team', 'Annuaire')}          active={isActive(path, '/team')}         expanded={expanded} />
+        <RailItem href="/engagement"  icon={ClipboardList} label={t('nav.surveys', 'Sondages')}       active={isActive(path, '/engagement')}   expanded={expanded} />
+        <RailItem href="/shop"        icon={ShoppingBag}   label={t('nav.shop', 'Boutique')}          active={isActive(path, '/shop')}         expanded={expanded} />
         <RailItem href="/event-contributions" icon={HandCoins} label={t('nav.eventContributions', 'Cotisations')} active={isActive(path, '/event-contributions')} expanded={expanded} />
-        <RailItem href="/shop" icon={ShoppingBag} label={t('nav.shop', 'Boutique')} active={isActive(path, '/shop')} expanded={expanded} />
-        <RailItem href="/notifications" icon={Bell} label={t('nav.notifications', 'Notifications')} active={isActive(path, '/notifications')} badge={unread} expanded={expanded} />
+        <RailItem href="/notifications" icon={Bell}        label={t('nav.notifications', 'Notifications')} active={isActive(path, '/notifications')} badge={unread} expanded={expanded} />
 
+        {/* ── Section Administration ── */}
         {hasAdmin && (
           <>
-            <RailDivider expanded={expanded} label="Administration" />
-            {nav.hr_dashboard && <RailItem href="/hr/dashboard" icon={BarChart3} label={t('nav.hrDashboard', 'RH Dashboard')} active={isActive(path, '/hr/dashboard')} expanded={expanded} />}
-            {nav.admin_surveys && <RailItem href="/admin/surveys" icon={ClipboardCheck} label={t('nav.manageSurveys', 'Sondages')} active={isActive(path, '/admin/surveys')} expanded={expanded} />}
-            {nav.admin_challenges && <RailItem href="/admin/challenges" icon={Trophy} label={t('nav.manageChallenges', 'Challenges')} active={isActive(path, '/admin/challenges')} expanded={expanded} />}
-            {nav.admin_evenements && <RailItem href="/admin/evenements" icon={PartyPopper} label={t('nav.manageEvenements', 'Événements')} active={isActive(path, '/admin/evenements')} expanded={expanded} />}
-            {nav.admin_config && <RailItem href="/admin/config" icon={Settings} label={t('nav.config', 'Config')} active={isActive(path, '/admin/config')} expanded={expanded} />}
-            {nav.admin_users && <RailItem href="/admin/users" icon={UserCog} label={t('nav.users', 'Utilisateurs')} active={isActive(path, '/admin/users')} expanded={expanded} />}
-            {nav.admin_roles && <RailItem href="/admin/roles" icon={KeyRound} label={t('nav.rolesPermissions', 'Rôles')} active={isActive(path, '/admin/roles')} expanded={expanded} />}
-            {nav.audit && <RailItem href="/audit" icon={Shield} label={t('nav.audit', 'Audit')} active={isActive(path, '/audit')} expanded={expanded} />}
+            <SectionLabel expanded={expanded} label="Administration" />
+
+            {nav.hr_dashboard && (
+              <RailItem href="/hr/dashboard"     icon={LayoutDashboard} label={t('nav.hrDashboard', 'Tableau de bord')} active={isActive(path, '/hr/dashboard')}    expanded={expanded} />
+            )}
+            {nav.admin_users && (
+              <RailItem href="/admin/users"      icon={UserCog}         label={t('nav.users', 'Utilisateurs')}          active={isActive(path, '/admin/users')}      expanded={expanded} />
+            )}
+            {nav.admin_roles && (
+              <RailItem href="/admin/roles"      icon={KeyRound}        label={t('nav.rolesPermissions', 'Groupes & Rôles')} active={isActive(path, '/admin/roles')} expanded={expanded} />
+            )}
+            {nav.admin_config && (
+              <RailItem href="/admin/config"     icon={Settings}        label={t('nav.config', 'Paramètres')}           active={isActive(path, '/admin/config')}     expanded={expanded} />
+            )}
+            {nav.admin_surveys && (
+              <RailItem href="/admin/surveys"    icon={ClipboardCheck}  label={t('nav.manageSurveys', 'Sondages RH')}   active={isActive(path, '/admin/surveys')}    expanded={expanded} />
+            )}
+            {nav.admin_challenges && (
+              <RailItem href="/admin/challenges" icon={Trophy}          label={t('nav.manageChallenges', 'Challenges')} active={isActive(path, '/admin/challenges')} expanded={expanded} />
+            )}
+            {nav.admin_evenements && (
+              <RailItem href="/admin/evenements" icon={PartyPopper}     label={t('nav.manageEvenements', 'Événements')} active={isActive(path, '/admin/evenements')} expanded={expanded} />
+            )}
+            {nav.audit && (
+              <RailItem href="/audit"            icon={ShieldCheck}     label={t('nav.audit', 'Modération')}            active={isActive(path, '/audit')}            expanded={expanded} />
+            )}
+            <RailItem   href="/stats"            icon={TrendingUp}      label={t('nav.stats', 'Statistiques')}          active={isActive(path, '/stats')}            expanded={expanded} />
           </>
         )}
 
       </div>
 
-      {/* ── Bouton toggle flottant sur la bordure droite ── */}
+      {/* ── Toggle collapse/expand ── */}
       <button
         onClick={onToggle}
         style={{
@@ -233,8 +217,8 @@ export default function NavRail({ expanded, onToggle, onCreateBravo }: NavRailPr
         />
       </button>
 
-      {/* ── Bottom: Settings + User ── */}
-      <div className={`flex flex-col gap-0.5 py-3 px-2 border-t border-border shrink-0 overflow-x-hidden ${expanded ? '' : 'items-center'}`}>
+      {/* ── Footer : Paramètres + Profil + bannière branding ── */}
+      <div className={`flex flex-col gap-0.5 pt-2 pb-0 px-2 border-t border-border shrink-0 overflow-x-hidden ${expanded ? '' : 'items-center'}`}>
         <RailItem href="/settings/profile" icon={Settings} label={t('nav.settings', 'Paramètres')} active={isActive(path, '/settings')} expanded={expanded} />
 
         <DropdownMenu>
@@ -273,6 +257,38 @@ export default function NavRail({ expanded, onToggle, onCreateBravo }: NavRailPr
             <UserMenuContent user={user as any} />
           </DropdownMenuContent>
         </DropdownMenu>
+
+        {/* Bannière branding PAD (mode étendu uniquement) */}
+        {expanded && (
+          <div
+            className="relative overflow-hidden mx-0 mt-2 mb-0 rounded-t-xl h-[88px] w-full"
+            style={{ background: 'linear-gradient(135deg, #012d5a 0%, #014d9d 60%, #0369a1 100%)' }}
+          >
+            <Anchor
+              className="absolute -right-3 -bottom-3 text-white/10"
+              style={{ width: 80, height: 80 }}
+              strokeWidth={0.6}
+            />
+            <div className="relative p-3 h-full flex flex-col justify-between">
+              <div className="flex items-center gap-1.5">
+                <img
+                  src="/assets/images/onepad-logo.png"
+                  alt="OnePAD"
+                  className="w-5 h-5 object-contain"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                />
+                <span className="text-[9px] font-black text-white/70 uppercase tracking-widest">OnePAD</span>
+              </div>
+              <div>
+                <p className="text-white text-[9.5px] font-black uppercase tracking-wide leading-snug">
+                  CONNECTER · RECONNAÎTRE<br />
+                  <span className="text-[#c6d00a]">VALORISER</span>
+                </p>
+                <p className="text-white/45 text-[8px] mt-0.5 font-medium">les talents du PAD</p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </aside>
   );

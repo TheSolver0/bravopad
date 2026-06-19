@@ -45,7 +45,7 @@ export default function AppSidebarLayout({ children }: AppSidebarLayoutProps) {
 
   const isMessages = page.url.startsWith('/messages');
 
-  const [navExpanded, setNavExpanded] = useState(false);
+  const [navExpanded, setNavExpanded] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
 

@@ -10,5 +10,29 @@
       "demande d'achat", "validation", "responsable", "bordereau"
     ],
     "categories": ["procedure", "achat", "finance", "commande"]
+  },
+
+  "CC-PAD": {
+    "title": "Convention collective des travailleurs des Ports autonomes du Cameroun",
+    "file": "CC-PAD_Convention-collective-travailleurs.pdf",
+    "keywords": [
+      "convention collective", "convention", "travailleurs", "travailleur",
+      "port", "ports", "PAD", "PAC", "port autonome", "ports autonomes", "cameroun",
+      "salaire", "salaires", "rémunération", "grille salariale", "traitement",
+      "congé", "congés", "congé annuel", "congé payé", "congés payés",
+      "prime", "primes", "prime d'ancienneté", "ancienneté", "indemnité", "indemnités",
+      "licenciement", "démission", "rupture", "préavis",
+      "embauche", "recrutement", "contrat", "contrat de travail", "période d'essai",
+      "retraite", "pension", "allocation",
+      "heures supplémentaires", "heures sup", "durée du travail", "temps de travail",
+      "arrêt maladie", "maladie", "accident de travail", "maternité",
+      "discipline", "disciplinaire", "faute", "sanction", "avertissement",
+      "syndicat", "délégué du personnel", "représentant", "grève",
+      "classification", "catégorie professionnelle", "échelon", "promotion",
+      "droit du travail", "code du travail", "obligation", "droits",
+      "logement", "transport", "avantages", "avantage en nature",
+      "formation", "stage", "apprentissage"
+    ],
+    "categories": ["rh", "droit", "travail", "social", "convention"]
   }
 }

@@ -27,7 +27,8 @@ interface TeamProps {
 }
 
 export default function Team({ users, departments: deptList, followingIds, authUserId, pagination }: TeamProps) {
-  const [search, setSearch]           = useState('');
+  const initialQ = typeof window !== 'undefined' ? (new URLSearchParams(window.location.search).get('q') ?? '') : '';
+  const [search, setSearch]           = useState(initialQ);
   const [selectedDept, setSelectedDept] = useState('Tous');
   const [deptSearch, setDeptSearch]   = useState('');
   const [followingSet, setFollowingSet] = useState<Set<number>>(() => new Set(followingIds));

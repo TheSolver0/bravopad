@@ -2,12 +2,12 @@ import { useState, useEffect, useCallback, useRef, useMemo, type ReactNode } fro
 import { motion, AnimatePresence } from 'motion/react';
 import { router } from '@inertiajs/react';
 import {
-  Trophy, Heart, MessageSquare, Share2, Send, Plus,
+  Trophy, Heart, MessageSquare, Share2, Repeat2, Send, Plus,
   ChevronUp, ChevronDown, ChevronLeft, ChevronRight, X, Anchor, Medal,
   Film, BarChart2, Calendar, Filter,
   Cake, Briefcase, PartyPopper, Clock, Zap,
   UserPlus, Search as SearchIcon, Ship, Award, Bot,
-  Megaphone, Pin, MoreHorizontal, Star,
+  Megaphone, Pin, MoreHorizontal, Star, Mic, MapPin, Users, Pencil, Trash2, Link2, Flag,
 } from 'lucide-react';
 import { User, Bravo, BravoComment, Challenge, BravoValue, Celebration, Story } from './types';
 import { BADGES } from './constants';
@@ -26,6 +26,14 @@ interface FeedPost {
   user_has_liked?: boolean;
   comments?: { id: number; content: string; created_at: string; user: { id: number; name: string; avatar?: string } }[];
   created_at: string;
+  original_post?: {
+    id: number;
+    content: string;
+    created_at: string;
+    user: { id: number; name: string; avatar?: string; role?: string; department?: string };
+    likes_count: number;
+    media?: { id: number; url: string; type: string }[];
+  } | null;
 }
 
 /* ─────────────────────────────── FeedItem ── */
@@ -114,6 +122,32 @@ function BravoCard({
   bravo, currentUser, users, comments, showComments, commentText, submitting,
   onToggleComments, onCommentChange, onSubmitComment, onDeleteComment, onOpenCreate,
 }: BravoCardProps) {
+  const [liked,      setLiked]      = useState(bravo.user_has_liked ?? false);
+  const [likesCount, setLikesCount] = useState(bravo.likes_count || 0);
+
+  async function handleLike() {
+    const prev = liked;
+    setLiked(!prev);
+    setLikesCount(c => prev ? c - 1 : c + 1);
+    try {
+      const res = await fetch(`/bravos/${bravo.id}/like`, {
+        method: 'POST',
+        headers: { 'X-CSRF-TOKEN': getCsrf(), 'Accept': 'application/json' },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setLiked(data.user_has_liked);
+        setLikesCount(data.likes_count);
+      } else {
+        setLiked(prev);
+        setLikesCount(c => prev ? c + 1 : c - 1);
+      }
+    } catch {
+      setLiked(prev);
+      setLikesCount(c => prev ? c + 1 : c - 1);
+    }
+  }
+
   const receivers = bravo.receivers?.length ? bravo.receivers : bravo.receiver ? [bravo.receiver] : [];
   const badgeInfo = BADGES.find(x => x.key === bravo.badge);
 
@@ -183,8 +217,9 @@ function BravoCard({
 
       {/* Réactions */}
       <div className="flex items-center px-4 py-2.5 border-t border-[#E9EEF5] gap-1">
-        <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-[#64748B] hover:text-rose-500 hover:bg-rose-50 transition-colors cursor-pointer">
-          <Heart size={13} /> {bravo.likes_count || 0}
+        <button onClick={handleLike}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer ${liked ? 'text-rose-500 hover:bg-rose-50' : 'text-[#64748B] hover:text-rose-500 hover:bg-rose-50'}`}>
+          <Heart size={13} className={liked ? 'fill-rose-500' : ''} /> {likesCount}
         </button>
         <button onClick={onToggleComments}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-[#64748B] hover:text-[#0B3D7A] hover:bg-[#F1F5FA] transition-colors cursor-pointer">
@@ -303,9 +338,103 @@ function AnnouncementCard({ post }: { post: FeedPost }) {
 }
 
 /* ── PostCard ── */
-function PostCard({ post }: { post: FeedPost; currentUser?: User }) {
+function PostCard({ post, currentUser, users }: { post: FeedPost; currentUser: User; users: User[] }) {
   const [showComments, setShowComments] = useState(false);
+  const [liked,        setLiked]        = useState(post.user_has_liked ?? false);
+  const [likesCount,   setLikesCount]   = useState(post.likes_count ?? 0);
+  const [comments,     setComments]     = useState(post.comments ?? []);
+  const [commentText,  setCommentText]  = useState('');
+  const [submitting,   setSubmitting]   = useState(false);
+  const [menuOpen,     setMenuOpen]     = useState(false);
+  const [editing,      setEditing]      = useState(false);
+  const [editContent,  setEditContent]  = useState(post.content ?? '');
+  const [saving,       setSaving]       = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const isOwner     = currentUser.id === post.user?.id;
+  const canModerate = ['admin', 'manager'].includes(currentUser.permission);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onOut(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    }
+    document.addEventListener('mousedown', onOut);
+    return () => document.removeEventListener('mousedown', onOut);
+  }, [menuOpen]);
+
   if (!post.user) return null;
+
+  async function handleLike() {
+    const prev = liked;
+    setLiked(!prev);
+    setLikesCount(c => prev ? c - 1 : c + 1);
+    try {
+      const res = await fetch(`/posts/${post.id}/like`, {
+        method: 'POST',
+        headers: { 'X-CSRF-TOKEN': getCsrf(), 'Accept': 'application/json' },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setLiked(data.user_has_liked);
+        setLikesCount(data.likes_count);
+      } else {
+        setLiked(prev);
+        setLikesCount(c => prev ? c + 1 : c - 1);
+      }
+    } catch {
+      setLiked(prev);
+      setLikesCount(c => prev ? c + 1 : c - 1);
+    }
+  }
+
+  async function handleRepublish() {
+    const res = await fetch(`/posts/${post.id}/republish`, {
+      method: 'POST',
+      headers: { 'X-CSRF-TOKEN': getCsrf(), 'Accept': 'application/json' },
+    });
+    if (res.ok) router.reload();
+  }
+
+  async function handleComment() {
+    if (!commentText.trim() || submitting) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/posts/${post.id}/comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': getCsrf() },
+        body: JSON.stringify({ content: commentText }),
+      });
+      if (res.ok) {
+        const comment = await res.json();
+        setComments(prev => [...prev, comment]);
+        setCommentText('');
+        setShowComments(true);
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  function handleDelete() {
+    if (!confirm('Supprimer ce post ?')) return;
+    setMenuOpen(false);
+    router.delete(`/posts/${post.id}`);
+  }
+
+  function handleSave() {
+    if (!editContent.trim()) return;
+    setSaving(true);
+    router.put(`/posts/${post.id}`, { content: editContent.trim() }, {
+      onSuccess: () => { setEditing(false); setSaving(false); },
+      onError:   () => setSaving(false),
+    });
+  }
+
+  function handleCopyLink() {
+    navigator.clipboard.writeText(`${window.location.origin}/posts/${post.id}`);
+    setMenuOpen(false);
+  }
 
   return (
     <div className="bg-white rounded-2xl border border-[#E9EEF5] shadow-[0_1px_2px_rgba(16,42,67,.04)] overflow-hidden">
@@ -333,33 +462,128 @@ function PostCard({ post }: { post: FeedPost; currentUser?: User }) {
             )}
           </div>
         </div>
-        <button className="text-[#8A99AD] hover:text-[#46586E] cursor-pointer">
-          <MoreHorizontal size={16} />
-        </button>
+        {/* Menu 3 points */}
+        <div ref={menuRef} className="relative">
+          <button onClick={() => setMenuOpen(o => !o)}
+            className="p-1.5 rounded-lg text-[#C4CFDB] hover:text-[#46586E] hover:bg-[#F1F5FA] transition-colors cursor-pointer">
+            <MoreHorizontal size={16} />
+          </button>
+          <AnimatePresence>
+            {menuOpen && (
+              <motion.div initial={{ opacity: 0, scale: 0.95, y: -4 }} animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: -4 }} transition={{ duration: 0.12 }}
+                className="absolute right-0 mt-1 w-44 bg-white rounded-xl shadow-lg border border-[#E9EEF5] z-20 overflow-hidden">
+                {isOwner && (
+                  <button onClick={() => { setEditing(true); setMenuOpen(false); }}
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs text-[#46586E] hover:bg-[#F1F5FA] transition-colors cursor-pointer">
+                    <Pencil size={13} className="text-[#8A99AD]" /> Modifier
+                  </button>
+                )}
+                {(isOwner || canModerate) && (
+                  <button onClick={handleDelete}
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs text-rose-500 hover:bg-rose-50 transition-colors cursor-pointer">
+                    <Trash2 size={13} /> Supprimer
+                  </button>
+                )}
+                {(isOwner || canModerate) && <div className="h-px bg-[#E9EEF5]" />}
+                <button onClick={handleCopyLink}
+                  className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs text-[#46586E] hover:bg-[#F1F5FA] transition-colors cursor-pointer">
+                  <Link2 size={13} className="text-[#8A99AD]" /> Copier le lien
+                </button>
+                {!isOwner && (
+                  <button onClick={() => setMenuOpen(false)}
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs text-[#46586E] hover:bg-[#F1F5FA] transition-colors cursor-pointer">
+                    <Flag size={13} className="text-[#8A99AD]" /> Signaler
+                  </button>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
 
-      {/* Contenu */}
-      {post.content && (
-        <div className="px-4 pb-4">
-          <p className="text-sm text-[#46586E] leading-relaxed whitespace-pre-line">{post.content}</p>
+      {/* Bandeau "republié" si c'est un repost */}
+      {post.original_post && (
+        <div className="flex items-center gap-1.5 px-4 pt-3 pb-0">
+          <Repeat2 size={12} className="text-[#8A99AD]" />
+          <span className="text-[11px] text-[#8A99AD]">
+            <span className="font-semibold text-[#46586E]">{post.user?.name}</span>
+            {' a republié le post de '}
+            <span className="font-semibold text-[#46586E]">{post.original_post.user.name}</span>
+          </span>
+        </div>
+      )}
+
+      {/* Contenu — mode édition ou affichage */}
+      {editing ? (
+        <div className="px-4 pb-4 space-y-2">
+          <textarea value={editContent} onChange={e => setEditContent(e.target.value)} rows={3} autoFocus
+            className="w-full resize-none bg-[#F1F5FA] rounded-xl px-3 py-2.5 text-sm text-[#46586E] outline-none focus:ring-2 focus:ring-[#0B3D7A]/20 border border-[#E9EEF5]" />
+          <div className="flex items-center gap-2 justify-end">
+            <button onClick={() => setEditing(false)}
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold text-[#46586E] hover:bg-[#F1F5FA] border border-[#E9EEF5] cursor-pointer transition-colors">
+              Annuler
+            </button>
+            <button onClick={handleSave} disabled={saving || !editContent.trim()}
+              className="px-3 py-1.5 rounded-lg text-xs font-bold text-white cursor-pointer disabled:opacity-50 transition-colors"
+              style={{ background: '#0B3D7A' }}>
+              {saving ? <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin block" /> : 'Enregistrer'}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          {post.content && !post.original_post && (
+            <div className="px-4 pb-4">
+              <p className="text-sm text-[#46586E] leading-relaxed whitespace-pre-line">{post.content}</p>
+            </div>
+          )}
+          {post.content && post.original_post && (
+            <div className="px-4 pb-2">
+              <p className="text-sm text-[#46586E] leading-relaxed whitespace-pre-line">{post.content}</p>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Post original embarqué (style LinkedIn) */}
+      {post.original_post && (
+        <div className="mx-4 mb-4 rounded-xl border border-[#E9EEF5] overflow-hidden bg-[#F9FAFC]">
+          <div className="px-3 pt-3 pb-2 flex items-start gap-2">
+            <Avatar name={post.original_post.user.name} src={post.original_post.user.avatar} size={7} />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold text-[#0A2A4F]">{post.original_post.user.name}</p>
+              <p className="text-[10px] text-[#8A99AD]">{post.original_post.user.role} · {timeAgo(post.original_post.created_at)}</p>
+            </div>
+          </div>
+          {post.original_post.content && (
+            <p className="px-3 pb-3 text-xs text-[#46586E] leading-relaxed whitespace-pre-line line-clamp-4">{post.original_post.content}</p>
+          )}
+          {post.original_post.media?.[0] && (
+            <img src={post.original_post.media[0].url} alt="" className="w-full max-h-48 object-cover" />
+          )}
+          <div className="px-3 py-2 border-t border-[#E9EEF5] flex items-center gap-3 text-[10px] text-[#8A99AD]">
+            <span className="flex items-center gap-1"><Heart size={10} /> {post.original_post.likes_count}</span>
+          </div>
         </div>
       )}
 
       {/* Réactions */}
       <div className="flex items-center px-4 py-2.5 border-t border-[#E9EEF5] gap-1">
-        <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-[#64748B] hover:text-rose-500 hover:bg-rose-50 transition-colors cursor-pointer">
-          <Heart size={13} className={post.user_has_liked ? 'fill-rose-500 text-rose-500' : ''} />
-          {post.likes_count ?? 0}
+        <button onClick={handleLike}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer ${liked ? 'text-rose-500 hover:bg-rose-50' : 'text-[#64748B] hover:text-rose-500 hover:bg-rose-50'}`}>
+          <Heart size={13} className={liked ? 'fill-rose-500' : ''} />
+          {likesCount}
         </button>
         <button onClick={() => setShowComments(v => !v)}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-[#64748B] hover:text-[#0B3D7A] hover:bg-[#F1F5FA] transition-colors cursor-pointer">
-          <MessageSquare size={13} /> {post.comments?.length ?? 0}
+          <MessageSquare size={13} /> {comments.length}
         </button>
-        <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-[#64748B] hover:text-[#0B3D7A] hover:bg-[#F1F5FA] transition-colors cursor-pointer">
-          <Share2 size={13} />
-          <span className="hidden sm:inline">Partager</span>
+        <button onClick={handleRepublish}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-[#64748B] hover:text-[#0B3D7A] hover:bg-[#F1F5FA] transition-colors cursor-pointer">
+          <Repeat2 size={13} />
+          <span className="hidden sm:inline">Republier</span>
         </button>
-        {/* Bravo à la personne */}
         <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-[8px] text-xs font-medium border transition-colors cursor-pointer ml-auto"
                 style={{ background: '#F7FAEE', borderColor: '#E3EFBE', color: '#5E7320' }}>
           <Trophy size={11} style={{ color: '#9DBA2E' }} /> Bravo
@@ -368,23 +592,46 @@ function PostCard({ post }: { post: FeedPost; currentUser?: User }) {
 
       {/* Commentaires inline */}
       <AnimatePresence initial={false}>
-        {showComments && post.comments && post.comments.length > 0 && (
+        {showComments && (
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
-            <div className="px-4 pb-3 pt-1 space-y-2 bg-[#F9FAFC] border-t border-[#E9EEF5]">
-              {post.comments.map(c => (
-                <div key={c.id} className="flex items-start gap-2">
-                  <Avatar name={c.user.name} src={c.user.avatar} size={6} />
-                  <div className="flex-1 bg-white rounded-xl px-3 py-2 text-xs border border-[#E9EEF5]">
-                    <span className="font-semibold text-[#0A2A4F]">{c.user.name}</span>
-                    <span className="text-[#64748B] ml-2">{c.content}</span>
-                    <span className="block text-[10px] text-[#8A99AD] mt-0.5">{c.created_at}</span>
+            {comments.length > 0 && (
+              <div className="px-4 pb-2 pt-1 space-y-2 bg-[#F9FAFC] border-t border-[#E9EEF5]">
+                {comments.map(c => (
+                  <div key={c.id} className="flex items-start gap-2">
+                    <Avatar name={c.user.name} src={c.user.avatar} size={6} />
+                    <div className="flex-1 bg-white rounded-xl px-3 py-2 text-xs border border-[#E9EEF5]">
+                      <span className="font-semibold text-[#0A2A4F]">{c.user.name}</span>
+                      <span className="text-[#64748B] ml-2">{c.content}</span>
+                      <span className="block text-[10px] text-[#8A99AD] mt-0.5">{c.created_at}</span>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Champ commentaire */}
+      <div className="px-4 pb-3 pt-2 flex items-center gap-2 bg-[#F9FAFC] border-t border-[#E9EEF5]">
+        <Avatar name={currentUser.name} src={currentUser.avatar} size={7} />
+        <div className="flex-1 flex items-center bg-white rounded-full px-3 py-1.5 border border-[#E9EEF5] gap-2 focus-within:border-[#0B3D7A]/40 transition-colors">
+          <MentionInput
+            users={users}
+            value={commentText}
+            onChange={setCommentText}
+            onSubmit={handleComment}
+            placeholder="Commenter…"
+            className="flex-1 bg-transparent text-xs outline-none text-[#46586E] placeholder-[#8A99AD]"
+          />
+          <button onClick={handleComment} disabled={!commentText.trim() || submitting}
+            className="text-[#0B3D7A] disabled:text-[#8A99AD] cursor-pointer disabled:cursor-default">
+            {submitting
+              ? <span className="w-3 h-3 border-2 border-[#0B3D7A] border-t-transparent rounded-full animate-spin block" />
+              : <Send size={13} />}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -529,49 +776,234 @@ function LeaderboardWidget({ users }: { users: User[] }) {
 
 function FollowWidget({ users, currentUserId }: { users: User[]; currentUserId: number }) {
   const candidates = users.filter(u => u.id !== currentUserId).slice(0, 4);
+  const [followingSet, setFollowingSet] = useState<Set<number>>(
+    () => new Set(users.filter(u => u.is_following).map(u => u.id))
+  );
+
+  function toggleFollow(userId: number) {
+    setFollowingSet(prev => {
+      const next = new Set(prev);
+      next.has(userId) ? next.delete(userId) : next.add(userId);
+      return next;
+    });
+    router.post(`/users/${userId}/follow`, {}, { preserveScroll: true });
+  }
+
   if (!candidates.length) return null;
   return (
     <div className="bg-white rounded-2xl border border-[#E9EEF5] shadow-[0_1px_2px_rgba(16,42,67,.04)] p-4">
       <h3 className="text-sm font-bold text-[#0A2A4F] mb-3">Collègues à suivre</h3>
       <div className="space-y-3">
-        {candidates.map(u => (
-          <div key={u.id} className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[11px] font-bold shrink-0"
-                 style={{ backgroundColor: avatarBg(u.name) }}>{getInitials(u.name)}</div>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-bold text-[#0A2A4F] truncate">{u.name}</p>
-              <p className="text-[10px] text-[#8A99AD] truncate">{u.department ?? u.role}</p>
+        {candidates.map(u => {
+          const following = followingSet.has(u.id);
+          return (
+            <div key={u.id} className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-[11px] font-bold shrink-0 overflow-hidden"
+                   style={{ backgroundColor: u.avatar ? undefined : avatarBg(u.name) }}>
+                {u.avatar ? <img src={u.avatar} alt={u.name} className="w-full h-full object-cover" /> : getInitials(u.name)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-[#0A2A4F] truncate">{u.name}</p>
+                <p className="text-[10px] text-[#8A99AD] truncate">{u.department ?? u.role}</p>
+              </div>
+              <button onClick={() => toggleFollow(u.id)}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-[8px] text-[11px] font-semibold border transition-colors cursor-pointer shrink-0 ${
+                  following
+                    ? 'bg-[#0B3D7A] text-white border-[#0B3D7A]'
+                    : 'border-[#0B3D7A]/30 text-[#0B3D7A] hover:bg-[#0B3D7A] hover:text-white'
+                }`}>
+                <UserPlus size={11} /> {following ? 'Suivi' : 'Suivre'}
+              </button>
             </div>
-            <button onClick={() => router.visit(`/profile/${u.id}`)}
-              className="flex items-center gap-1 px-2.5 py-1 rounded-[8px] text-[11px] font-semibold border border-[#0B3D7A]/30 text-[#0B3D7A] hover:bg-[#0B3D7A] hover:text-white transition-colors cursor-pointer shrink-0">
-              <UserPlus size={11} /> Suivre
-            </button>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
 }
 
+const COLLEAGUE_DEPARTMENTS = [
+  'Tous les départements',
+  'Direction Technique',
+  'Ressources Humaines',
+  'Direction Financière',
+  'Sécurité Portuaire',
+  'Direction Juridique',
+  'RPI – Régie du Patrimoine',
+  'Direction Générale',
+];
+
 function FindColleagueWidget() {
-  const [q, setQ] = useState('');
+  const [query,       setQuery]       = useState('');
+  const [department,  setDepartment]  = useState('Tous les départements');
+  const [showFilters, setShowFilters] = useState(false);
+  const [searched,    setSearched]    = useState(false);
+  const [loading,     setLoading]     = useState(false);
+  const [results,     setResults]     = useState<{ id: number; name: string; role: string; department: string; location: string; avatar?: string | null }[]>([]);
+  const [summary,     setSummary]     = useState('');
+  const [page,        setPage]        = useState(1);
+  const [pagination,  setPagination]  = useState<{ current_page: number; last_page: number } | null>(null);
+
+  const doSearch = useCallback(async (pageNumber = 1) => {
+    if (!query.trim() && department === 'Tous les départements') return;
+    setLoading(true);
+    setSearched(true);
+    setSummary('');
+    try {
+      const params = new URLSearchParams();
+      if (query.trim()) params.set('search', query.trim());
+      if (department !== 'Tous les départements') params.set('department', department);
+      params.set('page', String(pageNumber));
+      const res = await fetch(`/messenger/users?${params.toString()}`);
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      const users = Array.isArray(data.users) ? data.users : [];
+      setResults(users.map((u: any) => ({
+        id: u.id, name: u.name, role: u.role || '',
+        department: u.department ?? '', location: u.location ?? '',
+        avatar: u.avatar ?? null,
+      })));
+      setPagination(data.pagination ?? null);
+      setPage(pageNumber);
+      setSummary(users.length > 0
+        ? `${users.length} collègue${users.length > 1 ? 's' : ''} trouvé${users.length > 1 ? 's' : ''}.`
+        : 'Aucun collègue trouvé. Essayez d\'autres mots-clés.');
+    } catch {
+      setSummary('Erreur lors de la recherche.');
+      setResults([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [query, department]);
+
+  useEffect(() => {
+    if (!query.trim() && department === 'Tous les départements') {
+      setResults([]); setPagination(null); setSearched(false); setSummary('');
+      return;
+    }
+    const t = window.setTimeout(() => doSearch(1), 250);
+    return () => window.clearTimeout(t);
+  }, [query, department, doSearch]);
+
+  const COLOR_POOL = ['#0B3D7A','#1E5BAB','#5E7320','#B5810A','#C98A4B','#6366f1','#ec4899','#14b8a6'];
+
   return (
-    <div className="bg-white rounded-2xl border border-[#E9EEF5] shadow-[0_1px_2px_rgba(16,42,67,.04)] p-4">
-      <h3 className="text-sm font-bold text-[#0A2A4F] mb-1 flex items-center gap-2">
-        <Bot size={14} className="text-[#0B3D7A]" /> Retrouver un collègue
-      </h3>
-      <p className="text-[11px] text-[#8A99AD] mb-3">Décrivez un collègue, l'IA le trouve.</p>
-      <div className="flex gap-2">
-        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Ex : responsable RH…"
-          className="flex-1 px-3 py-2 bg-[#F1F5FA] rounded-xl text-xs text-[#46586E] placeholder:text-[#8A99AD] border border-transparent focus:border-[#0B3D7A]/20 outline-none" />
-        <button onClick={() => router.visit('/team')}
-          className="px-3 py-2 rounded-xl text-xs font-bold text-white cursor-pointer"
-          style={{ background: '#0B3D7A' }}>
-          <SearchIcon size={13} />
+    <div className="bg-white rounded-2xl border border-[#E9EEF5] shadow-[0_1px_2px_rgba(16,42,67,.04)] overflow-hidden">
+      {/* En-tête */}
+      <div className="px-4 py-3 border-b border-[#E9EEF5] flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-lg bg-[#F1F5FA] flex items-center justify-center">
+            <Users size={14} className="text-[#0B3D7A]" />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-[#0A2A4F] leading-none">Retrouver un collègue</p>
+            <p className="text-[10px] text-[#8A99AD] mt-0.5">Nom, rôle ou département</p>
+          </div>
+        </div>
+        <button onClick={() => setShowFilters(v => !v)}
+          className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${showFilters ? 'bg-[#0B3D7A] text-white' : 'bg-[#F1F5FA] text-[#46586E] hover:bg-[#E4EAF2]'}`}>
+          <Filter size={10} /> Filtres
         </button>
       </div>
-      <div className="mt-2 px-3 py-2 rounded-xl text-[10px] text-[#64748B] flex items-start gap-1.5" style={{ background: '#F1F5FA' }}>
-        <Bot size={11} className="text-[#0B3D7A] shrink-0 mt-0.5" /> Propulsé par IA — langage naturel
+
+      <div className="p-4 space-y-3">
+        {/* Barre de recherche */}
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <SearchIcon size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#8A99AD]" />
+            <input type="text" value={query} onChange={e => setQuery(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && doSearch()}
+              placeholder="Ex : responsable RH, quai 5…"
+              className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-[#E9EEF5] bg-[#F9FAFC] text-xs text-[#46586E] placeholder:text-[#8A99AD] focus:outline-none focus:border-[#0B3D7A]/30 transition-colors" />
+            {query && (
+              <button onClick={() => setQuery('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8A99AD] hover:text-[#46586E] cursor-pointer">
+                <X size={12} />
+              </button>
+            )}
+          </div>
+          <button onClick={() => doSearch()}
+            className="px-4 py-2.5 rounded-xl text-xs font-bold text-white cursor-pointer transition-colors"
+            style={{ background: '#0B3D7A' }}>
+            Chercher
+          </button>
+        </div>
+
+        {/* Filtre département */}
+        {showFilters && (
+          <div className="space-y-1.5 p-3 rounded-xl bg-[#F9FAFC] border border-[#E9EEF5]">
+            <label className="text-[10px] font-black uppercase tracking-wider text-[#8A99AD] flex items-center gap-1">
+              <Briefcase size={9} /> Département
+            </label>
+            <select value={department} onChange={e => setDepartment(e.target.value)}
+              className="w-full text-xs text-[#46586E] bg-white border border-[#E9EEF5] rounded-lg px-3 py-2 focus:outline-none focus:border-[#0B3D7A]/30 cursor-pointer">
+              {COLLEAGUE_DEPARTMENTS.map(d => <option key={d}>{d}</option>)}
+            </select>
+          </div>
+        )}
+
+        {/* Chargement */}
+        {loading && (
+          <div className="flex items-center justify-center py-4 gap-2 text-[#8A99AD]">
+            <span className="w-4 h-4 border-2 border-[#0B3D7A] border-t-transparent rounded-full animate-spin" />
+            <span className="text-xs font-semibold">Recherche…</span>
+          </div>
+        )}
+
+        {/* Résultats */}
+        {!loading && searched && (
+          <>
+            <p className="text-[11px] font-semibold text-[#8A99AD]">{summary}</p>
+            <div className="space-y-1.5">
+              {results.map((u, i) => (
+                <button key={u.id} onClick={() => router.visit(`/users/${u.id}`)}
+                  className="w-full flex items-center gap-3 p-3 rounded-xl bg-[#F9FAFC] border border-[#E9EEF5] hover:border-[#0B3D7A]/20 hover:bg-[#F1F5FA] transition-all cursor-pointer group text-left">
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 overflow-hidden text-white text-[10px] font-black"
+                       style={{ backgroundColor: u.avatar ? undefined : COLOR_POOL[i % COLOR_POOL.length] }}>
+                    {u.avatar ? <img src={u.avatar} alt={u.name} className="w-full h-full object-cover" /> : getInitials(u.name)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-[#0A2A4F] truncate">{u.name}</p>
+                    <p className="text-[10px] text-[#64748B] truncate">{u.role}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      {u.department && <span className="flex items-center gap-0.5 text-[9px] text-[#8A99AD]"><Briefcase size={8} /> {u.department}</span>}
+                      {u.location  && <span className="flex items-center gap-0.5 text-[9px] text-[#8A99AD]"><MapPin size={8} /> {u.location}</span>}
+                    </div>
+                  </div>
+                  <ChevronRight size={13} className="text-[#C4CFDB] group-hover:text-[#0B3D7A] transition-colors shrink-0" />
+                </button>
+              ))}
+            </div>
+
+            {/* Pagination */}
+            {pagination && pagination.last_page > 1 && (
+              <div className="flex items-center justify-between mt-2 px-1">
+                <span className="text-[10px] text-[#8A99AD]">Page {pagination.current_page} / {pagination.last_page}</span>
+                <div className="flex gap-2">
+                  <button disabled={pagination.current_page <= 1 || loading}
+                    onClick={() => doSearch(pagination.current_page - 1)}
+                    className="px-3 py-1.5 rounded-lg text-[10px] font-bold border border-[#E9EEF5] bg-white text-[#46586E] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#F1F5FA] cursor-pointer transition-colors">
+                    Précédent
+                  </button>
+                  <button disabled={pagination.current_page >= pagination.last_page || loading}
+                    onClick={() => doSearch(pagination.current_page + 1)}
+                    className="px-3 py-1.5 rounded-lg text-[10px] font-bold border border-[#E9EEF5] bg-white text-[#46586E] disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#F1F5FA] cursor-pointer transition-colors">
+                    Suivant
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* État initial */}
+        {!searched && (
+          <div className="flex items-center gap-3 py-3 px-3 rounded-xl bg-[#F1F5FA] border border-[#E9EEF5]">
+            <SearchIcon size={14} className="text-[#8A99AD] shrink-0" />
+            <p className="text-[11px] text-[#8A99AD] leading-snug">
+              Décrivez un collègue : son rôle, son département ou son nom.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -784,11 +1216,12 @@ function HeroCarousel({ firstName, bravoCount, users, activeChallenge, onOpenCre
 /* ══════════════════════════════════
    COMPOSER + STORIES + TABS
 ══════════════════════════════════ */
-function StoryRail({ users, currentUser, stories = [], onAddStory }: {
+function StoryRail({ users, currentUser, stories = [], onAddStory, onViewStory }: {
   users: User[];
   currentUser: User;
   stories?: Story[];
   onAddStory?: () => void;
+  onViewStory?: (story: Story) => void;
 }) {
   /* grouper les stories par utilisateur */
   const storyUserIds = new Set(stories.map(s => s.user_id));
@@ -837,8 +1270,10 @@ function StoryRail({ users, currentUser, stories = [], onAddStory }: {
       {displayUsers.map(u => {
         const hasStory  = storyUserIds.has(u.id);
         const hasUnread = unreadUserIds.has(u.id);
+        const userStory = stories.find(s => s.user_id === u.id);
         return (
-          <div key={u.id} className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer">
+          <div key={u.id} onClick={() => userStory && onViewStory?.(userStory)}
+            className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer">
             <div
               className="w-14 h-14 rounded-full p-[2px]"
               style={{
@@ -1224,6 +1659,67 @@ export default function Dashboard({
   const [showScrollTop,         setShowScrollTop]         = useState(false);
   const [activeTab,             setActiveTab]             = useState<FeedTab>('all');
   const [showCreateModal,       setShowCreateModal]       = useState(false);
+  const [showStoryCreator,      setShowStoryCreator]      = useState(false);
+  const [storyType,             setStoryType]             = useState<'text'|'image'|'video'|'audio'>('text');
+  const [storyText,             setStoryText]             = useState('');
+  const [storyBg,               setStoryBg]               = useState('#003d7a');
+  const [storyFile,             setStoryFile]             = useState<File | null>(null);
+  const [storyPreview,          setStoryPreview]          = useState<string | null>(null);
+  const [creatingStory,         setCreatingStory]         = useState(false);
+  const [viewingStory,          setViewingStory]          = useState<Story | null>(null);
+  const storyFileRef = useRef<HTMLInputElement>(null);
+
+  function handleStoryFileSelect(file: File | null) {
+    if (!file) return;
+    if (storyPreview) URL.revokeObjectURL(storyPreview);
+    setStoryFile(file);
+    setStoryPreview(URL.createObjectURL(file));
+  }
+
+  function resetStoryCreator() {
+    if (storyPreview) URL.revokeObjectURL(storyPreview);
+    setStoryText(''); setStoryFile(null); setStoryPreview(null);
+    setStoryType('text'); setStoryBg('#003d7a');
+    setShowStoryCreator(false);
+  }
+
+  async function handleCreateStory() {
+    const hasContent = storyType === 'text' ? storyText.trim() : storyFile;
+    if (!hasContent || creatingStory) return;
+    setCreatingStory(true);
+    try {
+      const form = new FormData();
+      form.append('type', storyType);
+      if (storyType === 'text') {
+        form.append('content', storyText);
+        form.append('background_color', storyBg);
+      } else if (storyFile) {
+        form.append('media', storyFile);
+        if (storyText.trim()) form.append('content', storyText);
+      }
+      const res = await fetch('/stories', {
+        method: 'POST',
+        headers: { 'X-CSRF-TOKEN': getCsrf(), 'Accept': 'application/json' },
+        body: form,
+      });
+      if (res.ok) {
+        resetStoryCreator();
+        router.reload();
+      }
+    } finally {
+      setCreatingStory(false);
+    }
+  }
+
+  async function handleViewStory(story: Story) {
+    setViewingStory(story);
+    if (!story.seen) {
+      fetch(`/stories/${story.id}/view`, {
+        method: 'POST',
+        headers: { 'X-CSRF-TOKEN': getCsrf(), 'Accept': 'application/json' },
+      });
+    }
+  }
 
   useEffect(() => {
     const main = document.querySelector('main');
@@ -1327,7 +1823,9 @@ export default function Dashboard({
           <div className="min-w-0 space-y-4 lg:self-start">
             {/* Stories */}
             <div className="bg-white rounded-2xl border border-[#E9EEF5] shadow-[0_1px_2px_rgba(16,42,67,.04)] overflow-hidden">
-              <StoryRail users={safeUsers} currentUser={currentUser} stories={stories} onAddStory={() => router.visit('/stories')} />
+              <StoryRail users={safeUsers} currentUser={currentUser} stories={stories}
+                onAddStory={() => setShowStoryCreator(true)}
+                onViewStory={handleViewStory} />
             </div>
 
             {/* Composer */}
@@ -1381,7 +1879,7 @@ export default function Dashboard({
                       ref={isLast ? loadMoreRef : undefined}>
                       {post.type === 'announcement'
                         ? <AnnouncementCard post={post} />
-                        : <PostCard post={post} currentUser={currentUser} />
+                        : <PostCard post={post} currentUser={currentUser} users={safeUsers} />
                       }
                     </motion.div>
                   );
@@ -1464,6 +1962,158 @@ export default function Dashboard({
               style={{ background: '#1A5BA8' }}>
               <ChevronUp size={18} />
             </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal créateur de story */}
+      <AnimatePresence>
+        {showStoryCreator && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center"
+            onClick={resetStoryCreator}>
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 16 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }}
+              className="relative z-10 w-full max-w-sm mx-4 bg-white rounded-2xl shadow-2xl overflow-hidden"
+              onClick={e => e.stopPropagation()}>
+
+              {/* Sélecteur de type */}
+              <div className="flex border-b border-[#E9EEF5]">
+                {([
+                  { key: 'text',  icon: <MessageSquare size={14} />, label: 'Texte' },
+                  { key: 'image', icon: <Film size={14} />,          label: 'Image' },
+                  { key: 'video', icon: <Film size={14} />,          label: 'Vidéo' },
+                  { key: 'audio', icon: <Mic size={14} />,           label: 'Audio' },
+                ] as const).map(t => (
+                  <button key={t.key} onClick={() => { setStoryType(t.key); setStoryFile(null); setStoryPreview(null); }}
+                    className={`flex-1 flex flex-col items-center gap-1 py-2.5 text-[11px] font-semibold transition-colors cursor-pointer ${
+                      storyType === t.key ? 'text-[#0B3D7A] border-b-2 border-[#0B3D7A] bg-[#F1F5FA]' : 'text-[#8A99AD] hover:text-[#46586E]'
+                    }`}>
+                    {t.icon}{t.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Zone aperçu / upload */}
+              {storyType === 'text' && (
+                <div className="h-40 flex items-center justify-center px-6 text-center transition-colors"
+                     style={{ background: storyBg }}>
+                  <p className="text-white text-lg font-bold leading-snug" style={{ textShadow: '0 1px 4px rgba(0,0,0,.4)' }}>
+                    {storyText || <span className="opacity-40 text-base font-normal">Votre texte ici…</span>}
+                  </p>
+                </div>
+              )}
+              {storyType === 'image' && (
+                <div className="h-40 bg-[#F1F5FA] flex items-center justify-center cursor-pointer"
+                     onClick={() => storyFileRef.current?.click()}>
+                  {storyPreview
+                    ? <img src={storyPreview} alt="" className="h-full w-full object-contain" />
+                    : <div className="text-center text-[#8A99AD]"><Film size={28} className="mx-auto mb-1" /><p className="text-xs">Cliquez pour choisir une image</p></div>
+                  }
+                </div>
+              )}
+              {storyType === 'video' && (
+                <div className="h-40 bg-[#F1F5FA] flex items-center justify-center cursor-pointer"
+                     onClick={() => storyFileRef.current?.click()}>
+                  {storyPreview
+                    ? <video src={storyPreview} className="h-full w-full object-contain" controls />
+                    : <div className="text-center text-[#8A99AD]"><Film size={28} className="mx-auto mb-1" /><p className="text-xs">Cliquez pour choisir une vidéo</p></div>
+                  }
+                </div>
+              )}
+              {storyType === 'audio' && (
+                <div className="h-40 bg-[#F1F5FA] flex items-center justify-center cursor-pointer"
+                     onClick={() => storyFileRef.current?.click()}>
+                  {storyPreview
+                    ? <div className="px-4 w-full"><audio src={storyPreview} controls className="w-full" /></div>
+                    : <div className="text-center text-[#8A99AD]"><Mic size={28} className="mx-auto mb-1" /><p className="text-xs">Cliquez pour choisir un audio</p></div>
+                  }
+                </div>
+              )}
+
+              {/* Input file caché */}
+              <input ref={storyFileRef} type="file" className="hidden"
+                accept={storyType === 'image' ? 'image/*' : storyType === 'video' ? 'video/*' : 'audio/*'}
+                onChange={e => handleStoryFileSelect(e.target.files?.[0] ?? null)} />
+
+              <div className="p-4 space-y-3">
+                {/* Champ texte */}
+                {storyType === 'text' && (
+                  <textarea value={storyText} onChange={e => setStoryText(e.target.value)}
+                    placeholder="Écrivez votre story…" rows={2} maxLength={500}
+                    className="w-full px-3 py-2.5 bg-[#F1F5FA] rounded-xl text-sm text-[#46586E] placeholder:text-[#8A99AD] border border-transparent focus:border-[#0B3D7A]/20 outline-none resize-none" />
+                )}
+                {storyType !== 'text' && (
+                  <input value={storyText} onChange={e => setStoryText(e.target.value)}
+                    placeholder="Légende (optionnelle)…" maxLength={200}
+                    className="w-full px-3 py-2 bg-[#F1F5FA] rounded-xl text-sm text-[#46586E] placeholder:text-[#8A99AD] border border-transparent focus:border-[#0B3D7A]/20 outline-none" />
+                )}
+                {/* Palette couleurs (texte uniquement) */}
+                {storyType === 'text' && (
+                  <div className="flex gap-2">
+                    {['#003d7a','#0B3D7A','#5E7320','#B5810A','#C98A4B','#6366f1','#ec4899','#14b8a6'].map(c => (
+                      <button key={c} onClick={() => setStoryBg(c)}
+                        className={`w-6 h-6 rounded-full border-2 cursor-pointer transition-transform ${storyBg === c ? 'border-[#0B3D7A] scale-125 shadow-md' : 'border-transparent'}`}
+                        style={{ background: c }} />
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <button onClick={resetStoryCreator}
+                    className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-[#E9EEF5] text-[#64748B] hover:bg-[#F1F5FA] cursor-pointer transition-colors">
+                    Annuler
+                  </button>
+                  <button onClick={handleCreateStory}
+                    disabled={(storyType === 'text' ? !storyText.trim() : !storyFile) || creatingStory}
+                    className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white cursor-pointer disabled:opacity-50 transition-colors"
+                    style={{ background: '#0B3D7A' }}>
+                    {creatingStory ? 'Publication…' : 'Publier'}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Viewer de story */}
+      <AnimatePresence>
+        {viewingStory && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center"
+            onClick={() => setViewingStory(null)}>
+            <div className="absolute inset-0 bg-black/80" />
+            <motion.div initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.92 }}
+              className="relative z-10 w-full max-w-xs mx-4 rounded-2xl overflow-hidden shadow-2xl"
+              style={{ background: viewingStory.background_color, minHeight: '60vh' }}
+              onClick={e => e.stopPropagation()}>
+              {/* En-tête */}
+              <div className="flex items-center gap-2.5 p-4">
+                <Avatar name={viewingStory.user.name} src={viewingStory.user.avatar} size={8} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-white truncate">{viewingStory.user.name}</p>
+                  <p className="text-[10px] text-white/60">{viewingStory.created_at}</p>
+                </div>
+                <button onClick={() => setViewingStory(null)} className="text-white/70 hover:text-white cursor-pointer">
+                  <X size={18} />
+                </button>
+              </div>
+              {/* Contenu */}
+              {viewingStory.type === 'text' && (
+                <div className="flex-1 flex items-center justify-center px-6 py-12">
+                  <p className="text-white text-xl font-bold text-center leading-snug"
+                     style={{ fontStyle: viewingStory.font_style, textAlign: viewingStory.text_align, textShadow: '0 1px 6px rgba(0,0,0,.5)' }}>
+                    {viewingStory.content}
+                  </p>
+                </div>
+              )}
+              {viewingStory.type === 'image' && viewingStory.media_url && (
+                <img src={viewingStory.media_url} alt="" className="w-full object-contain" />
+              )}
+              {viewingStory.type === 'video' && viewingStory.media_url && (
+                <video src={viewingStory.media_url} controls autoPlay className="w-full" />
+              )}
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

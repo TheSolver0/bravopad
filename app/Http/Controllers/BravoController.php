@@ -278,4 +278,23 @@ class BravoController extends Controller
 
         return response()->json($bravos);
     }
+
+    public function like(Bravo $bravo)
+    {
+        $user     = auth()->user();
+        $existing = $bravo->likedBy()->where('user_id', $user->id)->exists();
+
+        if ($existing) {
+            $bravo->likedBy()->detach($user->id);
+            $bravo->decrement('likes_count');
+        } else {
+            $bravo->likedBy()->attach($user->id);
+            $bravo->increment('likes_count');
+        }
+
+        return response()->json([
+            'likes_count'    => $bravo->fresh()->likes_count,
+            'user_has_liked' => ! $existing,
+        ]);
+    }
 }

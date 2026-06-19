@@ -57,6 +57,7 @@ Route::middleware(['auth'])->group(function () {
     // Bravo creation
     Route::get('/create', [BravoController::class, 'create']);
     Route::post('/bravos', [BravoController::class, 'store'])->name('bravos.store');
+    Route::post('/bravos/{bravo}/like', [BravoController::class, 'like'])->name('bravos.like');
     Route::get('/history', [BravoController::class, 'history']);
 
     // IA

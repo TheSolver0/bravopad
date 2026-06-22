@@ -1901,7 +1901,7 @@ export default function Dashboard({
           <div className="hidden lg:block">
             <div className="space-y-4 sticky bottom-6">
               <LeaderboardWidget users={sortedUsers} />
-              <TopRecognizedWidget bravos={bravos} />
+              {/* <TopRecognizedWidget bravos={bravos} /> */}
               <FollowWidget users={safeUsers} currentUserId={currentUser.id} />
               <FindColleagueWidget />
               {activeChallenge && <ChallengeWidget challenge={activeChallenge} />}

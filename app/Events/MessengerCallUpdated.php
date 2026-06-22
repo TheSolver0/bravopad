@@ -64,10 +64,18 @@ class MessengerCallUpdated implements ShouldBroadcastNow
                 'type' => $this->call->type,
                 'status' => $this->call->status,
                 'room_key' => $this->call->room_key,
+                'media_provider' => $this->call->media_provider,
+                'media_room_name' => $this->call->media_room_name,
+                'media_status' => $this->call->media_status,
+                'recording_status' => $this->call->recording_status,
+                'recording_started_at' => $this->call->recording_started_at?->toIso8601String(),
+                'recording_ended_at' => $this->call->recording_ended_at?->toIso8601String(),
+                'ended_reason' => $this->call->ended_reason,
                 'joined_count' => $this->call->isGroupCall() ? $this->call->participants->where('status', 'joined')->count() : null,
                 'max_participants' => $this->call->isGroupCall() ? $this->call->participantLimit() : null,
                 'accepted_at' => $this->call->accepted_at?->toIso8601String(),
                 'ended_at' => $this->call->ended_at?->toIso8601String(),
+                'duration_seconds' => $this->callDurationSeconds(),
                 'created_at' => $this->call->created_at?->toIso8601String(),
                 'starter' => $this->userPayload($this->call->starter),
                 'callee' => $this->call->callee ? $this->userPayload($this->call->callee) : null,
@@ -79,6 +87,10 @@ class MessengerCallUpdated implements ShouldBroadcastNow
                                 'status' => $participant->status,
                                 'joined_at' => $participant->joined_at?->toIso8601String(),
                                 'left_at' => $participant->left_at?->toIso8601String(),
+                                'media_identity' => $participant->media_identity,
+                                'network_quality' => $participant->network_quality,
+                                'recording_consented_at' => $participant->recording_consented_at?->toIso8601String(),
+                                'recording_consent_revoked_at' => $participant->recording_consent_revoked_at?->toIso8601String(),
                                 'user' => $participant->user ? $this->userPayload($participant->user) : null,
                             ],
                         ])
@@ -97,5 +109,18 @@ class MessengerCallUpdated implements ShouldBroadcastNow
             'role' => $user->role,
             'last_seen_at' => $user->last_seen_at?->toIso8601String(),
         ];
+    }
+
+    private function callDurationSeconds(): ?int
+    {
+        if ($this->call->accepted_at && $this->call->ended_at) {
+            return max(0, $this->call->accepted_at->diffInSeconds($this->call->ended_at, false));
+        }
+
+        if (in_array($this->call->status, ['declined', 'ended'], true)) {
+            return 0;
+        }
+
+        return null;
     }
 }

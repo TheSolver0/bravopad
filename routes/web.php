@@ -2,10 +2,8 @@
 
 use App\Http\Controllers\AdminConfigController;
 use App\Http\Controllers\AdminController;
-use App\Http\Controllers\AdminEventContributionNotificationsController;
 use App\Http\Controllers\AdminEvenementController;
-use App\Http\Controllers\EvenementPublicController;
-use App\Http\Controllers\UserProfileController;
+use App\Http\Controllers\AdminEventContributionNotificationsController;
 use App\Http\Controllers\AdminRolesController;
 use App\Http\Controllers\AdminUsersController;
 use App\Http\Controllers\AgendaController;
@@ -14,9 +12,11 @@ use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\BravoController;
 use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\ChallengeController;
+use App\Http\Controllers\ChatbotController;
 use App\Http\Controllers\CommentController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EngagementController;
+use App\Http\Controllers\EvenementPublicController;
 use App\Http\Controllers\EventContributionController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\HrDashboardController;
@@ -24,12 +24,15 @@ use App\Http\Controllers\MessengerController;
 use App\Http\Controllers\NotificationCenterController;
 use App\Http\Controllers\PostController;
 use App\Http\Controllers\RewardController;
-use App\Http\Controllers\StoryController;
 use App\Http\Controllers\StatsController;
+use App\Http\Controllers\StoryController;
+use App\Http\Controllers\UserProfileController;
 use App\Models\Direction;
 use App\Models\User;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
+
+Route::post('/media/livekit/webhooks', [MessengerController::class, 'livekitWebhook'])->name('media.livekit.webhooks');
 
 Route::middleware(['auth'])->group(function () {
 
@@ -64,9 +67,9 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/ai/rephrase', [AiController::class, 'rephrase']);
 
     // Chatbot documentaire
-    Route::post('/chatbot/ask',     [\App\Http\Controllers\ChatbotController::class, 'ask']);
-    Route::get('/chatbot/history',  [\App\Http\Controllers\ChatbotController::class, 'history']);
-    Route::delete('/chatbot/clear', [\App\Http\Controllers\ChatbotController::class, 'clear']);
+    Route::post('/chatbot/ask', [ChatbotController::class, 'ask']);
+    Route::get('/chatbot/history', [ChatbotController::class, 'history']);
+    Route::delete('/chatbot/clear', [ChatbotController::class, 'clear']);
 
     // Stats
     Route::get('/stats', [StatsController::class, 'index']);
@@ -138,6 +141,7 @@ Route::middleware(['auth'])->group(function () {
 
     Route::prefix('messenger')->name('messenger.')->group(function () {
         Route::get('/conversations', [MessengerController::class, 'conversations'])->name('conversations.index');
+        Route::get('/calls', [MessengerController::class, 'calls'])->name('calls.index');
         Route::get('/users', [MessengerController::class, 'users'])->name('users.index');
         Route::post('/presence/heartbeat', [MessengerController::class, 'heartbeat'])->name('presence.heartbeat');
         Route::post('/conversations/direct', [MessengerController::class, 'direct'])->name('conversations.direct');
@@ -150,9 +154,16 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/conversations/{conversation}/messages', [MessengerController::class, 'sendMessage'])->name('conversations.messages.store');
         Route::patch('/conversations/{conversation}/messages/{message}', [MessengerController::class, 'updateMessage'])->name('conversations.messages.update');
         Route::delete('/conversations/{conversation}/messages/{message}', [MessengerController::class, 'deleteMessage'])->name('conversations.messages.destroy');
+        Route::post('/conversations/{conversation}/messages/{message}/like', [MessengerController::class, 'toggleMessageLike'])->name('conversations.messages.like');
         Route::post('/conversations/{conversation}/read', [MessengerController::class, 'markRead'])->name('conversations.read');
+        Route::get('/conversations/{conversation}/calls', [MessengerController::class, 'conversationCalls'])->name('conversations.calls.index');
         Route::post('/conversations/{conversation}/calls', [MessengerController::class, 'startCall'])->name('conversations.calls.store');
         Route::patch('/conversations/{conversation}/calls/{call}', [MessengerController::class, 'updateCall'])->name('conversations.calls.update');
+        Route::post('/calls/{call}/join-token', [MessengerController::class, 'joinCallToken'])->name('calls.join-token');
+        Route::patch('/calls/{call}/recording-consent', [MessengerController::class, 'updateRecordingConsent'])->name('calls.recording-consent');
+        Route::post('/calls/{call}/recordings', [MessengerController::class, 'startRecording'])->name('calls.recordings.store');
+        Route::patch('/calls/{call}/recordings/{recording}', [MessengerController::class, 'updateRecording'])->name('calls.recordings.update');
+        Route::get('/calls/{call}/events', [MessengerController::class, 'callEvents'])->name('calls.events');
     });
 
     Route::get('/engagement', [EngagementController::class, 'index'])->name('engagement.index');

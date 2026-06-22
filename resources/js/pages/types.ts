@@ -253,11 +253,29 @@ export type MessengerMessage = {
     id: number;
     conversation_id: number;
     sender_id: number;
+    type?: 'text' | 'image' | 'video' | 'audio';
     body: string;
+    reply_to?: MessengerQuotedMessage | null;
+    media_url?: string | null;
+    media_mime?: string | null;
+    media_size?: number | null;
+    likes_count?: number;
+    user_has_liked?: boolean;
     created_at: string;
     edited_at?: string | null;
     deleted_at?: string | null;
     is_edited?: boolean;
+    is_deleted?: boolean;
+    sender: MessengerUser;
+};
+
+export type MessengerQuotedMessage = {
+    id: number;
+    sender_id: number;
+    type?: 'text' | 'image' | 'video' | 'audio';
+    body: string;
+    media_url?: string | null;
+    media_mime?: string | null;
     is_deleted?: boolean;
     sender: MessengerUser;
 };
@@ -290,7 +308,7 @@ export type MessageSentPayload = {
 };
 
 export type MessageUpdatedPayload = {
-    action: 'edited' | 'deleted';
+    action: 'edited' | 'deleted' | 'liked' | 'unliked';
     message: MessengerMessage;
 };
 
@@ -320,10 +338,18 @@ export type MessengerCall = {
     type: 'audio' | 'video';
     status: 'ringing' | 'accepted' | 'declined' | 'ended';
     room_key?: string | null;
+    media_provider?: string | null;
+    media_room_name?: string | null;
+    media_status?: 'ready' | 'active' | 'ended' | string | null;
+    recording_status?: 'starting' | 'active' | 'stopping' | 'ended' | string | null;
+    recording_started_at?: string | null;
+    recording_ended_at?: string | null;
+    ended_reason?: string | null;
     joined_count?: number | null;
     max_participants?: number | null;
     accepted_at?: string | null;
     ended_at?: string | null;
+    duration_seconds?: number | null;
     created_at?: string | null;
     starter: MessengerUser;
     callee: MessengerUser | null;
@@ -335,7 +361,30 @@ export type MessengerCallParticipant = {
     status: 'invited' | 'joined' | 'declined' | 'left';
     joined_at?: string | null;
     left_at?: string | null;
+    media_identity?: string | null;
+    network_quality?: number | null;
+    recording_consented_at?: string | null;
+    recording_consent_revoked_at?: string | null;
     user: MessengerUser | null;
+};
+
+export type MediaJoinTokenResponse = {
+    provider: 'livekit';
+    server_url: string;
+    room_name: string;
+    participant_identity: string;
+    token: string;
+    ttl_seconds: number;
+    limits: {
+        max_video_participants: number;
+        max_audio_participants: number;
+    };
+    recording: {
+        enabled: boolean;
+        active: boolean;
+        requires_consent: boolean;
+        user_consented: boolean;
+    };
 };
 
 export type CallUpdatedPayload = {

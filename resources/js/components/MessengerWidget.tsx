@@ -4,6 +4,7 @@ import {
     Bell,
     BellOff,
     Check,
+    Clock,
     Image,
     Loader2,
     Maximize2,
@@ -28,19 +29,20 @@ import {
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { MouseEvent, RefObject } from 'react';
+import type { MouseEvent } from 'react';
 import { toast } from 'sonner';
+import { useMediaCall } from '@/hooks/useMediaCall';
 import { useMessengerPresence } from '@/hooks/useMessengerPresence';
 import { getEcho } from '@/lib/echo';
-import {
+import type {
     MessengerUser, MessengerMessage, MessengerConversation, ConversationsResponse,
     UsersResponse, MessageSentPayload, MessageUpdatedPayload, ConversationReadPayload, TypingPayload,
-    InboxUpdatedPayload, MessengerCall, MessengerCallParticipant, CallUpdatedPayload, WebRtcSessionPayload,
-    WebRtcIcePayload, MeshReadyPayload, CallIceServer, PageProps, DesktopNotificationPermission, MessageMenuState, MessengerWidgetProps
+    InboxUpdatedPayload, MessengerCall, MessengerQuotedMessage, CallUpdatedPayload,
+    PageProps, DesktopNotificationPermission, MessageMenuState, MessengerWidgetProps
 } from '../pages/types';
 
 export default function MessengerWidget({ variant = 'floating' }: MessengerWidgetProps) {
-    const { auth, messenger } = usePage<PageProps>().props;
+    const { auth } = usePage<PageProps>().props;
     const fullscreen = variant === 'fullscreen';
     const currentUser = auth?.user;
     const onlineUserIds = useMessengerPresence(Boolean(currentUser?.id));
@@ -58,6 +60,7 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
     const [searchResults, setSearchResults] = useState<MessengerUser[]>([]);
     const [body, setBody] = useState('');
     const [sendError, setSendError] = useState<string | null>(null);
+    const [replyingTo, setReplyingTo] = useState<MessengerMessage | null>(null);
     const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
     const [editingBody, setEditingBody] = useState('');
     const [typingUsers, setTypingUsers] = useState<Record<number, string>>({});
@@ -73,45 +76,31 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
     const [groupSaving, setGroupSaving] = useState(false);
     const [incomingCall, setIncomingCall] = useState<MessengerCall | null>(null);
     const [activeCall, setActiveCall] = useState<MessengerCall | null>(null);
-    const [callStatus, setCallStatus] = useState<'idle' | 'ringing' | 'connecting' | 'connected' | 'ended'>('idle');
-    const [callError, setCallError] = useState<string | null>(null);
-    const [callMuted, setCallMuted] = useState(false);
-    const [cameraOff, setCameraOff] = useState(false);
-    const [localStream, setLocalStream] = useState<MediaStream | null>(null);
-    const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
-    const [remoteStreams, setRemoteStreams] = useState<Record<number, MediaStream>>({});
+    const mediaCall = useMediaCall();
+    const [conversationCallHistory, setConversationCallHistory] = useState<MessengerCall[]>([]);
+    const [globalCallHistory, setGlobalCallHistory] = useState<MessengerCall[]>([]);
+    const [callHistoryOpen, setCallHistoryOpen] = useState(false);
+    const [fullscreenView, setFullscreenView] = useState<'messages' | 'calls'>('messages');
+    const [loadingCallHistory, setLoadingCallHistory] = useState(false);
+    const [recordingVoice, setRecordingVoice] = useState(false);
     const [desktopNotificationPermission, setDesktopNotificationPermission] = useState<DesktopNotificationPermission>(() => getDesktopNotificationPermission());
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
-    const localVideoRef = useRef<HTMLVideoElement | null>(null);
-    const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
-    const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+    const mediaInputRef = useRef<HTMLInputElement | null>(null);
+    const fullscreenMediaInputRef = useRef<HTMLInputElement | null>(null);
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const voiceChunksRef = useRef<Blob[]>([]);
     const notifiedMessageIds = useRef<Set<number>>(new Set());
     const typingTimeoutsRef = useRef<Record<number, number>>({});
     const lastTypingWhisperRef = useRef(0);
-    const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
-    const groupPeerConnectionsRef = useRef<Record<number, RTCPeerConnection>>({});
-    const localStreamRef = useRef<MediaStream | null>(null);
-    const pendingIceCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
-    const pendingGroupIceCandidatesRef = useRef<Record<number, RTCIceCandidateInit[]>>({});
-    const startedOfferForCallRef = useRef<number | null>(null);
-    const startedGroupOffersRef = useRef<Set<number>>(new Set());
     const ringtoneContextRef = useRef<AudioContext | null>(null);
     const ringtoneTimerRef = useRef<number | null>(null);
 
     const activeId = activeConversation?.id ?? null;
     const activeCallRef = useRef<MessengerCall | null>(null);
-    const iceServers = useMemo<RTCIceServer[]>(
-        () => normalizeIceServers(messenger?.call_ice_servers),
-        [messenger?.call_ice_servers],
-    );
-
+    const connectedMediaCallIdRef = useRef<number | null>(null);
     useEffect(() => {
         activeCallRef.current = activeCall;
     }, [activeCall]);
-
-    useEffect(() => {
-        localStreamRef.current = localStream;
-    }, [localStream]);
 
     useEffect(() => {
         if (fullscreen) {
@@ -164,9 +153,52 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
         setActiveConversation((current) => (current?.id === data.conversation.id ? data.conversation : current));
     }, []);
 
+    const loadConversationCallHistory = useCallback(async (conversationId: number) => {
+        setLoadingCallHistory(true);
+
+        try {
+            const response = await fetch(`/messenger/conversations/${conversationId}/calls`, {
+                headers: { Accept: 'application/json' },
+                credentials: 'same-origin',
+            });
+
+            if (!response.ok) {
+                return;
+            }
+
+            const data = (await response.json()) as { calls: MessengerCall[] };
+            setConversationCallHistory(data.calls ?? []);
+        } finally {
+            setLoadingCallHistory(false);
+        }
+    }, []);
+
+    const loadGlobalCallHistory = useCallback(async () => {
+        setLoadingCallHistory(true);
+
+        try {
+            const response = await fetch('/messenger/calls', {
+                headers: { Accept: 'application/json' },
+                credentials: 'same-origin',
+            });
+
+            if (!response.ok) {
+                return;
+            }
+
+            const data = (await response.json()) as { calls: MessengerCall[] };
+            setGlobalCallHistory(data.calls ?? []);
+        } finally {
+            setLoadingCallHistory(false);
+        }
+    }, []);
+
     const loadMessages = useCallback(async (conversation: MessengerConversation) => {
         setActiveConversation(conversation);
+        setFullscreenView('messages');
         setLoadingMessages(true);
+        setReplyingTo(null);
+        setCallHistoryOpen(false);
 
         try {
             const response = await fetch(`/messenger/conversations/${conversation.id}/messages`, {
@@ -180,11 +212,12 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
 
             const data = (await response.json()) as { messages: MessengerMessage[] };
             setMessages(data.messages ?? []);
+            void loadConversationCallHistory(conversation.id);
             await markRead(conversation.id);
         } finally {
             setLoadingMessages(false);
         }
-    }, [markRead]);
+    }, [loadConversationCallHistory, markRead]);
 
     useEffect(() => {
         if (!currentUser?.id) {
@@ -199,6 +232,12 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
             void fetchConversations();
         }
     }, [fetchConversations, open]);
+
+    useEffect(() => {
+        if (fullscreen && fullscreenView === 'calls') {
+            void loadGlobalCallHistory();
+        }
+    }, [fullscreen, fullscreenView, loadGlobalCallHistory]);
 
     useEffect(() => {
         if (!messageMenu) {
@@ -423,70 +462,10 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
             void handleCallUpdate(payload.call);
         });
 
-        channel.listenForWhisper('webrtc-offer', (payload: WebRtcSessionPayload) => {
-            void handleWebRtcOffer(payload);
-        });
-
-        channel.listenForWhisper('webrtc-answer', (payload: WebRtcSessionPayload) => {
-            void handleWebRtcAnswer(payload);
-        });
-
-        channel.listenForWhisper('ice-candidate', (payload: WebRtcIcePayload) => {
-            void handleWebRtcIceCandidate(payload);
-        });
-
-        channel.listenForWhisper('call-ready', (payload: { from: number }) => {
-            void handleCallReady(payload);
-        });
-
-        channel.listenForWhisper('mesh-ready', (payload: MeshReadyPayload) => {
-            void handleMeshReady(payload);
-        });
-
-        channel.listenForWhisper('mesh-offer', (payload: WebRtcSessionPayload) => {
-            void handleMeshOffer(payload);
-        });
-
-        channel.listenForWhisper('mesh-answer', (payload: WebRtcSessionPayload) => {
-            void handleMeshAnswer(payload);
-        });
-
-        channel.listenForWhisper('mesh-ice-candidate', (payload: WebRtcIcePayload) => {
-            void handleMeshIceCandidate(payload);
-        });
-
         return () => {
             echo.leave(channelName);
         };
-    }, [activeCall?.id, currentUser?.id, iceServers]);
-
-    useEffect(() => {
-        if (localVideoRef.current) {
-            localVideoRef.current.srcObject = localStream;
-        }
-    }, [localStream]);
-
-    useEffect(() => {
-        if (remoteVideoRef.current) {
-            remoteVideoRef.current.srcObject = remoteStream;
-        }
-    }, [remoteStream]);
-
-    useEffect(() => {
-        const audio = remoteAudioRef.current;
-
-        if (!audio) {
-            return;
-        }
-
-        audio.srcObject = remoteStream;
-
-        if (remoteStream) {
-            void audio.play().catch(() => {
-                setCallError('Audio playback was blocked. Click the call window and check browser sound permissions.');
-            });
-        }
-    }, [remoteStream]);
+    }, [activeCall?.id, currentUser?.id]);
 
     useEffect(() => () => {
         cleanupCallMedia();
@@ -799,7 +778,10 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: csrfHeaders({ 'Content-Type': 'application/json' }),
-                body: JSON.stringify({ body: text }),
+                body: JSON.stringify({
+                    body: text,
+                    ...(replyingTo ? { reply_to_id: replyingTo.id } : {}),
+                }),
             });
 
             if (!response.ok) {
@@ -819,6 +801,7 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
             setActiveConversation(data.conversation);
             setUnreadTotal(data.unread_total ?? 0);
             setBody('');
+            setReplyingTo(null);
             getEcho()?.private(`messenger.conversation.${activeConversation.id}`).whisper('typing', {
                 user_id: currentUser?.id,
                 name: currentUser?.name,
@@ -827,6 +810,134 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
         } finally {
             setSending(false);
         }
+    }
+
+    async function sendMediaFile(file: File) {
+        if (!activeConversation || sending) {
+            return;
+        }
+
+        setSending(true);
+        setSendError(null);
+
+        try {
+            const formData = new FormData();
+            formData.append('media', file);
+
+            if (replyingTo) {
+                formData.append('reply_to_id', String(replyingTo.id));
+            }
+
+            const response = await fetch(`/messenger/conversations/${activeConversation.id}/messages`, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: csrfHeaders(),
+                body: formData,
+            });
+
+            if (!response.ok) {
+                setSendError(await responseError(response, 'Unable to send this media'));
+
+                return;
+            }
+
+            const data = (await response.json()) as {
+                message: MessengerMessage;
+                conversation: MessengerConversation;
+                unread_total: number;
+            };
+
+            setMessages((current) => appendMessage(current, data.message));
+            setConversations((current) => upsertConversation(current, data.conversation));
+            setActiveConversation(data.conversation);
+            setUnreadTotal(data.unread_total ?? 0);
+            setReplyingTo(null);
+        } finally {
+            setSending(false);
+        }
+    }
+
+    function handleMediaInput(fileList: FileList | null) {
+        const file = fileList?.[0];
+
+        if (file) {
+            void sendMediaFile(file);
+        }
+
+        if (mediaInputRef.current) {
+            mediaInputRef.current.value = '';
+        }
+
+        if (fullscreenMediaInputRef.current) {
+            fullscreenMediaInputRef.current.value = '';
+        }
+    }
+
+    async function toggleVoiceRecording() {
+        if (recordingVoice) {
+            mediaRecorderRef.current?.stop();
+
+            return;
+        }
+
+        if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+            toast.error('Voice notes are unavailable in this browser.');
+
+            return;
+        }
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const recorder = new MediaRecorder(stream);
+            voiceChunksRef.current = [];
+            mediaRecorderRef.current = recorder;
+
+            recorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    voiceChunksRef.current.push(event.data);
+                }
+            };
+
+            recorder.onstop = () => {
+                stream.getTracks().forEach((track) => track.stop());
+                setRecordingVoice(false);
+
+                const blob = new Blob(voiceChunksRef.current, { type: recorder.mimeType || 'audio/webm' });
+                voiceChunksRef.current = [];
+
+                if (blob.size > 0) {
+                    const file = new File([blob], `voice-note-${Date.now()}.webm`, { type: blob.type || 'audio/webm' });
+
+                    void sendMediaFile(file);
+                }
+            };
+
+            recorder.start();
+            setRecordingVoice(true);
+        } catch (error) {
+            toast.error(callErrorMessage(error));
+        }
+    }
+
+    async function toggleMessageLike(message: MessengerMessage) {
+        if (!activeConversation || message.is_deleted) {
+            return;
+        }
+
+        const response = await fetch(`/messenger/conversations/${activeConversation.id}/messages/${message.id}/like`, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: csrfHeaders(),
+        });
+
+        if (!response.ok) {
+            toast.error(await responseError(response, 'Unable to like this message'));
+
+            return;
+        }
+
+        const data = (await response.json()) as { message: MessengerMessage };
+        setMessages((current) => replaceMessage(current, data.message));
     }
 
     async function updateMessage(messageId: number) {
@@ -879,6 +990,10 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
     }
 
     function startEditingMessage(message: MessengerMessage) {
+        if ((message.type ?? 'text') !== 'text' || message.is_deleted) {
+            return;
+        }
+
         setEditingMessageId(message.id);
         setEditingBody(message.body);
     }
@@ -889,7 +1004,7 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
     }
 
     function openMessageMenu(event: MouseEvent, message: MessengerMessage) {
-        if (message.sender_id !== currentUser?.id || message.is_deleted) {
+        if (message.is_deleted) {
             return;
         }
 
@@ -909,6 +1024,16 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
     function deleteMenuMessage(message: MessengerMessage) {
         setMessageMenu(null);
         void deleteMessage(message);
+    }
+
+    function replyToMenuMessage(message: MessengerMessage) {
+        setMessageMenu(null);
+        setReplyingTo(message);
+    }
+
+    function likeMenuMessage(message: MessengerMessage) {
+        setMessageMenu(null);
+        void toggleMessageLike(message);
     }
 
     function updateBodyWithTyping(nextBody: string) {
@@ -937,12 +1062,12 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
             return;
         }
 
-        setCallError(null);
+        mediaCall.setError(null);
 
-        const supportError = callSupportError(type);
+        const supportError = callSupportError();
 
         if (supportError) {
-            setCallError(supportError);
+            mediaCall.setError(supportError);
             toast.error(supportError);
 
             return;
@@ -965,7 +1090,7 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
             const data = (await response.json()) as { call: MessengerCall };
             getEcho()?.private(`messenger.call.${data.call.id}`);
             setActiveCall(data.call);
-            setCallStatus(isGroupCall(data.call) ? 'connecting' : 'ringing');
+            mediaCall.setStatus(isGroupCall(data.call) ? 'connecting' : 'ringing');
             await waitForCallSubscription(data.call.id);
 
             if (!isGroupCall(data.call)) {
@@ -974,16 +1099,11 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
 
             try {
                 if (isGroupCall(data.call)) {
-                    await prepareGroupCall(data.call);
-                    whisperCall(data.call.id, 'mesh-ready', {});
-                    createOffersForJoinedPeers(data.call);
-                    setCallStatus('connected');
-                } else {
-                    await preparePeerConnection(data.call);
+                    await connectMediaRoom(data.call);
                 }
             } catch (error) {
                 const message = callErrorMessage(error);
-                setCallError(message);
+                mediaCall.setError(message);
                 toast.error(message);
                 await fetch(`/messenger/conversations/${data.call.conversation_id}/calls/${data.call.id}`, {
                     method: 'PATCH',
@@ -994,23 +1114,23 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
                 cleanupCallMedia();
             }
         } catch (error) {
-            setCallError(callErrorMessage(error));
+            mediaCall.setError(callErrorMessage(error));
         }
     }
 
     async function acceptCall(call: MessengerCall) {
-        setCallError(null);
+        mediaCall.setError(null);
         setIncomingCall(null);
         setOpen(true);
         getEcho()?.private(`messenger.call.${call.id}`);
         setActiveCall(call);
-        setCallStatus('connecting');
+        mediaCall.setStatus('connecting');
         stopRingtone();
 
-        const supportError = callSupportError(call.type);
+        const supportError = callSupportError();
 
         if (supportError) {
-            setCallError(supportError);
+            mediaCall.setError(supportError);
             toast.error(supportError);
             await declineCall(call);
             cleanupCallMedia();
@@ -1020,15 +1140,9 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
 
         try {
             await waitForCallSubscription(call.id);
-
-            if (isGroupCall(call)) {
-                await prepareGroupCall(call);
-            } else {
-                await preparePeerConnection(call);
-            }
         } catch (error) {
             const message = callErrorMessage(error);
-            setCallError(message);
+            mediaCall.setError(message);
             toast.error(message);
             await declineCall(call);
             cleanupCallMedia();
@@ -1052,17 +1166,9 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
 
             const data = (await response.json()) as { call: MessengerCall };
             setActiveCall(data.call);
-            setCallStatus('connecting');
-
-            if (isGroupCall(data.call)) {
-                whisperCall(data.call.id, 'mesh-ready', {});
-                createOffersForJoinedPeers(data.call);
-                setCallStatus('connected');
-            } else {
-                whisperCall(data.call.id, 'call-ready', {});
-            }
+            await connectMediaRoom(data.call);
         } catch (error) {
-            setCallError(callErrorMessage(error));
+            mediaCall.setError(callErrorMessage(error));
         }
     }
 
@@ -1115,6 +1221,14 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
             return;
         }
 
+        if (activeConversation?.id === call.conversation_id) {
+            void loadConversationCallHistory(call.conversation_id);
+        }
+
+        if (fullscreen && fullscreenView === 'calls') {
+            void loadGlobalCallHistory();
+        }
+
         const currentCall = activeCallRef.current;
 
         if (isGroupCall(call)) {
@@ -1144,6 +1258,10 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
                 cleanupCallMedia();
             }
 
+            if (call.status === 'accepted' && currentParticipant?.status === 'joined') {
+                void connectMediaRoom(call);
+            }
+
             return;
         }
 
@@ -1169,14 +1287,7 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
 
         if (call.status === 'accepted') {
             stopRingtone();
-            setCallStatus(peerConnectionRef.current?.connectionState === 'connected' ? 'connected' : 'connecting');
-
-            if (call.started_by === currentUser.id && startedOfferForCallRef.current !== call.id) {
-                await preparePeerConnection(call);
-                window.setTimeout(() => {
-                    void createAndSendOffer(call);
-                }, 500);
-            }
+            void connectMediaRoom(call);
         }
 
         if (call.status === 'declined' || call.status === 'ended') {
@@ -1184,349 +1295,20 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
         }
     }
 
-    async function preparePeerConnection(call: MessengerCall): Promise<RTCPeerConnection> {
-        if (peerConnectionRef.current) {
-            return peerConnectionRef.current;
-        }
-
-        const stream = await getLocalCallStream(call);
-        const peerConnection = new RTCPeerConnection({
-            iceServers,
-        });
-
-        stream.getTracks().forEach((track) => {
-            peerConnection.addTrack(track, stream);
-        });
-
-        peerConnection.onicecandidate = (event) => {
-            if (event.candidate) {
-                whisperCall(call.id, 'ice-candidate', { candidate: event.candidate.toJSON() });
-            }
-        };
-
-        peerConnection.ontrack = (event) => {
-            setRemoteStream(event.streams[0] ?? null);
-            setCallStatus('connected');
-        };
-
-        peerConnection.onconnectionstatechange = () => {
-            if (peerConnection.connectionState === 'connected') {
-                setCallStatus('connected');
-            }
-
-            if (['failed', 'closed', 'disconnected'].includes(peerConnection.connectionState)) {
-                setCallStatus((current) => (current === 'ended' ? current : 'ended'));
-            }
-        };
-
-        peerConnectionRef.current = peerConnection;
-        pendingIceCandidatesRef.current = [];
-        setLocalStream(stream);
-        setCallMuted(false);
-        setCameraOff(false);
-
-        return peerConnection;
-    }
-
-    async function getLocalCallStream(call: MessengerCall): Promise<MediaStream> {
-        if (localStreamRef.current) {
-            return localStreamRef.current;
-        }
-
-        if (!navigator.mediaDevices?.getUserMedia) {
-            throw new Error('Calls are not available in this browser.');
-        }
-
-        const stream = await navigator.mediaDevices.getUserMedia({
-            audio: true,
-            video: call.type === 'video',
-        });
-
-        localStreamRef.current = stream;
-        setLocalStream(stream);
-        setCallMuted(false);
-        setCameraOff(false);
-
-        return stream;
-    }
-
-    async function prepareGroupCall(call: MessengerCall): Promise<void> {
-        await getLocalCallStream(call);
-    }
-
-    async function prepareGroupPeerConnection(call: MessengerCall, peerId: number): Promise<RTCPeerConnection> {
-        const existing = groupPeerConnectionsRef.current[peerId];
-
-        if (existing) {
-            return existing;
-        }
-
-        const stream = await getLocalCallStream(call);
-        const peerConnection = new RTCPeerConnection({ iceServers });
-
-        stream.getTracks().forEach((track) => {
-            peerConnection.addTrack(track, stream);
-        });
-
-        peerConnection.onicecandidate = (event) => {
-            if (event.candidate) {
-                whisperCall(call.id, 'mesh-ice-candidate', {
-                    target: peerId,
-                    candidate: event.candidate.toJSON(),
-                });
-            }
-        };
-
-        peerConnection.ontrack = (event) => {
-            const [stream] = event.streams;
-
-            if (stream) {
-                setRemoteStreams((current) => ({
-                    ...current,
-                    [peerId]: stream,
-                }));
-                setCallStatus('connected');
-            }
-        };
-
-        peerConnection.onconnectionstatechange = () => {
-            if (peerConnection.connectionState === 'connected') {
-                setCallStatus('connected');
-            }
-
-            if (['failed', 'closed', 'disconnected'].includes(peerConnection.connectionState)) {
-                setRemoteStreams((current) => {
-                    const next = { ...current };
-                    delete next[peerId];
-
-                    return next;
-                });
-            }
-        };
-
-        groupPeerConnectionsRef.current[peerId] = peerConnection;
-        pendingGroupIceCandidatesRef.current[peerId] = pendingGroupIceCandidatesRef.current[peerId] ?? [];
-
-        return peerConnection;
-    }
-
-    async function createAndSendOffer(call: MessengerCall) {
-        const peerConnection = await preparePeerConnection(call);
-        startedOfferForCallRef.current = call.id;
-        const offer = await peerConnection.createOffer();
-        await peerConnection.setLocalDescription(offer);
-
-        if (peerConnection.localDescription) {
-            whisperCall(call.id, 'webrtc-offer', { sdp: peerConnection.localDescription });
-        }
-    }
-
-    async function handleWebRtcOffer(payload: WebRtcSessionPayload) {
-        if (!currentUser?.id || payload.from === currentUser.id) {
+    async function connectMediaRoom(call: MessengerCall) {
+        if (connectedMediaCallIdRef.current === call.id) {
             return;
         }
 
-        const call = activeCallRef.current;
+        connectedMediaCallIdRef.current = call.id;
 
-        if (!call) {
-            return;
+        try {
+            await mediaCall.connect(call);
+        } catch (error) {
+            connectedMediaCallIdRef.current = null;
+
+            throw error;
         }
-
-        const peerConnection = await preparePeerConnection(call);
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.sdp));
-        await flushPendingIceCandidates(peerConnection);
-        const answer = await peerConnection.createAnswer();
-        await peerConnection.setLocalDescription(answer);
-
-        if (peerConnection.localDescription) {
-            whisperCall(call.id, 'webrtc-answer', { sdp: peerConnection.localDescription });
-        }
-
-        setCallStatus('connecting');
-    }
-
-    async function handleWebRtcAnswer(payload: WebRtcSessionPayload) {
-        if (!currentUser?.id || payload.from === currentUser.id || !peerConnectionRef.current) {
-            return;
-        }
-
-        await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(payload.sdp));
-        await flushPendingIceCandidates(peerConnectionRef.current);
-        setCallStatus('connecting');
-    }
-
-    async function handleWebRtcIceCandidate(payload: WebRtcIcePayload) {
-        if (!currentUser?.id || payload.from === currentUser.id || !payload.candidate) {
-            return;
-        }
-
-        const peerConnection = peerConnectionRef.current;
-
-        if (!peerConnection?.remoteDescription) {
-            pendingIceCandidatesRef.current.push(payload.candidate);
-
-            return;
-        }
-
-        await peerConnection.addIceCandidate(new RTCIceCandidate(payload.candidate));
-    }
-
-    async function handleCallReady(payload: { from: number }) {
-        if (!currentUser?.id || payload.from === currentUser.id) {
-            return;
-        }
-
-        const call = activeCallRef.current;
-
-        if (!call || call.started_by !== currentUser.id || call.status !== 'accepted' || startedOfferForCallRef.current === call.id) {
-            return;
-        }
-
-        await createAndSendOffer(call);
-    }
-
-    async function handleMeshReady(payload: MeshReadyPayload) {
-        if (!currentUser?.id || payload.from === currentUser.id || (payload.target && payload.target !== currentUser.id)) {
-            return;
-        }
-
-        const call = activeCallRef.current;
-
-        if (!call || !isGroupCall(call) || call.status !== 'accepted') {
-            return;
-        }
-
-        const participant = call.participants?.[String(currentUser.id)];
-
-        if (participant?.status !== 'joined') {
-            return;
-        }
-
-        if (currentUser.id < payload.from) {
-            await createAndSendMeshOffer(call, payload.from);
-        }
-    }
-
-    async function createAndSendMeshOffer(call: MessengerCall, peerId: number) {
-        if (startedGroupOffersRef.current.has(peerId)) {
-            return;
-        }
-
-        startedGroupOffersRef.current.add(peerId);
-        const peerConnection = await prepareGroupPeerConnection(call, peerId);
-        const offer = await peerConnection.createOffer();
-        await peerConnection.setLocalDescription(offer);
-
-        if (peerConnection.localDescription) {
-            whisperCall(call.id, 'mesh-offer', {
-                target: peerId,
-                sdp: peerConnection.localDescription,
-            });
-        }
-    }
-
-    async function handleMeshOffer(payload: WebRtcSessionPayload) {
-        if (!currentUser?.id || payload.from === currentUser.id || payload.target !== currentUser.id) {
-            return;
-        }
-
-        const call = activeCallRef.current;
-
-        if (!call || !isGroupCall(call)) {
-            return;
-        }
-
-        const peerConnection = await prepareGroupPeerConnection(call, payload.from);
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.sdp));
-        await flushPendingGroupIceCandidates(peerConnection, payload.from);
-        const answer = await peerConnection.createAnswer();
-        await peerConnection.setLocalDescription(answer);
-
-        if (peerConnection.localDescription) {
-            whisperCall(call.id, 'mesh-answer', {
-                target: payload.from,
-                sdp: peerConnection.localDescription,
-            });
-        }
-    }
-
-    async function handleMeshAnswer(payload: WebRtcSessionPayload) {
-        if (!currentUser?.id || payload.from === currentUser.id || payload.target !== currentUser.id) {
-            return;
-        }
-
-        const peerConnection = groupPeerConnectionsRef.current[payload.from];
-
-        if (!peerConnection) {
-            return;
-        }
-
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.sdp));
-        await flushPendingGroupIceCandidates(peerConnection, payload.from);
-    }
-
-    async function handleMeshIceCandidate(payload: WebRtcIcePayload) {
-        if (!currentUser?.id || payload.from === currentUser.id || payload.target !== currentUser.id || !payload.candidate) {
-            return;
-        }
-
-        const peerConnection = groupPeerConnectionsRef.current[payload.from];
-
-        if (!peerConnection?.remoteDescription) {
-            pendingGroupIceCandidatesRef.current[payload.from] = [
-                ...(pendingGroupIceCandidatesRef.current[payload.from] ?? []),
-                payload.candidate,
-            ];
-
-            return;
-        }
-
-        await peerConnection.addIceCandidate(new RTCIceCandidate(payload.candidate));
-    }
-
-    function createOffersForJoinedPeers(call: MessengerCall) {
-        if (!currentUser?.id || !isGroupCall(call)) {
-            return;
-        }
-
-        Object.values(call.participants ?? {}).forEach((participant) => {
-            if (
-                participant.status === 'joined'
-                && participant.user_id !== currentUser.id
-                && currentUser.id < participant.user_id
-            ) {
-                window.setTimeout(() => {
-                    void createAndSendMeshOffer(call, participant.user_id);
-                }, 350);
-            }
-        });
-    }
-
-    async function flushPendingIceCandidates(peerConnection: RTCPeerConnection) {
-        for (const candidate of pendingIceCandidatesRef.current) {
-            await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-        }
-
-        pendingIceCandidatesRef.current = [];
-    }
-
-    async function flushPendingGroupIceCandidates(peerConnection: RTCPeerConnection, peerId: number) {
-        for (const candidate of pendingGroupIceCandidatesRef.current[peerId] ?? []) {
-            await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
-        }
-
-        pendingGroupIceCandidatesRef.current[peerId] = [];
-    }
-
-    function whisperCall(callId: number, event: string, payload: Record<string, unknown>) {
-        if (!currentUser?.id) {
-            return;
-        }
-
-        getEcho()?.private(`messenger.call.${callId}`).whisper(event, {
-            ...payload,
-            from: currentUser.id,
-        });
     }
 
     async function waitForCallSubscription(callId: number) {
@@ -1562,17 +1344,11 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
     }
 
     function toggleMute() {
-        localStream?.getAudioTracks().forEach((track) => {
-            track.enabled = callMuted;
-        });
-        setCallMuted((current) => !current);
+        mediaCall.toggleMute();
     }
 
     function toggleCamera() {
-        localStream?.getVideoTracks().forEach((track) => {
-            track.enabled = cameraOff;
-        });
-        setCameraOff((current) => !current);
+        mediaCall.toggleCamera();
     }
 
     function startRingtone(kind: 'incoming' | 'outgoing') {
@@ -1626,24 +1402,10 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
 
     function cleanupCallMedia() {
         stopRingtone();
-        peerConnectionRef.current?.close();
-        peerConnectionRef.current = null;
-        Object.values(groupPeerConnectionsRef.current).forEach((peerConnection) => peerConnection.close());
-        groupPeerConnectionsRef.current = {};
-        pendingIceCandidatesRef.current = [];
-        pendingGroupIceCandidatesRef.current = {};
-        startedOfferForCallRef.current = null;
-        startedGroupOffersRef.current = new Set();
-        localStreamRef.current?.getTracks().forEach((track) => track.stop());
-        localStreamRef.current = null;
-        setLocalStream(null);
-        setRemoteStream(null);
-        setRemoteStreams({});
+        connectedMediaCallIdRef.current = null;
+        mediaCall.disconnect();
         setActiveCall(null);
         setIncomingCall(null);
-        setCallMuted(false);
-        setCameraOff(false);
-        setCallStatus('ended');
     }
 
     async function requestDesktopNotifications() {
@@ -1693,7 +1455,15 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
                 onClose={!fullscreen ? () => setOpen(false) : undefined}
                 onManageGroup={activeConversation.type === 'group' && activeConversation.is_creator ? () => setGroupManageOpen(true) : undefined}
                 onStartCall={startCall}
+                onToggleCallHistory={() => {
+                    setCallHistoryOpen((current) => !current);
+                    void loadConversationCallHistory(activeConversation.id);
+                }}
             />
+
+            {callHistoryOpen && (
+                <CallHistoryPanel calls={conversationCallHistory} loading={loadingCallHistory} currentUserId={currentUser.id} compact />
+            )}
 
             <div className="min-h-0 flex-1 overflow-y-auto bg-background px-3 py-3 sm:px-4">
                 {loadingMessages ? (
@@ -1738,15 +1508,35 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
                     void sendMessage();
                 }}
             >
+                {replyingTo && (
+                    <ReplyComposerPreview message={replyingTo} onCancel={() => setReplyingTo(null)} />
+                )}
                 {sendError && <div className="mb-2 rounded-lg bg-red-500/10 px-3 py-2 text-xs font-medium text-red-300">{sendError}</div>}
                 <div className="flex items-center gap-1.5">
                     <div className="flex shrink-0 items-center gap-0.5 text-primary">
-                        <span className="flex h-9 w-8 items-center justify-center rounded-full hover:bg-primary/10">
+                        <button
+                            type="button"
+                            onClick={() => void toggleVoiceRecording()}
+                            className={`flex h-9 w-8 items-center justify-center rounded-full hover:bg-primary/10 ${recordingVoice ? 'bg-red-500/10 text-red-500' : ''}`}
+                            aria-label={recordingVoice ? 'Stop voice note' : 'Record voice note'}
+                        >
                             <Mic size={18} />
-                        </span>
-                        <span className="flex h-9 w-8 items-center justify-center rounded-full hover:bg-primary/10">
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => mediaInputRef.current?.click()}
+                            className="flex h-9 w-8 items-center justify-center rounded-full hover:bg-primary/10"
+                            aria-label="Send media"
+                        >
                             <Image size={18} />
-                        </span>
+                        </button>
+                        <input
+                            ref={mediaInputRef}
+                            type="file"
+                            accept="image/*,video/*,audio/*"
+                            className="hidden"
+                            onChange={(event) => handleMediaInput(event.target.files)}
+                        />
                     </div>
                     <div className="flex min-h-10 flex-1 items-center rounded-full bg-primary/8 px-3 ring-1 ring-primary/10 focus-within:ring-primary/30">
                         <textarea
@@ -1829,6 +1619,10 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
         <MessageContextMenu
             x={messageMenu.x}
             y={messageMenu.y}
+            message={menuMessage}
+            currentUserId={currentUser.id}
+            onLike={() => likeMenuMessage(menuMessage)}
+            onReply={() => replyToMenuMessage(menuMessage)}
             onEdit={() => editMenuMessage(menuMessage)}
             onDelete={() => deleteMenuMessage(menuMessage)}
         />
@@ -1894,17 +1688,19 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
                     <CallWindow
                         call={activeCall}
                         currentUserId={currentUser.id}
-                        status={callStatus}
-                        error={callError}
-                        muted={callMuted}
-                        cameraOff={cameraOff}
-                        localVideoRef={localVideoRef}
-                        remoteVideoRef={remoteVideoRef}
-                        remoteAudioRef={remoteAudioRef}
-                        remoteStream={remoteStream}
-                        remoteStreams={remoteStreams}
+                        status={mediaCall.status}
+                        error={mediaCall.error}
+                        muted={mediaCall.muted}
+                        cameraOff={mediaCall.cameraOff}
+                        screenSharing={mediaCall.screenSharing}
+                        localStream={mediaCall.localStream}
+                        remoteStream={mediaCall.remoteStream}
+                        remoteStreams={mediaCall.remoteStreams}
                         onToggleMute={toggleMute}
                         onToggleCamera={toggleCamera}
+                        onToggleScreenShare={() => void mediaCall.toggleScreenShare()}
+                        onConsentRecording={() => void mediaCall.consentToRecording(activeCall, true).catch((error) => toast.error(callErrorMessage(error)))}
+                        onStartRecording={() => void mediaCall.startRecording(activeCall).catch((error) => toast.error(callErrorMessage(error)))}
                         onEnd={() => void endCall()}
                         onEndAll={activeCall.started_by === currentUser.id && isGroupCall(activeCall) ? () => void endCallForEveryone() : undefined}
                     />
@@ -1921,7 +1717,10 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
                     <div className="flex items-center gap-0.5">
                         <button
                             type="button"
-                            onClick={() => { setGroupComposerOpen(true); setGroupError(null); }}
+                            onClick={() => {
+                                setGroupComposerOpen(true);
+                                setGroupError(null);
+                            }}
                             className="flex h-8 w-8 items-center justify-center rounded-xl text-on-surface-variant hover:bg-surface-container-low hover:text-primary transition-all"
                             aria-label="Créer un groupe"
                         >
@@ -1956,10 +1755,12 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
                     </div>
                 </div>
                 <div className="flex items-center gap-1 px-3 pb-2 shrink-0">
-                    {(['Tous', 'Non-lus', 'Groupes'] as const).map((label, i) => (
+                    {(['Messages', 'Appels'] as const).map((label) => (
                         <button
                             key={label}
-                            className={`flex-1 py-1 text-[11px] font-semibold rounded-lg transition-all ${i === 0
+                            type="button"
+                            onClick={() => setFullscreenView(label === 'Messages' ? 'messages' : 'calls')}
+                            className={`flex-1 py-1 text-[11px] font-semibold rounded-lg transition-all ${(label === 'Messages' ? fullscreenView === 'messages' : fullscreenView === 'calls')
                                 ? 'bg-primary/10 text-primary'
                                 : 'text-on-surface-variant hover:bg-surface-container-low'
                                 }`}
@@ -1985,7 +1786,25 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
             </aside>
         );
 
-        const fullscreenChat = activeConversation ? (
+        const fullscreenChat = fullscreenView === 'calls' ? (
+            <section className="flex h-full min-w-0 flex-1 flex-col bg-background">
+                <div className="flex h-14 items-center justify-between border-b border-primary/10 bg-white px-4">
+                    <div>
+                        <div className="text-base font-bold text-gray-900">Historique des appels</div>
+                        <div className="text-xs text-gray-400">Tous vos appels audio et video</div>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => void loadGlobalCallHistory()}
+                        className="flex h-8 w-8 items-center justify-center rounded-full text-primary hover:bg-primary/5"
+                        aria-label="Actualiser les appels"
+                    >
+                        <Clock size={17} />
+                    </button>
+                </div>
+                <CallHistoryPanel calls={globalCallHistory} loading={loadingCallHistory} currentUserId={currentUser.id} />
+            </section>
+        ) : activeConversation ? (
             <section className="flex h-full min-w-0 flex-1 flex-col bg-background">
                 <ChatHeader
                     conversation={activeConversation}
@@ -1996,7 +1815,14 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
                     onClose={undefined}
                     onManageGroup={activeConversation.type === 'group' && activeConversation.is_creator ? () => setGroupManageOpen(true) : undefined}
                     onStartCall={startCall}
+                    onToggleCallHistory={() => {
+                        setCallHistoryOpen((current) => !current);
+                        void loadConversationCallHistory(activeConversation.id);
+                    }}
                 />
+                {callHistoryOpen && (
+                    <CallHistoryPanel calls={conversationCallHistory} loading={loadingCallHistory} currentUserId={currentUser.id} compact />
+                )}
                 <div className="min-h-0 flex-1 overflow-y-auto bg-background px-3 py-3 sm:px-4">
                     {loadingMessages ? (
                         <div className="flex h-full items-center justify-center text-sm text-gray-400">
@@ -2033,13 +1859,40 @@ export default function MessengerWidget({ variant = 'floating' }: MessengerWidge
                 )}
                 <form
                     className="border-t border-primary/10 bg-white p-3"
-                    onSubmit={(event) => { event.preventDefault(); void sendMessage(); }}
+                    onSubmit={(event) => {
+                        event.preventDefault();
+                        void sendMessage();
+                    }}
                 >
+                    {replyingTo && (
+                        <ReplyComposerPreview message={replyingTo} onCancel={() => setReplyingTo(null)} />
+                    )}
                     {sendError && <div className="mb-2 rounded-lg bg-red-500/10 px-3 py-2 text-xs font-medium text-red-300">{sendError}</div>}
                     <div className="flex items-center gap-1.5">
                         <div className="flex shrink-0 items-center gap-0.5 text-primary">
-                            <span className="flex h-9 w-8 items-center justify-center rounded-full hover:bg-primary/10"><Mic size={18} /></span>
-                            <span className="flex h-9 w-8 items-center justify-center rounded-full hover:bg-primary/10"><Image size={18} /></span>
+                            <button
+                                type="button"
+                                onClick={() => void toggleVoiceRecording()}
+                                className={`flex h-9 w-8 items-center justify-center rounded-full hover:bg-primary/10 ${recordingVoice ? 'bg-red-500/10 text-red-500' : ''}`}
+                                aria-label={recordingVoice ? 'Stop voice note' : 'Record voice note'}
+                            >
+                                <Mic size={18} />
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => fullscreenMediaInputRef.current?.click()}
+                                className="flex h-9 w-8 items-center justify-center rounded-full hover:bg-primary/10"
+                                aria-label="Send media"
+                            >
+                                <Image size={18} />
+                            </button>
+                            <input
+                                ref={fullscreenMediaInputRef}
+                                type="file"
+                                accept="image/*,video/*,audio/*"
+                                className="hidden"
+                                onChange={(event) => handleMediaInput(event.target.files)}
+                            />
                         </div>
                         <div className="flex min-h-10 flex-1 items-center rounded-full bg-primary/8 px-3 ring-1 ring-primary/10 focus-within:ring-primary/30">
                             <textarea
@@ -2205,6 +2058,7 @@ function ChatHeader({
     onClose,
     onManageGroup,
     onStartCall,
+    onToggleCallHistory,
 }: {
     conversation: MessengerConversation;
     calling: boolean;
@@ -2214,6 +2068,7 @@ function ChatHeader({
     onClose?: () => void;
     onManageGroup?: () => void;
     onStartCall: (type: MessengerCall['type']) => void;
+    onToggleCallHistory: () => void;
 }) {
     const user = conversation.other_user;
     const online = isMessengerUserOnline(user, onlineUserIds);
@@ -2234,6 +2089,15 @@ function ChatHeader({
                 </div>
             </div>
             <div className="flex items-center gap-1 text-primary">
+                <button
+                    type="button"
+                    onClick={onToggleCallHistory}
+                    className="flex h-8 w-8 items-center justify-center rounded-full hover:bg-primary/5"
+                    aria-label="Historique des appels"
+                    title="Historique des appels"
+                >
+                    <Clock size={18} />
+                </button>
                 {isGroup ? (
                     <>
                         <button
@@ -2345,7 +2209,7 @@ function ConversationList({
                             <p className={`mt-0.5 truncate text-sm ${conversation.unread_count > 0 ? 'font-semibold text-primary' : 'text-gray-500'}`}>
                                 <span className={online && conversation.type === 'direct' ? 'text-green-600' : ''}>{status}</span>
                                 <span className="text-gray-300"> · </span>
-                                {conversation.last_message?.body ? previewText(conversation.last_message.body) : 'No messages yet'}
+                                {conversation.last_message ? previewText(messagePreviewLabel(conversation.last_message)) : 'No messages yet'}
                             </p>
                         </div>
                     </button>
@@ -2726,13 +2590,15 @@ function CallWindow({
     error,
     muted,
     cameraOff,
-    localVideoRef,
-    remoteVideoRef,
-    remoteAudioRef,
+    screenSharing,
+    localStream,
     remoteStream,
     remoteStreams,
     onToggleMute,
     onToggleCamera,
+    onToggleScreenShare,
+    onConsentRecording,
+    onStartRecording,
     onEnd,
     onEndAll,
 }: {
@@ -2742,13 +2608,15 @@ function CallWindow({
     error: string | null;
     muted: boolean;
     cameraOff: boolean;
-    localVideoRef: RefObject<HTMLVideoElement | null>;
-    remoteVideoRef: RefObject<HTMLVideoElement | null>;
-    remoteAudioRef: RefObject<HTMLAudioElement | null>;
+    screenSharing: boolean;
+    localStream: MediaStream | null;
     remoteStream: MediaStream | null;
     remoteStreams: Record<number, MediaStream>;
     onToggleMute: () => void;
     onToggleCamera: () => void;
+    onToggleScreenShare: () => void;
+    onConsentRecording: () => void;
+    onStartRecording: () => void;
     onEnd: () => void;
     onEndAll?: () => void;
 }) {
@@ -2767,6 +2635,9 @@ function CallWindow({
                 ? 'Connected'
                 : 'Connecting...'
     );
+    const localParticipant = group ? call.participants?.[String(currentUserId)] : null;
+    const recordingConsentNeeded = group && !localParticipant?.recording_consented_at;
+    const recordingActive = call.recording_status === 'starting' || call.recording_status === 'active';
 
     return (
         <motion.div
@@ -2794,7 +2665,7 @@ function CallWindow({
             </div>
 
             <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-primary/8">
-                {!group && !isVideo && <audio ref={remoteAudioRef} autoPlay className="hidden" />}
+                {!group && !isVideo && remoteStream && <MediaStreamAudio stream={remoteStream} />}
                 {group ? (
                     <div className={`grid h-full w-full gap-2 p-2 ${isVideo ? 'grid-cols-2' : 'grid-cols-1 content-center'}`}>
                         {participants.map((participant) => {
@@ -2823,7 +2694,7 @@ function CallWindow({
                         })}
                     </div>
                 ) : isVideo && remoteStream ? (
-                    <video ref={remoteVideoRef} autoPlay playsInline className="h-full w-full object-cover" />
+                    <MediaStreamVideo stream={remoteStream} className="h-full w-full object-cover" />
                 ) : (
                     <div className="flex flex-col items-center gap-3 text-center">
                         <Avatar user={otherUser} size="lg" />
@@ -2840,12 +2711,27 @@ function CallWindow({
                             <div className="flex h-full w-full items-center justify-center bg-primary/90 text-white">
                                 <VideoOff size={18} />
                             </div>
+                        ) : localStream ? (
+                            <MediaStreamVideo stream={localStream} muted className="h-full w-full object-cover" />
                         ) : (
-                            <video ref={localVideoRef} autoPlay muted playsInline className="h-full w-full object-cover" />
+                            <div className="flex h-full w-full items-center justify-center bg-gray-950 text-white">
+                                <Video size={18} />
+                            </div>
                         )}
                     </div>
                 )}
             </div>
+
+            {(recordingActive || recordingConsentNeeded) && (
+                <div className="border-t border-primary/10 bg-red-50 px-4 py-2 text-xs font-semibold text-red-700">
+                    {recordingActive ? 'Recording in progress' : 'Recording consent required'}
+                    {!recordingActive && recordingConsentNeeded && (
+                        <button type="button" onClick={onConsentRecording} className="ml-2 rounded-full bg-red-600 px-2 py-1 text-[11px] font-black text-white">
+                            Consent
+                        </button>
+                    )}
+                </div>
+            )}
 
             <div className="flex items-center justify-center gap-3 bg-white p-4">
                 <button
@@ -2870,6 +2756,24 @@ function CallWindow({
                 )}
                 <button
                     type="button"
+                    onClick={onToggleScreenShare}
+                    className={`flex h-11 w-11 items-center justify-center rounded-full transition ${screenSharing ? 'bg-primary text-white' : 'bg-primary/10 text-primary hover:bg-primary/15'
+                        }`}
+                    aria-label={screenSharing ? 'Stop screen sharing' : 'Share screen'}
+                >
+                    <Maximize2 size={18} />
+                </button>
+                {call.started_by === currentUserId && !recordingActive && (
+                    <button
+                        type="button"
+                        onClick={onStartRecording}
+                        className="rounded-full bg-primary/10 px-3 py-2 text-xs font-black text-primary transition hover:bg-primary/15"
+                    >
+                        Rec
+                    </button>
+                )}
+                <button
+                    type="button"
                     onClick={onEnd}
                     className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500 text-white shadow-lg shadow-red-500/25 transition hover:bg-red-600"
                     aria-label={group ? 'Leave call' : 'End call'}
@@ -2890,7 +2794,7 @@ function CallWindow({
     );
 }
 
-function MediaStreamVideo({ stream, className }: { stream: MediaStream; className?: string }) {
+function MediaStreamVideo({ stream, className, muted = false }: { stream: MediaStream; className?: string; muted?: boolean }) {
     const ref = useRef<HTMLVideoElement | null>(null);
 
     useEffect(() => {
@@ -2899,7 +2803,7 @@ function MediaStreamVideo({ stream, className }: { stream: MediaStream; classNam
         }
     }, [stream]);
 
-    return <video ref={ref} autoPlay playsInline className={className} />;
+    return <video ref={ref} autoPlay muted={muted} playsInline className={className} />;
 }
 
 function MediaStreamAudio({ stream }: { stream: MediaStream }) {
@@ -2947,7 +2851,7 @@ function MessageBubble({
     return (
         <div className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
             <div
-                className={`max-w-[78%] px-3 py-2 text-sm shadow-sm ${mine && !message.is_deleted ? 'cursor-context-menu' : ''} ${bubbleClass}`}
+                className={`group relative max-w-[78%] px-3 py-2 text-sm shadow-sm ${!message.is_deleted ? 'cursor-context-menu' : ''} ${bubbleClass}`}
                 onContextMenu={onOpenMenu}
             >
                 {editing ? (
@@ -2980,10 +2884,38 @@ function MessageBubble({
                     </div>
                 ) : (
                     <>
-                        <p className={`whitespace-pre-wrap break-words leading-relaxed ${message.is_deleted ? 'italic' : ''}`}>
-                            {message.is_deleted ? 'Message deleted' : message.body}
-                        </p>
+                        {!message.is_deleted && (
+                            <button
+                                type="button"
+                                onClick={onOpenMenu}
+                                className={`absolute top-1 ${mine ? 'left-[-30px]' : 'right-[-30px]'} hidden h-7 w-7 items-center justify-center rounded-full bg-white text-gray-500 shadow-sm ring-1 ring-primary/10 hover:text-primary group-hover:flex`}
+                                aria-label="Message actions"
+                            >
+                                <MoreHorizontal size={15} />
+                            </button>
+                        )}
+                        {message.reply_to && !message.is_deleted && (
+                            <QuotedMessagePreview message={message.reply_to} mine={mine} />
+                        )}
+                        {message.is_deleted ? (
+                            <p className="whitespace-pre-wrap break-words leading-relaxed italic">Message deleted</p>
+                        ) : (
+                            <>
+                                <MessageMedia message={message} />
+                                {message.body && (
+                                    <p className="whitespace-pre-wrap break-words leading-relaxed">
+                                        {message.body}
+                                    </p>
+                                )}
+                            </>
+                        )}
                         <div className={`mt-1 flex items-center justify-end gap-1.5 text-[10px] ${mine && !message.is_deleted ? 'text-white/70' : 'text-gray-400'}`}>
+                            {(message.likes_count ?? 0) > 0 && (
+                                <span className="inline-flex items-center gap-0.5">
+                                    <ThumbsUp size={10} />
+                                    {message.likes_count}
+                                </span>
+                            )}
                             <span>{formatTime(message.created_at)}</span>
                             {message.is_edited && !message.is_deleted && <span>edited</span>}
                             {readStatus && <span>{readStatus}</span>}
@@ -2998,14 +2930,25 @@ function MessageBubble({
 function MessageContextMenu({
     x,
     y,
+    message,
+    currentUserId,
+    onLike,
+    onReply,
     onEdit,
     onDelete,
 }: {
     x: number;
     y: number;
+    message: MessengerMessage;
+    currentUserId: number;
+    onLike: () => void;
+    onReply: () => void;
     onEdit: () => void;
     onDelete: () => void;
 }) {
+    const canManage = message.sender_id === currentUserId;
+    const canEdit = canManage && (message.type ?? 'text') === 'text' && !message.is_deleted;
+
     return (
         <div
             className="fixed z-[90] w-40 overflow-hidden rounded-xl border border-primary/10 bg-white py-1 text-sm shadow-xl shadow-primary/20"
@@ -3014,20 +2957,132 @@ function MessageContextMenu({
         >
             <button
                 type="button"
-                onClick={onEdit}
+                onClick={onLike}
                 className="flex w-full items-center gap-2 px-3 py-2 text-left text-gray-700 transition hover:bg-primary/5"
             >
-                <Pencil size={14} />
-                Modify
+                <ThumbsUp size={14} />
+                {message.user_has_liked ? 'Unlike' : 'Like'}
             </button>
             <button
                 type="button"
-                onClick={onDelete}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-red-300 transition hover:bg-red-500/10"
+                onClick={onReply}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-gray-700 transition hover:bg-primary/5"
             >
-                <Trash2 size={14} />
-                Delete
+                <MessageCircle size={14} />
+                Reply
             </button>
+            {canEdit && (
+                <button
+                    type="button"
+                    onClick={onEdit}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-gray-700 transition hover:bg-primary/5"
+                >
+                    <Pencil size={14} />
+                    Modify
+                </button>
+            )}
+            {canManage && (
+                <button
+                    type="button"
+                    onClick={onDelete}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-red-300 transition hover:bg-red-500/10"
+                >
+                    <Trash2 size={14} />
+                    Delete
+                </button>
+            )}
+        </div>
+    );
+}
+
+function ReplyComposerPreview({ message, onCancel }: { message: MessengerMessage; onCancel: () => void }) {
+    return (
+        <div className="mb-2 flex items-center gap-2 rounded-xl bg-primary/8 px-3 py-2 text-xs text-gray-600 ring-1 ring-primary/10">
+            <div className="min-w-0 flex-1 border-l-2 border-primary pl-2">
+                <div className="font-bold text-primary">Replying to {message.sender.name}</div>
+                <div className="truncate">{messagePreviewLabel(message)}</div>
+            </div>
+            <button
+                type="button"
+                onClick={onCancel}
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-gray-500 hover:bg-primary/10"
+                aria-label="Cancel reply"
+            >
+                <X size={14} />
+            </button>
+        </div>
+    );
+}
+
+function QuotedMessagePreview({ message, mine }: { message: MessengerQuotedMessage; mine: boolean }) {
+    return (
+        <div className={`mb-2 rounded-xl border-l-2 px-2 py-1.5 text-xs ${mine ? 'border-white/70 bg-white/15 text-white/85' : 'border-primary bg-primary/5 text-gray-600'}`}>
+            <div className={`font-bold ${mine ? 'text-white' : 'text-primary'}`}>{message.sender.name}</div>
+            <div className="line-clamp-2 break-words">{quotedPreviewLabel(message)}</div>
+        </div>
+    );
+}
+
+function MessageMedia({ message }: { message: MessengerMessage }) {
+    if (!message.media_url) {
+        return null;
+    }
+
+    if (message.type === 'image') {
+        return <img src={message.media_url} alt="" className="mb-2 max-h-72 rounded-xl object-cover" />;
+    }
+
+    if (message.type === 'video') {
+        return <video src={message.media_url} controls className="mb-2 max-h-72 rounded-xl bg-black" />;
+    }
+
+    if (message.type === 'audio') {
+        return <audio src={message.media_url} controls className="mb-2 w-64 max-w-full" />;
+    }
+
+    return null;
+}
+
+function CallHistoryPanel({
+    calls,
+    loading,
+    currentUserId,
+    compact = false,
+}: {
+    calls: MessengerCall[];
+    loading: boolean;
+    currentUserId: number;
+    compact?: boolean;
+}) {
+    return (
+        <div className={`${compact ? 'max-h-52 border-b border-primary/10 bg-white' : 'min-h-0 flex-1 overflow-y-auto bg-background'} px-3 py-3`}>
+            {loading ? (
+                <div className="flex items-center justify-center py-8 text-sm text-gray-400">
+                    <Loader2 size={16} className="mr-2 animate-spin" />
+                    Chargement des appels
+                </div>
+            ) : calls.length === 0 ? (
+                <div className="py-8 text-center text-sm text-gray-400">Aucun appel</div>
+            ) : (
+                <div className="space-y-2">
+                    {calls.map((call) => (
+                        <div key={call.id} className="flex items-center gap-3 rounded-xl bg-white px-3 py-2 text-sm ring-1 ring-primary/10">
+                            <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${call.status === 'ended' || call.status === 'accepted' ? 'bg-primary/10 text-primary' : 'bg-red-500/10 text-red-500'}`}>
+                                {call.type === 'video' ? <Video size={16} /> : <Phone size={16} />}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <div className="truncate font-bold text-gray-900">{callHistoryTitle(call, currentUserId)}</div>
+                                <div className="truncate text-xs text-gray-400">
+                                    {call.type === 'video' ? 'Video' : 'Audio'} · {callStatusLabel(call.status)} · {formatCallDuration(call.duration_seconds)}
+                                </div>
+                            </div>
+                            <div className="shrink-0 text-right text-[11px] text-gray-400">
+                                {call.created_at ? formatCallDate(call.created_at) : ''}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
     );
 }
@@ -3175,6 +3230,46 @@ function previewText(value: string): string {
     return value.length > 120 ? `${value.slice(0, 117)}...` : value;
 }
 
+function messagePreviewLabel(message: MessengerMessage): string {
+    if (message.is_deleted) {
+        return 'Message deleted';
+    }
+
+    if (message.body) {
+        return message.body;
+    }
+
+    return mediaTypeLabel(message.type);
+}
+
+function quotedPreviewLabel(message: MessengerQuotedMessage): string {
+    if (message.is_deleted) {
+        return 'Message deleted';
+    }
+
+    if (message.body) {
+        return message.body;
+    }
+
+    return mediaTypeLabel(message.type);
+}
+
+function mediaTypeLabel(type: MessengerMessage['type'] | MessengerQuotedMessage['type']): string {
+    if (type === 'image') {
+        return 'Image';
+    }
+
+    if (type === 'video') {
+        return 'Video';
+    }
+
+    if (type === 'audio') {
+        return 'Voice note';
+    }
+
+    return 'Message';
+}
+
 function messageReadStatus(message: MessengerMessage, otherReadAt: string | null): string {
     if (!otherReadAt) {
         return 'Sent';
@@ -3211,20 +3306,6 @@ function isGroupCall(call: MessengerCall): boolean {
     return call.callee_id === null;
 }
 
-function normalizeIceServers(servers: CallIceServer[] | undefined): RTCIceServer[] {
-    if (!servers?.length) {
-        return [{ urls: 'stun:stun.l.google.com:19302' }];
-    }
-
-    return servers
-        .filter((server) => Boolean(server.urls))
-        .map((server) => ({
-            urls: server.urls,
-            ...(server.username ? { username: server.username } : {}),
-            ...(server.credential ? { credential: server.credential } : {}),
-        }));
-}
-
 function callErrorMessage(error: unknown): string {
     if (error instanceof DOMException && error.name === 'NotAllowedError') {
         return 'Camera or microphone permission was denied.';
@@ -3237,7 +3318,7 @@ function callErrorMessage(error: unknown): string {
     return 'Unable to start the call.';
 }
 
-function callSupportError(type: MessengerCall['type']): string | null {
+function callSupportError(): string | null {
     if (typeof window === 'undefined') {
         return 'Calls are not available in this browser.';
     }
@@ -3248,10 +3329,6 @@ function callSupportError(type: MessengerCall['type']): string | null {
 
     if (!navigator.mediaDevices?.getUserMedia) {
         return 'Microphone and camera access is not available in this browser.';
-    }
-
-    if (!window.RTCPeerConnection) {
-        return `${type === 'video' ? 'Video' : 'Audio'} calls are not available in this browser.`;
     }
 
     return null;
@@ -3296,6 +3373,60 @@ function formatTime(value: string): string {
         hour: '2-digit',
         minute: '2-digit',
     }).format(new Date(value));
+}
+
+function formatCallDate(value: string): string {
+    return new Intl.DateTimeFormat(undefined, {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+    }).format(new Date(value));
+}
+
+function formatCallDuration(seconds: number | null | undefined): string {
+    if (seconds === null || typeof seconds === 'undefined') {
+        return 'En cours';
+    }
+
+    if (seconds <= 0) {
+        return '0 s';
+    }
+
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+
+    if (minutes === 0) {
+        return `${remainingSeconds} s`;
+    }
+
+    return `${minutes} min ${remainingSeconds.toString().padStart(2, '0')} s`;
+}
+
+function callStatusLabel(status: MessengerCall['status']): string {
+    if (status === 'ringing') {
+        return 'En attente';
+    }
+
+    if (status === 'accepted') {
+        return 'En cours';
+    }
+
+    if (status === 'declined') {
+        return 'Refuse';
+    }
+
+    return 'Termine';
+}
+
+function callHistoryTitle(call: MessengerCall, currentUserId: number): string {
+    if (isGroupCall(call)) {
+        return `Groupe · ${call.joined_count ?? 0}/${call.max_participants ?? 0} participants`;
+    }
+
+    const other = call.started_by === currentUserId ? call.callee : call.starter;
+
+    return other?.name ?? 'Appel';
 }
 
 function csrfHeaders(extra: HeadersInit = {}): HeadersInit {

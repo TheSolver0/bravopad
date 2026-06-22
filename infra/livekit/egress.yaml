@@ -1,0 +1,9 @@
+api_key: bravo-local-livekit
+api_secret: bravo-local-livekit-secret
+ws_url: ws://livekit:7880
+redis:
+  address: redis:6379
+
+file_outputs:
+  local:
+    directory: /recordings

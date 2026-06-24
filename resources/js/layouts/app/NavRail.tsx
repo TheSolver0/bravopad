@@ -203,22 +203,22 @@ export default function NavRail({ expanded, onToggle }: NavRailProps) {
         <GroupLabel label="Principal" expanded={expanded} />
         <NavItem href="/dashboard" icon={Home} label={t('nav.home', 'Accueil')} active={isActive(path, '/dashboard') || path === '/'} expanded={expanded} />
         <NavItem href="/messages"    icon={MessageCircle} label={t('nav.messages', 'Messages')}   active={isActive(path, '/messages')}  badge={unread} expanded={expanded} />
-        <NavItem href="/groups"      icon={Users}         label={t('nav.channels', 'Canaux')}     active={isActive(path, '/groups')}    expanded={expanded} />
+        {/* <NavItem href="/groups"      icon={Users}         label={t('nav.channels', 'Canaux')}     active={isActive(path, '/groups')}    expanded={expanded} /> */}
         <NavItem href="/team"        icon={BookUser}      label={t('nav.team', 'Collègues')}      active={isActive(path, '/team')}      expanded={expanded} />
 
         {/* ══ GROUPE 2 : RECONNAISSANCE ══ */}
         <GroupLabel label="Reconnaissance" expanded={expanded} />
         <NavItem href="/history"     icon={Award}         label={t('nav.bravos', 'Mes Bravos')}  active={isActive(path, '/history')}    accent="lime" expanded={expanded} />
-        <NavItem href="/stats"       icon={TrendingUp}    label={t('nav.ranking', 'Classement')} active={isActive(path, '/stats')}      accent="lime" expanded={expanded} />
+        {/* <NavItem href="/stats"       icon={TrendingUp}    label={t('nav.ranking', 'Classement')} active={isActive(path, '/stats')}      accent="lime" expanded={expanded} /> */}
         <NavItem href="/challenges"  icon={Trophy}        label={t('nav.challenges', 'Défis')}   active={isActive(path, '/challenges')} accent="lime" expanded={expanded} />
 
         {/* ══ GROUPE 3 : ESPACE DE TRAVAIL ══ */}
         <GroupLabel label="Espace de travail" expanded={expanded} />
-        <NavItem href="/agenda"            icon={FolderKanban}  label={t('nav.projects', 'Projets')}           active={isActive(path, '/agenda')}              expanded={expanded} />
+        <NavItem href="/agenda"            icon={FolderKanban}  label={t('nav.projects', 'Agenda')}           active={isActive(path, '/agenda')}              expanded={expanded} />
         <NavItem href="/evenements"        icon={CalendarDays}  label={t('nav.evenements', 'Événements')}      active={isActive(path, '/evenements')}          expanded={expanded} />
         <NavItem href="/event-contributions" icon={HandCoins}   label={t('nav.cotisations', 'Cotisations')}   active={isActive(path, '/event-contributions')} expanded={expanded} />
         <NavItem href="/shop"              icon={ShoppingBag}   label={t('nav.shop', 'Boutique')}              active={isActive(path, '/shop')}                expanded={expanded} />
-        <NavItem href="/documents"         icon={FileText}      label={t('nav.documents', 'Documents')}        active={isActive(path, '/documents')}            expanded={expanded} />
+        {/* <NavItem href="/documents"         icon={FileText}      label={t('nav.documents', 'Documents')}        active={isActive(path, '/documents')}            expanded={expanded} /> */}
         <NavItem href="/engagement"        icon={ClipboardList} label={t('nav.surveys', 'Sondages')}           active={isActive(path, '/engagement')}           expanded={expanded} />
         <NavItem href="/notifications"     icon={Bell}          label={t('nav.notifications', 'Notifications')} active={isActive(path, '/notifications')} badge={unread} expanded={expanded} />
 

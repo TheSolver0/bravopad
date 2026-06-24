@@ -1227,19 +1227,17 @@ function StoryRail({ users, currentUser, stories = [], onAddStory, onViewStory }
   const storyUserIds = new Set(stories.map(s => s.user_id));
   const unreadUserIds = new Set(stories.filter(s => !s.seen).map(s => s.user_id));
 
-  /* utilisateurs qui ont une story active (autres que currentUser) */
-  const storyUsers = users.filter(u => u.id !== currentUser.id && storyUserIds.has(u.id));
-  /* autres utilisateurs (pas de story), jusqu'à 6 pour compléter */
-  const otherUsers = users.filter(u => u.id !== currentUser.id && !storyUserIds.has(u.id)).slice(0, Math.max(0, 6 - storyUsers.length));
-  const displayUsers = [...storyUsers, ...otherUsers];
+  /* uniquement les utilisateurs qui ont une story active en BD */
+  const displayUsers = users.filter(u => u.id !== currentUser.id && storyUserIds.has(u.id));
 
   const myHasStory = storyUserIds.has(currentUser.id);
+  const myStory = stories.find(s => s.user_id === currentUser.id);
 
   return (
     <div className="flex gap-3 overflow-x-auto pb-1 scrollbar-hide px-4 py-3">
       {/* Ma story */}
       <button
-        onClick={onAddStory}
+        onClick={myHasStory && myStory ? () => onViewStory?.(myStory) : onAddStory}
         className="flex flex-col items-center gap-1.5 shrink-0 cursor-pointer group"
       >
         <div className="relative">
@@ -1256,12 +1254,13 @@ function StoryRail({ users, currentUser, stories = [], onAddStory, onViewStory }
               </div>
             </div>
           </div>
-          {!myHasStory && (
-            <div className="absolute bottom-0 right-0 w-5 h-5 rounded-full border-2 border-white flex items-center justify-center"
-                 style={{ background: '#0B3D7A' }}>
-              <Plus size={11} className="text-white" strokeWidth={3} />
-            </div>
-          )}
+          <div
+            className="absolute bottom-0 right-0 w-5 h-5 rounded-full border-2 border-white flex items-center justify-center"
+            style={{ background: '#0B3D7A' }}
+            onClick={myHasStory ? e => { e.stopPropagation(); onAddStory?.(); } : undefined}
+          >
+            <Plus size={11} className="text-white" strokeWidth={3} />
+          </div>
         </div>
         <span className="text-[11px] text-[#46586E] font-medium whitespace-nowrap">Ma story</span>
       </button>

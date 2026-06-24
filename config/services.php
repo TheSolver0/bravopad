@@ -44,8 +44,8 @@ return [
     ],
 
     'chatbot' => [
-        'ghostscript_path' => env('GHOSTSCRIPT_PATH', 'C:/Program Files/gs/gs10.05.0/bin/gswin64c.exe'),
-        'tesseract_path'   => env('TESSERACT_PATH',   'C:/Program Files/Tesseract-OCR/tesseract.exe'),
+        'ghostscript_path' => env('GHOSTSCRIPT_PATH'), // auto-detected in ManualIndexer: gswin64c (Windows) / gs (Linux)
+        'tesseract_path'   => env('TESSERACT_PATH'),   // defaults to 'tesseract' on PATH
         'tesseract_lang'   => env('TESSERACT_LANG',   'fra'),
     ],
 

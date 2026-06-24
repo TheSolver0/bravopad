@@ -13,8 +13,9 @@ class ManualIndexer
 
     public function __construct()
     {
-        $this->gsPath        = config('services.chatbot.ghostscript_path', 'gswin64c');
-        $this->tesseractPath = config('services.chatbot.tesseract_path',  'tesseract');
+        $defaultGs           = PHP_OS_FAMILY === 'Windows' ? 'gswin64c' : 'gs';
+        $this->gsPath        = config('services.chatbot.ghostscript_path') ?: $defaultGs;
+        $this->tesseractPath = config('services.chatbot.tesseract_path') ?: 'tesseract';
         $this->lang          = config('services.chatbot.tesseract_lang',  'fra');
     }
 
@@ -60,12 +61,18 @@ class ManualIndexer
      */
     private function pdfToImages(string $pdfPath, string $outDir): array
     {
+        // Copy to an ASCII-only filename so Ghostscript never receives Unicode in the shell argument.
+        $safePdf = $outDir . DIRECTORY_SEPARATOR . 'input.pdf';
+        if (! copy($pdfPath, $safePdf)) {
+            throw new RuntimeException("Impossible de copier le PDF vers le répertoire temporaire : {$pdfPath}");
+        }
+
         $pattern = $outDir . DIRECTORY_SEPARATOR . 'page-%03d.png';
         $cmd     = sprintf(
-            '"%s" -dNOPAUSE -dBATCH -dSAFER -sDEVICE=png16m -r200 -sOutputFile="%s" "%s" 2>&1',
-            $this->gsPath,
-            $pattern,
-            $pdfPath,
+            '%s -dNOPAUSE -dBATCH -dSAFER -sDEVICE=png16m -r200 -sOutputFile=%s %s 2>&1',
+            escapeshellarg($this->gsPath),
+            escapeshellarg($pattern),
+            escapeshellarg($safePdf),
         );
 
         exec($cmd, $output, $exitCode);
